@@ -1,48 +1,11 @@
-# Wordpress - ignore core, configuration, examples, uploads and logs.
-# https://github.com/github/gitignore/blob/main/WordPress.gitignore
-
-# Core
-#
-# Note: if you want to stage/commit WP core files
-# you can delete this whole section/until Configuration.
-/wp-admin/
-/wp-content/index.php
-/wp-content/languages
-/wp-content/plugins/index.php
-/wp-content/themes/index.php
-/wp-includes/
-/index.php
-/license.txt
-/readme.html
-/wp-*.php
-/xmlrpc.php
-
-# Configuration
-wp-config.php
-
-# Example themes
-/wp-content/themes/twenty*/
-
-# Example plugin
-/wp-content/plugins/hello.php
-
-# Uploads
-/wp-content/uploads/
-
-# Log files
+node_modules/
+# Anchored, so it means Composer's directory at the repository root -- an unanchored
+# `vendor/` also matches assets/vendor/, which silently left the vendored PixiJS out of
+# the checkout and made the plugin uninstallable without a build step.
+/vendor/
+.DS_Store
 *.log
+.phpunit.result.cache
 
-# htaccess
-/.htaccess
-
-# All plugins
-#
-# Note: If you wish to whitelist plugins,
-# uncomment the next line
-#/wp-content/plugins
-
-# All themes
-#
-# Note: If you wish to whitelist themes,
-# uncomment the next line
-#/wp-content/themes
+# assets/vendor/ and assets/js/ are deliberately committed: the plugin must be
+# installable straight from a checkout, without an npm install.

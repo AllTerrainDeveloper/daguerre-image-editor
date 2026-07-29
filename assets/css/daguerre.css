@@ -1,0 +1,1649 @@
+/**
+ * Daguerre editor styles.
+ *
+ * Colours are declared as custom properties that *fall back* to Daguerre's own
+ * palette but prefer Desktop Mode's when it is present. That is what lets the
+ * native control fallbacks still look like they belong inside a desktop window:
+ * even when `<wpd-range-field>` is unavailable and a plain range input is used
+ * instead, it picks up the shell's foreground, accent and surface colours.
+ *
+ * Written with logical properties throughout so right-to-left locales work without
+ * a separate stylesheet.
+ */
+
+/*
+ * Make the `hidden` attribute actually hide things.
+ *
+ * The UA stylesheet implements `hidden` as `display: none`, but any author rule
+ * setting `display` beats it -- and almost everything here is a flex container. So
+ * `element.hidden = true` would set the attribute, pass every test, and change
+ * nothing on screen. This restores the expected meaning at a specificity that wins
+ * over the single-class layout rules below.
+ */
+.dg-editor [ hidden ] {
+	display: none;
+}
+
+.dg-editor {
+	--dg-bg: var( --wpd-bg, #1d2327 );
+	--dg-surface: var( --wpd-surface, #2c3338 );
+	--dg-surface-raised: var( --wpd-surface-raised, #3c434a );
+	--dg-fg: var( --wpd-fg, #f0f0f1 );
+	--dg-fg-muted: var( --wpd-fg-muted, #a7aaad );
+	--dg-accent: var( --wpd-accent, #3582c4 );
+	--dg-border: var( --wpd-border, rgba( 255, 255, 255, 0.12 ) );
+	--dg-radius: var( --wpd-button-border-radius, 6px );
+	--dg-sidebar-width: 300px;
+
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	background: var( --dg-bg );
+	color: var( --dg-fg );
+	font-size: 13px;
+}
+
+/* -- The full-screen admin page ------------------------------------------- */
+
+/*
+ * The editor wants the whole viewport. WordPress's admin wrapper adds padding and
+ * a footer that would otherwise push the canvas into a scroll region, so on this
+ * one screen they are collapsed.
+ */
+.daguerre-page #wpcontent,
+.daguerre-page #wpbody-content {
+	padding-block-end: 0;
+	padding-inline-start: 0;
+}
+
+.daguerre-page #wpfooter {
+	display: none;
+}
+
+.daguerre-page .dg-editor--page {
+	block-size: calc( 100vh - var( --wp-admin--admin-bar--height, 32px ) );
+}
+
+/* -- Toolbar --------------------------------------------------------------- */
+
+.dg-topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 10px 16px;
+	background: var( --dg-surface );
+	border-block-end: 1px solid var( --dg-border );
+	flex: 0 0 auto;
+}
+
+.dg-topbar__title {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var( --dg-fg );
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.dg-topbar__actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
+/* -- Body ------------------------------------------------------------------ */
+
+.dg-body {
+	display: flex;
+	flex: 1 1 auto;
+	min-block-size: 0;
+}
+
+.dg-stage {
+	position: relative;
+	flex: 1 1 auto;
+	min-inline-size: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	/*
+	 * A layer dragged off the canvas takes its handles with it. Without this they
+	 * would be drawn over the sidebar and the toolbar, which both sit outside the
+	 * stage but have no stacking context of their own to hide behind.
+	 */
+	overflow: hidden;
+
+	/*
+	 * The pasteboard: everything outside the canvas. Deliberately flat and darker
+	 * than the canvas, with no texture at all, so the edge of the document is
+	 * unmistakable even when a layer has been dragged half off it.
+	 */
+	background-color: #0b0e11;
+}
+
+/*
+ * The canvas itself. The checkerboard lives here and only here, where it carries
+ * an actual meaning -- "these pixels are transparent". Using it for the pasteboard
+ * too made the two indistinguishable, so there was no way to see where the document
+ * ended.
+ */
+.dg-canvas-backdrop {
+	position: absolute;
+	z-index: 0;
+	border-radius: 1px;
+	box-shadow:
+		0 0 0 1px rgba( 255, 255, 255, 0.25 ),
+		0 8px 28px rgba( 0, 0, 0, 0.55 );
+
+	background-color: #23282d;
+	background-image:
+		linear-gradient( 45deg, rgba( 255, 255, 255, 0.055 ) 25%, transparent 25% ),
+		linear-gradient( -45deg, rgba( 255, 255, 255, 0.055 ) 25%, transparent 25% ),
+		linear-gradient( 45deg, transparent 75%, rgba( 255, 255, 255, 0.055 ) 75% ),
+		linear-gradient( -45deg, transparent 75%, rgba( 255, 255, 255, 0.055 ) 75% );
+	background-size: 20px 20px;
+	background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
+.dg-canvas {
+	display: block;
+	inline-size: 100%;
+	block-size: 100%;
+	/* Above the backdrop, below the tool overlays. */
+	position: relative;
+	z-index: 1;
+}
+
+.dg-status {
+	margin: 0;
+	padding: 24px;
+	color: var( --dg-fg-muted );
+	text-align: center;
+	max-inline-size: 40ch;
+}
+
+.dg-status--error {
+	color: #f86368;
+}
+
+/* -- Sidebar --------------------------------------------------------------- */
+
+.dg-sidebar {
+	flex: 0 0 var( --dg-sidebar-width );
+	inline-size: var( --dg-sidebar-width );
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 12px;
+	background: var( --dg-surface );
+	border-inline-start: 1px solid var( --dg-border );
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.dg-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.dg-section__heading {
+	margin: 0;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var( --dg-fg-muted );
+}
+
+/* -- Sidebar header and the tool picker ------------------------------------ */
+
+.dg-sidebar__header {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	flex: 0 0 auto;
+}
+
+.dg-sidebar__title {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var( --dg-fg-muted );
+}
+
+.dg-sidebar__picker-toggle {
+	appearance: none;
+	border: 1px solid transparent;
+	border-radius: var( --dg-radius );
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 14px;
+	line-height: 1;
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.dg-sidebar__picker-toggle:hover,
+.dg-sidebar__picker-toggle[ aria-expanded='true' ] {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-sidebar__picker-toggle:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+.dg-picker-menu {
+	position: absolute;
+	inset-block-start: calc( 100% + 4px );
+	inset-inline-end: 0;
+	z-index: 10;
+	min-inline-size: 180px;
+	padding: 6px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	background: var( --dg-surface-raised );
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+	box-shadow: 0 6px 20px rgba( 0, 0, 0, 0.35 );
+}
+
+.dg-picker-menu__item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border-radius: 4px;
+	font-size: 12px;
+	color: var( --dg-fg );
+	cursor: pointer;
+}
+
+.dg-picker-menu__item:hover {
+	background: rgba( 255, 255, 255, 0.06 );
+}
+
+/* -- Collapsible panels ---------------------------------------------------- */
+
+.dg-panels {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.dg-panel {
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+	background: rgba( 255, 255, 255, 0.02 );
+	overflow: hidden;
+}
+
+.dg-panel__header {
+	inline-size: 100%;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 9px;
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	text-align: start;
+	cursor: pointer;
+}
+
+.dg-panel__header:hover {
+	color: var( --dg-fg );
+	background: rgba( 255, 255, 255, 0.04 );
+}
+
+.dg-panel__header:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: -2px;
+}
+
+.dg-panel__chevron {
+	display: inline-block;
+	font-size: 9px;
+	transform: rotate( 90deg );
+	transition: transform 140ms ease;
+}
+
+.dg-panel.is-collapsed .dg-panel__chevron {
+	transform: rotate( 0deg );
+}
+
+/* The chevron points the other way in right-to-left locales. */
+[ dir='rtl' ] .dg-panel.is-collapsed .dg-panel__chevron {
+	transform: rotate( 180deg );
+}
+
+.dg-panel__body {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 4px 9px 11px;
+}
+
+/* -- Image info ------------------------------------------------------------ */
+
+.dg-info {
+	margin: 0;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 4px 12px;
+	font-size: 12px;
+}
+
+.dg-info dt {
+	color: var( --dg-fg-muted );
+}
+
+.dg-info dd {
+	margin: 0;
+	color: var( --dg-fg );
+	font-variant-numeric: tabular-nums;
+}
+
+/* -- Histogram ------------------------------------------------------------- */
+
+.dg-histogram {
+	position: relative;
+	block-size: 120px;
+	border-radius: var( --dg-radius );
+	background: #0d1013;
+	border: 1px solid var( --dg-border );
+	overflow: hidden;
+}
+
+.dg-histogram__canvas {
+	display: block;
+	inline-size: 100%;
+	block-size: 100%;
+}
+
+/* -- Adjustment rows ------------------------------------------------------- */
+
+.dg-adjust {
+	display: flex;
+	align-items: flex-end;
+	gap: 6px;
+}
+
+.dg-adjust > :first-child {
+	flex: 1 1 auto;
+	min-inline-size: 0;
+}
+
+.dg-adjust__reset {
+	flex: 0 0 auto;
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+/*
+ * The reset control only appears on hover or focus. It is one per slider, and
+ * seven of them competing for attention would drown out the sliders themselves --
+ * but hiding it from keyboard users would make it unreachable, hence :focus-within.
+ */
+.dg-adjust:hover .dg-adjust__reset,
+.dg-adjust:focus-within .dg-adjust__reset {
+	opacity: 1;
+}
+
+/* -- Generic labelled field ------------------------------------------------ */
+
+.dg-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.dg-field__label {
+	font-size: 12px;
+	color: var( --dg-fg );
+}
+
+select.dg-field__control {
+	inline-size: 100%;
+	max-inline-size: 100%;
+	padding: 4px 6px;
+	font-size: 12px;
+	color: var( --dg-fg );
+	background: var( --dg-surface-raised );
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+}
+
+select.dg-field__control:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+/* -- Saved banner ---------------------------------------------------------- */
+
+.dg-saved {
+	margin: 0;
+	padding: 8px 10px;
+	border-radius: var( --dg-radius );
+	background: rgba( 0, 163, 42, 0.15 );
+	border: 1px solid rgba( 0, 163, 42, 0.4 );
+	font-size: 12px;
+	color: var( --dg-fg );
+}
+
+.dg-saved a {
+	color: var( --dg-accent );
+}
+
+/* -- Native slider fallback ------------------------------------------------ */
+
+.dg-slider {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.dg-slider__head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.dg-slider__label {
+	font-size: 12px;
+	color: var( --dg-fg );
+}
+
+.dg-slider__value {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	color: var( --dg-fg-muted );
+}
+
+.dg-slider.is-modified .dg-slider__value {
+	color: var( --dg-accent );
+	font-weight: 600;
+}
+
+.dg-slider__input {
+	inline-size: 100%;
+	margin: 0;
+	accent-color: var( --dg-accent );
+	cursor: ew-resize;
+}
+
+.dg-slider__input:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 2px;
+}
+
+/* -- Buttons --------------------------------------------------------------- */
+
+button.dg-button {
+	appearance: none;
+	border: 1px solid transparent;
+	border-radius: var( --dg-radius );
+	padding: 5px 10px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var( --dg-fg );
+	background: transparent;
+	cursor: pointer;
+}
+
+button.dg-button:hover:not( .is-disabled ) {
+	background: var( --dg-surface-raised );
+}
+
+button.dg-button--primary {
+	background: var( --dg-accent );
+	color: #fff;
+}
+
+button.dg-button--secondary {
+	border-color: var( --dg-border );
+}
+
+button.dg-button:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+.dg-button.is-disabled,
+.dg-button[ disabled ] {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
+.dg-button.is-pressed {
+	background: var( --dg-accent );
+	color: #fff;
+}
+
+/* -- Picker ---------------------------------------------------------------- */
+
+.dg-picker {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 24px 24px 48px;
+}
+
+.dg-picker__heading {
+	margin: 0;
+	font-size: 20px;
+}
+
+.dg-picker__status {
+	margin: 0;
+	color: #646970;
+}
+
+.dg-picker__status--error {
+	color: #d63638;
+}
+
+.dg-picker__grid {
+	display: grid;
+	grid-template-columns: repeat( auto-fill, minmax( 150px, 1fr ) );
+	gap: 14px;
+}
+
+.dg-picker__tile {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	text-decoration: none;
+	color: inherit;
+	border-radius: 8px;
+	padding: 6px;
+	border: 1px solid transparent;
+	transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.dg-picker__tile:hover,
+.dg-picker__tile:focus-visible {
+	border-color: #3582c4;
+	background: rgba( 53, 130, 196, 0.08 );
+	outline: none;
+}
+
+.dg-picker__thumb {
+	inline-size: 100%;
+	aspect-ratio: 1;
+	object-fit: cover;
+	border-radius: 6px;
+	background: #f0f0f1;
+	display: block;
+}
+
+.dg-picker__caption {
+	font-size: 12px;
+	line-height: 1.3;
+	color: #50575e;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* -- Overlay host ---------------------------------------------------------- */
+
+/*
+ * Above the media modal (z-index 160000) so the editor is not trapped behind the
+ * thing that opened it.
+ */
+.dg-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 200000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: rgba( 0, 0, 0, 0.65 );
+}
+
+.dg-overlay__dialog {
+	inline-size: min( 1400px, 100% );
+	block-size: min( 900px, 100% );
+	display: flex;
+	border-radius: 8px;
+	overflow: hidden;
+	box-shadow: 0 20px 60px rgba( 0, 0, 0, 0.5 );
+}
+
+.dg-overlay__editor {
+	inline-size: 100%;
+	block-size: 100%;
+	display: flex;
+}
+
+.dg-overlay__editor .dg-editor {
+	inline-size: 100%;
+}
+
+/* Stop the page behind the overlay scrolling under it. */
+body.dg-overlay-open {
+	overflow: hidden;
+}
+
+.dg-modal-button {
+	margin-block-start: 6px;
+}
+
+@media ( max-width: 782px ) {
+	.dg-overlay {
+		padding: 0;
+	}
+
+	.dg-overlay__dialog {
+		inline-size: 100%;
+		block-size: 100%;
+		border-radius: 0;
+	}
+}
+
+/* -- Fallback toasts ------------------------------------------------------- */
+
+/* Only used when Desktop Mode's own toast system is unavailable. */
+.dg-toasts {
+	position: fixed;
+	inset-block-start: 48px;
+	inset-inline-end: 16px;
+	z-index: 100000;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	pointer-events: none;
+}
+
+.dg-toast {
+	padding: 10px 14px;
+	border-radius: 6px;
+	background: #1d2327;
+	color: #f0f0f1;
+	font-size: 13px;
+	box-shadow: 0 4px 16px rgba( 0, 0, 0, 0.3 );
+	max-inline-size: 40ch;
+	opacity: 1;
+	transition: opacity 300ms ease;
+}
+
+.dg-toast--success {
+	border-inline-start: 3px solid #00a32a;
+}
+
+.dg-toast--error {
+	border-inline-start: 3px solid #d63638;
+}
+
+.dg-toast.is-leaving {
+	opacity: 0;
+}
+
+/* -- Narrow viewports ------------------------------------------------------ */
+
+@media ( max-width: 782px ) {
+	.dg-body {
+		flex-direction: column;
+	}
+
+	.dg-sidebar {
+		flex-basis: auto;
+		inline-size: 100%;
+		border-inline-start: none;
+		border-block-start: 1px solid var( --dg-border );
+	}
+
+	.dg-stage {
+		min-block-size: 40vh;
+	}
+
+	/* Touch has no hover, so the per-slider reset has to stay visible. */
+	.dg-adjust__reset {
+		opacity: 1;
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.dg-adjust__reset,
+	.dg-toast {
+		transition: none;
+	}
+}
+
+/* -- Crop overlay ---------------------------------------------------------- */
+
+/*
+ * Sits over the canvas rather than being drawn into it: the crop is a UI
+ * affordance, not part of the image, and re-rendering a photograph on every
+ * pointer move to redraw a dashed line would be absurd.
+ */
+.dg-crop {
+	position: absolute;
+	z-index: 2;
+	pointer-events: none;
+	/*
+	 * NOT clipped. The handles overhang the rectangle's edges by design, and
+	 * clipping here would slice them in half.
+	 */
+	overflow: visible;
+}
+
+/*
+ * The dimming is a 9999px box-shadow, which does have to be clipped to the image or
+ * it would cover the entire page. It therefore lives in its own clipped layer,
+ * separate from the one carrying the border and handles.
+ */
+.dg-crop__clip {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.dg-crop__dim {
+	position: absolute;
+	box-shadow: 0 0 0 9999px rgba( 0, 0, 0, 0.45 );
+}
+
+.dg-crop__box {
+	position: absolute;
+	pointer-events: auto;
+	cursor: move;
+	border: 1px solid rgba( 255, 255, 255, 0.9 );
+	touch-action: none;
+}
+
+.dg-crop__guide {
+	position: absolute;
+	background: rgba( 255, 255, 255, 0.35 );
+	pointer-events: none;
+}
+
+.dg-crop__guide--v1,
+.dg-crop__guide--v2 {
+	inline-size: 1px;
+	inset-block: 0;
+}
+
+.dg-crop__guide--v1 {
+	inset-inline-start: 33.33%;
+}
+
+.dg-crop__guide--v2 {
+	inset-inline-start: 66.66%;
+}
+
+.dg-crop__guide--h1,
+.dg-crop__guide--h2 {
+	block-size: 1px;
+	inset-inline: 0;
+}
+
+.dg-crop__guide--h1 {
+	inset-block-start: 33.33%;
+}
+
+.dg-crop__guide--h2 {
+	inset-block-start: 66.66%;
+}
+
+.dg-crop__handle {
+	position: absolute;
+	inline-size: 14px;
+	block-size: 14px;
+	background: #fff;
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px rgba( 0, 0, 0, 0.4 );
+	touch-action: none;
+}
+
+.dg-crop__handle--nw { inset-block-start: -7px; inset-inline-start: -7px; cursor: nwse-resize; }
+.dg-crop__handle--ne { inset-block-start: -7px; inset-inline-end: -7px; cursor: nesw-resize; }
+.dg-crop__handle--sw { inset-block-end: -7px; inset-inline-start: -7px; cursor: nesw-resize; }
+.dg-crop__handle--se { inset-block-end: -7px; inset-inline-end: -7px; cursor: nwse-resize; }
+
+.dg-crop__handle--n { inset-block-start: -7px; inset-inline-start: calc( 50% - 7px ); cursor: ns-resize; }
+.dg-crop__handle--s { inset-block-end: -7px; inset-inline-start: calc( 50% - 7px ); cursor: ns-resize; }
+.dg-crop__handle--w { inset-inline-start: -7px; inset-block-start: calc( 50% - 7px ); cursor: ew-resize; }
+.dg-crop__handle--e { inset-inline-end: -7px; inset-block-start: calc( 50% - 7px ); cursor: ew-resize; }
+
+/* -- Curve editor ---------------------------------------------------------- */
+
+.dg-curve {
+	inline-size: 100%;
+	border-radius: var( --dg-radius );
+	background: #0d1013;
+	border: 1px solid var( --dg-border );
+	overflow: hidden;
+}
+
+.dg-curve__canvas {
+	display: block;
+	inline-size: 100%;
+	touch-action: none;
+	cursor: crosshair;
+}
+
+.dg-curve__canvas:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: -2px;
+}
+
+.dg-hint {
+	margin: 0;
+	font-size: 11px;
+	line-height: 1.4;
+	color: var( --dg-fg-muted );
+}
+
+/* -- Button rows ----------------------------------------------------------- */
+
+.dg-buttons {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.dg-buttons .dg-button {
+	flex: 1 1 auto;
+	font-size: 15px;
+	line-height: 1;
+	padding: 6px 8px;
+}
+
+/* -- Presets --------------------------------------------------------------- */
+
+.dg-presets {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.dg-preset {
+	display: flex;
+	align-items: stretch;
+	gap: 2px;
+}
+
+.dg-preset__apply {
+	flex: 1 1 auto;
+	appearance: none;
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+	background: transparent;
+	color: var( --dg-fg );
+	font-size: 12px;
+	text-align: start;
+	padding: 5px 8px;
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dg-preset__apply:hover {
+	background: var( --dg-surface-raised );
+}
+
+.dg-preset__delete {
+	flex: 0 0 auto;
+	appearance: none;
+	border: 1px solid transparent;
+	border-radius: var( --dg-radius );
+	background: transparent;
+	color: var( --dg-fg-muted );
+	cursor: pointer;
+	padding: 0 8px;
+	font-size: 15px;
+	line-height: 1;
+}
+
+.dg-preset__delete:hover {
+	color: #f86368;
+	background: rgba( 248, 99, 104, 0.12 );
+}
+
+.dg-preset__apply:focus-visible,
+.dg-preset__delete:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+input.dg-field__control {
+	inline-size: 100%;
+	padding: 5px 8px;
+	font-size: 12px;
+	color: var( --dg-fg );
+	background: var( --dg-surface-raised );
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+}
+
+/* -- Transform handles ------------------------------------------------------ */
+
+/*
+ * These act on the layer, never on the canvas. That is what keeps a drag stable:
+ * the surface the pointer is measured against cannot move mid-gesture.
+ */
+.dg-transform {
+	position: absolute;
+	pointer-events: none;
+	overflow: visible;
+	z-index: 2;
+}
+
+.dg-transform__box {
+	position: absolute;
+	pointer-events: auto;
+	cursor: move;
+	border: 1px solid rgba( 120, 190, 255, 0.95 );
+	touch-action: none;
+	box-sizing: border-box;
+}
+
+.dg-transform__handle {
+	position: absolute;
+	inline-size: 12px;
+	block-size: 12px;
+	background: #fff;
+	border: 1px solid rgba( 0, 0, 0, 0.45 );
+	border-radius: 2px;
+	touch-action: none;
+}
+
+.dg-transform__handle--nw { inset-block-start: -6px; inset-inline-start: -6px; cursor: nwse-resize; }
+.dg-transform__handle--ne { inset-block-start: -6px; inset-inline-end: -6px; cursor: nesw-resize; }
+.dg-transform__handle--sw { inset-block-end: -6px; inset-inline-start: -6px; cursor: nesw-resize; }
+.dg-transform__handle--se { inset-block-end: -6px; inset-inline-end: -6px; cursor: nwse-resize; }
+
+/* The rotation handle floats above the top edge on a short stem. */
+.dg-transform__stem {
+	position: absolute;
+	inset-block-start: -24px;
+	inset-inline-start: calc( 50% - 1px );
+	inline-size: 2px;
+	block-size: 24px;
+	background: rgba( 120, 190, 255, 0.95 );
+	pointer-events: none;
+}
+
+.dg-transform__handle--rotate {
+	inset-block-start: -34px;
+	inset-inline-start: calc( 50% - 7px );
+	inline-size: 14px;
+	block-size: 14px;
+	border-radius: 50%;
+	cursor: grab;
+	background: #78beff;
+}
+
+.dg-transform__handle--rotate:active {
+	cursor: grabbing;
+}
+
+/* -- Canvas size fields ----------------------------------------------------- */
+
+.dg-size {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+.dg-size > * {
+	min-inline-size: 0;
+}
+
+.dg-transform__handle--n { inset-block-start: -6px; inset-inline-start: calc( 50% - 6px ); cursor: ns-resize; }
+.dg-transform__handle--s { inset-block-end: -6px; inset-inline-start: calc( 50% - 6px ); cursor: ns-resize; }
+.dg-transform__handle--w { inset-inline-start: -6px; inset-block-start: calc( 50% - 6px ); cursor: ew-resize; }
+.dg-transform__handle--e { inset-inline-end: -6px; inset-block-start: calc( 50% - 6px ); cursor: ew-resize; }
+
+/* -- Hiding the sidebar ----------------------------------------------------- */
+
+.dg-sidebar__actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.dg-sidebar__hide {
+	appearance: none;
+	border: 1px solid transparent;
+	border-radius: var( --dg-radius );
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 13px;
+	line-height: 1;
+	padding: 3px 7px;
+	cursor: pointer;
+}
+
+.dg-sidebar__hide:hover {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-sidebar__hide:focus-visible,
+.dg-sidebar-tab:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+/* Removed from the layout entirely rather than narrowed — the point of hiding it
+   is to give the picture the whole window. */
+.dg-editor.is-sidebar-hidden .dg-sidebar {
+	display: none;
+}
+
+/*
+ * The tab that brings it back: a vertical strip on the trailing edge, always in
+ * reach. Absolutely positioned so it costs the stage no width.
+ */
+.dg-sidebar-tab {
+	position: absolute;
+	inset-inline-end: 0;
+	inset-block-start: 50%;
+	transform: translateY( -50% );
+	z-index: 5;
+
+	appearance: none;
+	border: 1px solid var( --dg-border );
+	border-inline-end: none;
+	border-start-start-radius: var( --dg-radius );
+	border-end-start-radius: var( --dg-radius );
+	background: var( --dg-surface );
+	color: var( --dg-fg-muted );
+	cursor: pointer;
+
+	padding: 14px 6px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/*
+ * Reads like a book spine. Kept on a child so the button's own logical properties
+ * still resolve against the horizontal axis -- setting writing-mode on the button
+ * itself makes `inset-block-start` mean "from the right", which put the tab in the
+ * wrong corner entirely.
+ */
+.dg-sidebar-tab__label {
+	writing-mode: vertical-rl;
+	text-orientation: mixed;
+}
+
+.dg-sidebar-tab:hover {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-body {
+	position: relative;
+}
+
+/* -- Linked-axis checkbox --------------------------------------------------- */
+
+.dg-check {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	color: var( --dg-fg-muted );
+	cursor: pointer;
+}
+
+/* -- Tool rail -------------------------------------------------------------- */
+
+.dg-rail {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 5px;
+	background: var( --dg-surface );
+	border-inline-end: 1px solid var( --dg-border );
+	overflow-y: auto;
+}
+
+/*
+ * Two columns: sixteen tools in one column is taller than most browser windows, and
+ * a tool you have to scroll to is a tool you stop using.
+ */
+.dg-rail__grid {
+	display: grid;
+	grid-template-columns: repeat( 2, auto );
+	gap: 2px;
+}
+
+/* A separator spans both columns, so groups read as bands rather than as gaps. */
+.dg-rail__rule {
+	grid-column: 1 / -1;
+	block-size: 1px;
+	margin: 4px 2px;
+	background: var( --dg-border );
+}
+
+.dg-rail__button {
+	appearance: none;
+	inline-size: 30px;
+	block-size: 30px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid transparent;
+	border-radius: var( --dg-radius );
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 16px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.dg-rail__button:hover {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-rail__button.is-active {
+	background: var( --dg-accent );
+	color: #fff;
+}
+
+.dg-rail__button:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+/* The cursor is the clearest signal of which tool has the stage. */
+.dg-stage[ data-tool='select' ],
+.dg-stage[ data-tool='brush' ],
+.dg-stage[ data-tool='eraser' ],
+.dg-stage[ data-tool='retouch' ],
+.dg-stage[ data-tool='tone' ],
+.dg-stage[ data-tool='clone' ],
+.dg-stage[ data-tool='gradient' ],
+.dg-stage[ data-tool='shape' ] { cursor: crosshair; }
+.dg-stage[ data-tool='fill' ],
+.dg-stage[ data-tool='wand' ] { cursor: cell; }
+.dg-stage[ data-tool='eyedropper' ] { cursor: copy; }
+.dg-stage[ data-tool='text' ] { cursor: text; }
+.dg-stage[ data-tool='zoom' ] { cursor: zoom-in; }
+.dg-stage[ data-tool='hand' ] { cursor: grab; }
+.dg-stage[ data-tool='hand' ]:active { cursor: grabbing; }
+
+/* -- Colour swatches -------------------------------------------------------- */
+
+.dg-swatches {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto auto;
+	align-items: center;
+	justify-items: center;
+	gap: 2px;
+	padding-block-start: 4px;
+	border-block-start: 1px solid var( --dg-border );
+}
+
+/*
+ * The two chips overlap, which is the arrangement every editor uses: it shows at a
+ * glance which colour is in front without needing labels.
+ */
+.dg-swatches__stack {
+	position: relative;
+	grid-column: 1 / -1;
+	inline-size: 44px;
+	block-size: 40px;
+	margin-block-end: 2px;
+}
+
+.dg-swatches__chip {
+	position: absolute;
+	inline-size: 26px;
+	block-size: 26px;
+	border: 1px solid var( --dg-border-strong, rgba( 0, 0, 0, 0.5 ) );
+	border-radius: 2px;
+	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.4 );
+	cursor: pointer;
+	padding: 0;
+}
+
+.dg-swatches__chip--colour {
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	z-index: 2;
+}
+
+.dg-swatches__chip--background {
+	inset-block-end: 0;
+	inset-inline-end: 0;
+	z-index: 1;
+}
+
+.dg-swatches__chip:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+.dg-swatches__action {
+	appearance: none;
+	inline-size: 20px;
+	block-size: 20px;
+	padding: 0;
+	border: 0;
+	border-radius: 3px;
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 12px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.dg-swatches__action:hover {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-swatch-popover {
+	position: absolute;
+	z-index: 20;
+	inset-block-start: 100%;
+	inset-inline-start: 0;
+	inline-size: 208px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	background: var( --dg-surface-raised );
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+	box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.45 );
+}
+
+.dg-swatch-popover__palette {
+	display: grid;
+	grid-template-columns: repeat( 6, 1fr );
+	gap: 4px;
+}
+
+.dg-swatch-popover__chip {
+	appearance: none;
+	block-size: 22px;
+	padding: 0;
+	border: 1px solid var( --dg-border );
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.dg-swatch-popover__chip:hover {
+	transform: scale( 1.12 );
+}
+
+/* -- Drag preview ----------------------------------------------------------- */
+
+/*
+ * Shown while dragging out a gradient or a shape. Screen-space SVG rather than a real
+ * render: committing a canvas-sized bitmap on every pointer move would allocate and
+ * upload megabytes per frame to show something an outline conveys perfectly.
+ */
+.dg-drag-preview {
+	position: absolute;
+	inset: 0;
+	z-index: 4;
+	pointer-events: none;
+	inline-size: 100%;
+	block-size: 100%;
+}
+
+.dg-drag-preview path {
+	fill: none;
+	stroke: #fff;
+	stroke-width: 1;
+	stroke-dasharray: 5 4;
+	paint-order: stroke;
+	filter: drop-shadow( 0 0 1px rgba( 0, 0, 0, 0.9 ) );
+}
+
+/* -- Selection marquee ------------------------------------------------------ */
+
+/*
+ * Marching ants: two dashed borders in opposite colours, one animated, so the
+ * outline stays visible over both light and dark pixels.
+ */
+.dg-selection {
+	position: absolute;
+	z-index: 3;
+	pointer-events: none;
+	outline: 1px dashed rgba( 0, 0, 0, 0.9 );
+	border: 1px dashed rgba( 255, 255, 255, 0.95 );
+	animation: dg-ants 640ms linear infinite;
+}
+
+@keyframes dg-ants {
+	to {
+		background-position: 8px 0;
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.dg-selection {
+		animation: none;
+	}
+}
+
+/* -- Layers ----------------------------------------------------------------- */
+
+.dg-layers {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.dg-layer {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border: 1px solid transparent;
+	border-radius: var( --dg-radius );
+	padding: 2px;
+}
+
+.dg-layer.is-active {
+	border-color: var( --dg-accent );
+	background: rgba( 53, 130, 196, 0.12 );
+}
+
+.dg-layer__name {
+	flex: 1 1 auto;
+	min-inline-size: 0;
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: var( --dg-fg );
+	font-size: 12px;
+	text-align: start;
+	padding: 4px 6px;
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dg-layer__eye,
+.dg-layer__move,
+.dg-layer__delete {
+	flex: 0 0 auto;
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 12px;
+	line-height: 1;
+	padding: 4px 5px;
+	cursor: pointer;
+	border-radius: 3px;
+}
+
+.dg-layer__eye:hover,
+.dg-layer__move:hover {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-layer__delete:hover {
+	color: #f86368;
+	background: rgba( 248, 99, 104, 0.12 );
+}
+
+.dg-layer button:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: -1px;
+}
+
+input.dg-colour {
+	block-size: 28px;
+	padding: 2px;
+	cursor: pointer;
+}
+
+/* -- Rulers ----------------------------------------------------------------- */
+
+.dg-rulers {
+	position: absolute;
+	inset: 0;
+	z-index: 4;
+	pointer-events: none;
+}
+
+.dg-ruler {
+	position: absolute;
+	display: block;
+}
+
+.dg-ruler--h {
+	inset-block-start: 0;
+	inset-inline-start: 20px;
+}
+
+.dg-ruler--v {
+	inset-block-start: 20px;
+	inset-inline-start: 0;
+}
+
+/* Fills the square where the two rulers meet. */
+.dg-ruler__corner {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	inline-size: 20px;
+	block-size: 20px;
+	background: #1a1f24;
+	border-inline-end: 1px solid var( --dg-border );
+	border-block-end: 1px solid var( --dg-border );
+}
+
+/* Keeps the image clear of the rulers rather than tucked behind them. */
+.dg-stage.has-rulers .dg-canvas-backdrop,
+.dg-stage.has-rulers .dg-transform,
+.dg-stage.has-rulers .dg-crop,
+.dg-stage.has-rulers .dg-selection {
+	/* Positions already account for the viewport, which the renderer insets. */
+	margin: 0;
+}
+
+/* -- Snap guides ------------------------------------------------------------ */
+
+.dg-snap {
+	position: absolute;
+	background: #ff4dd2;
+	pointer-events: none;
+	z-index: 4;
+}
+
+.dg-snap--v {
+	inset-block: -2000px;
+	inline-size: 1px;
+}
+
+.dg-snap--h {
+	inset-inline: -2000px;
+	block-size: 1px;
+}
+
+/* -- Contextual options bar ------------------------------------------------- */
+
+.dg-options {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	min-block-size: 40px;
+	padding: 5px 12px;
+	background: var( --dg-surface );
+	border-block-end: 1px solid var( --dg-border );
+	flex: 0 0 auto;
+	font-size: 12px;
+}
+
+.dg-options__tool {
+	font-weight: 600;
+	color: var( --dg-fg );
+	min-inline-size: 124px;
+	letter-spacing: 0.01em;
+}
+
+.dg-options__divider {
+	inline-size: 1px;
+	align-self: stretch;
+	margin-block: 4px;
+	background: var( --dg-border );
+}
+
+/* Compact fields sit on one line rather than stacking label above control. */
+/*
+ * Every field in the bar lies down: the bar is one row of settings, and a stacked
+ * label would double its height and push the canvas down.
+ */
+.dg-options .dg-field,
+.dg-options .dg-check,
+.dg-options wpd-number-field,
+.dg-options wpd-color-field,
+.dg-options wpd-text-field,
+.dg-options wpd-select,
+.dg-options wpd-checkbox-label {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+}
+
+.dg-options .dg-field__label {
+	color: var( --dg-fg-muted );
+	white-space: nowrap;
+	font-size: 11px;
+}
+
+.dg-options .dg-field__control {
+	inline-size: auto;
+}
+
+.dg-options input[ type='number' ].dg-field__control {
+	inline-size: 64px;
+}
+
+.dg-options input[ type='text' ].dg-field__control {
+	inline-size: 150px;
+}
+
+/* Wide enough to read the colour, which is the only thing a swatch has to do. */
+.dg-options input.dg-colour {
+	inline-size: 34px;
+	block-size: 24px;
+}
+
+.dg-options .dg-button {
+	white-space: nowrap;
+}
+
+/* -- Segmented picker ------------------------------------------------------- */
+
+.dg-segmented {
+	display: inline-flex;
+	padding: 2px;
+	gap: 2px;
+	border-radius: var( --dg-radius );
+	background: var( --dg-bg );
+	border: 1px solid var( --dg-border );
+}
+
+.dg-segmented__item {
+	appearance: none;
+	border: none;
+	border-radius: calc( var( --dg-radius ) - 2px );
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 11px;
+	line-height: 1;
+	padding: 5px 9px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.dg-segmented__item:hover {
+	color: var( --dg-fg );
+	background: var( --dg-surface-raised );
+}
+
+.dg-segmented__item.is-active {
+	background: var( --dg-accent );
+	color: #fff;
+}
+
+.dg-segmented__item:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: -2px;
+}
+
+.dg-options__hint {
+	color: var( --dg-fg-muted );
+	font-size: 11px;
+}
+
+/* -- Selection outline (any shape) ------------------------------------------ */
+
+svg.dg-selection {
+	position: absolute;
+	z-index: 3;
+	pointer-events: none;
+	overflow: visible;
+}
+
+.dg-selection__under,
+.dg-selection__over {
+	fill: none;
+	stroke-width: 1;
+}
+
+/* Solid dark underneath, dashed light on top: visible over any pixels. */
+.dg-selection__under {
+	stroke: rgba( 0, 0, 0, 0.85 );
+}
+
+.dg-selection__over {
+	stroke: #fff;
+	stroke-dasharray: 4 4;
+	animation: dg-march 640ms linear infinite;
+}
+
+@keyframes dg-march {
+	to {
+		stroke-dashoffset: -8;
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.dg-selection__over {
+		animation: none;
+	}
+}

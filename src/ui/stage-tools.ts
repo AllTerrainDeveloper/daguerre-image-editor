@@ -1,0 +1,966 @@
+/**
+ * Pointer handling for every tool that acts on the canvas.
+ *
+ * One controller, because they all share one surface and one coordinate conversion.
+ * Screen pixels reach the canvas through a single `toCanvas()`, so a brush stroke, a
+ * selection rectangle and a gradient ramp cannot disagree about where the pointer is.
+ *
+ * The tools fall into four families, and each family is one method here:
+ *
+ * - **Stroking** -- brush, eraser, and the retouching tools. A stroke is interpolated
+ *   into evenly spaced dabs, so speed does not change the result.
+ * - **Dragging a region** -- select, gradient, shape. A dashed preview follows the
+ *   drag, and the pixels are only committed on release; drawing a full-canvas bitmap
+ *   on every pointer move would stall on a large document for no visible benefit.
+ * - **Clicking a point** -- fill, wand, eyedropper, text, zoom.
+ * - **Panning** -- hand, which moves the view rather than the pixels.
+ *
+ * Like the transform handles, drags are tracked on `window`: a release outside the
+ * stage must still end the gesture.
+ */
+
+import {
+	STAMP_SPACING,
+	brushStamp,
+	floodFillMask,
+	interpolateStroke,
+} from '../engine/brush';
+import type { BrushShape } from '../engine/brush';
+import {
+	gradientCanvas,
+	rectFromDrag,
+	rgbToHex,
+	shapeCanvas,
+	squareDrag,
+	textCanvas,
+} from '../engine/paint-shapes';
+import type { GradientKind, ShapeKind, ShapeStyle } from '../engine/paint-shapes';
+import { applyPixelDab } from '../engine/pixel-tools';
+import type { Carry, PixelBuffer, PixelOp } from '../engine/pixel-tools';
+import type { CanvasSize } from '../model/document';
+import { appendPathPoint, selectionFromDrag, traceMask } from '../model/selection';
+import type { Point, Selection, SelectionShape } from '../model/selection';
+import type { ActiveTool } from './panels';
+
+/**
+ * Everything the drawing tools need to know about themselves.
+ *
+ * One object rather than one per tool: the settings overlap heavily -- size, opacity
+ * and colour belong to almost all of them -- and a single object means the options bar
+ * and the sidebar panel are two views of one model rather than nine.
+ */
+export interface BrushSettings {
+	shape: BrushShape;
+	/** Diameter in canvas pixels. */
+	size: number;
+	/** Edge falloff, 0..1. */
+	hardness: number;
+	/** Stroke opacity, 0..1. */
+	opacity: number;
+	/** The foreground colour: what brushes, fills, shapes and text paint with. */
+	colour: string;
+	/** The background colour: the far end of a gradient, and what X swaps to. */
+	background: string;
+	/** Flood fill match tolerance, 0..255. */
+	tolerance: number;
+	/** Which pixel operation the retouch tool performs. */
+	retouch: PixelOp;
+	/** Which pixel operation the dodge/burn tool performs. */
+	tone: PixelOp;
+	/** How hard the retouching tools bite, 0..1. */
+	strength: number;
+	/** Linear or radial, for the gradient tool. */
+	gradient: GradientKind;
+	/** Whether the gradient ends transparent rather than at the background colour. */
+	gradientFade: boolean;
+	/** What the shape tool draws. */
+	shapeKind: ShapeKind;
+	/** Whether shapes are filled or outlined. */
+	shapeStyle: ShapeStyle;
+	/** Outline width in canvas pixels. */
+	strokeWidth: number;
+	/** What the text tool types. */
+	text: string;
+	/** Text size in canvas pixels. */
+	fontSize: number;
+	fontFamily: string;
+	bold: boolean;
+	italic: boolean;
+}
+
+/**
+ * The settings a freshly opened editor starts with.
+ *
+ * A factory rather than a shared constant, because every editor instance owns its own
+ * copy and handing them all the same object would let two windows fight over one brush.
+ */
+export function defaultBrush(): BrushSettings {
+	return {
+		shape: 'soft',
+		size: 40,
+		hardness: 0.6,
+		opacity: 1,
+		colour: '#000000',
+		background: '#ffffff',
+		tolerance: 32,
+		retouch: 'blur',
+		tone: 'dodge',
+		strength: 0.5,
+		gradient: 'linear',
+		gradientFade: false,
+		shapeKind: 'rect',
+		shapeStyle: 'fill',
+		strokeWidth: 4,
+		text: '',
+		fontSize: 72,
+		fontFamily: 'system-ui, sans-serif',
+		bold: false,
+		italic: false,
+	};
+}
+
+export interface StageToolsOptions {
+	stage: HTMLElement;
+	getViewport: () => { x: number; y: number; width: number; height: number } | null;
+	getCanvas: () => CanvasSize;
+	getTool: () => ActiveTool;
+	getBrush: () => BrushSettings;
+	/** Changes a setting -- the eyedropper picks a colour this way. */
+	setBrush: ( patch: Partial< BrushSettings > ) => void;
+	/** The layer strokes land on. */
+	getTargetLayerId: () => string;
+	/** Stamps one dab into a layer. */
+	stamp: (
+		layerId: string,
+		image: HTMLCanvasElement,
+		x: number,
+		y: number,
+		size: number,
+		colour: string,
+		opacity: number,
+		erase: boolean
+	) => void;
+	/** Draws a full-canvas mask into a layer, for fill. */
+	fillMask: (
+		layerId: string,
+		mask: HTMLCanvasElement,
+		colour: string,
+		opacity: number
+	) => void;
+	/** Draws a bitmap into a layer, for gradients, shapes, text and retouching. */
+	composite: (
+		layerId: string,
+		source: HTMLCanvasElement,
+		x: number,
+		y: number,
+		opacity: number
+	) => void;
+	/** Reads the composed document, for flood fill's colour matching. */
+	readDocument: () => { pixels: Uint8ClampedArray; width: number; height: number } | null;
+	/** Which shape the marquee draws. */
+	getSelectionShape: () => SelectionShape;
+	/** Replaces the selection. Null clears it. */
+	setSelection: ( selection: Selection | null ) => void;
+	/** Moves the view, in CSS pixels. */
+	pan: ( dx: number, dy: number ) => void;
+	/** Zooms about a point given in stage-relative CSS pixels. */
+	zoomAt: ( factor: number, x: number, y: number ) => void;
+	/** Called once a stroke finishes, for history. */
+	onStrokeEnd: () => void;
+	/** Called when a tool wants the options bar redrawn -- a clone source, say. */
+	onToolStateChange?: () => void;
+}
+
+/** How much of a dab's width a retouching stroke advances before the next one. */
+const RETOUCH_SPACING = 0.25;
+
+/**
+ * Routes pointer events on the stage to whichever tool is active.
+ */
+export class StageTools {
+	private options: StageToolsOptions;
+
+	private drawing = false;
+
+	private last: { x: number; y: number } | null = null;
+
+	private dragStart: Point | null = null;
+
+	/** Where a region drag began, in canvas pixels. */
+	private dragFrom: { x: number; y: number } | null = null;
+
+	/** Freeform path being drawn, or polygon vertices placed so far. */
+	private path: Point[] = [];
+
+	/** Working pixels for a retouching stroke, and where they came from. */
+	private work: PixelBuffer | null = null;
+
+	private carry: Carry | null = null;
+
+	/** Where the clone stamp samples from, in canvas pixels. */
+	private cloneSource: { x: number; y: number } | null = null;
+
+	/** Offset from the stroke to the clone source, fixed at the first dab. */
+	private cloneOffset: { x: number; y: number } | null = null;
+
+	/** Dashed outline shown while dragging out a region. */
+	private preview: SVGSVGElement | null = null;
+
+	private previewPath: SVGPathElement | null = null;
+
+	constructor( options: StageToolsOptions ) {
+		this.options = options;
+		options.stage.addEventListener( 'pointerdown', this.onPointerDown );
+	}
+
+	/**
+	 * Converts a pointer position into canvas pixels.
+	 *
+	 * @param event Pointer event.
+	 * @return Canvas coordinates, or null when nothing is loaded.
+	 */
+	private toCanvas( event: PointerEvent ): { x: number; y: number } | null {
+		const viewport = this.options.getViewport();
+		const canvas = this.options.getCanvas();
+
+		if ( ! viewport || viewport.width === 0 || canvas.width === 0 ) {
+			return null;
+		}
+
+		const stageRect = this.options.stage.getBoundingClientRect();
+		const x = event.clientX - stageRect.left - viewport.x;
+		const y = event.clientY - stageRect.top - viewport.y;
+
+		return {
+			x: ( x / viewport.width ) * canvas.width,
+			y: ( y / viewport.height ) * canvas.height,
+		};
+	}
+
+	/** Begins whatever the active tool does. */
+	private onPointerDown = ( event: PointerEvent ): void => {
+		const tool = this.options.getTool();
+
+		if ( tool === 'transform' || tool === 'crop' ) {
+			return;
+		}
+
+		if ( tool === 'hand' ) {
+			event.preventDefault();
+			this.last = { x: event.clientX, y: event.clientY };
+			this.listen();
+
+			return;
+		}
+
+		const point = this.toCanvas( event );
+
+		if ( ! point ) {
+			return;
+		}
+
+		event.preventDefault();
+
+		switch ( tool ) {
+			case 'zoom':
+				// Alt inverts, as it does in every editor that has this tool.
+				this.zoom( event );
+
+				return;
+
+			case 'eyedropper':
+				this.pick( point );
+				this.last = point;
+				this.listen();
+
+				return;
+
+			case 'fill':
+				this.fill( point );
+
+				return;
+
+			case 'wand':
+				this.wand( point );
+
+				return;
+
+			case 'text':
+				this.placeText( point );
+
+				return;
+
+			case 'select':
+				this.beginSelect( point );
+				this.listen();
+
+				return;
+
+			case 'gradient':
+			case 'shape':
+				this.dragFrom = point;
+				this.showPreview( event, event );
+				this.listen();
+
+				return;
+
+			case 'clone':
+				if ( event.altKey ) {
+					// Alt-click sets the sample point, exactly as the clone stamp has
+					// worked since Photoshop 3. Without it the tool has nothing to copy.
+					this.cloneSource = point;
+					this.cloneOffset = null;
+					this.options.onToolStateChange?.();
+
+					return;
+				}
+
+				if ( ! this.cloneSource ) {
+					return;
+				}
+
+				this.cloneOffset = {
+					x: point.x - this.cloneSource.x,
+					y: point.y - this.cloneSource.y,
+				};
+				break;
+		}
+
+		this.drawing = true;
+		this.last = point;
+		this.beginPixelStroke( tool );
+		this.strokeDab( point, tool );
+		this.listen();
+	};
+
+	/** Starts tracking a drag on the window, so a release anywhere ends it. */
+	private listen(): void {
+		window.addEventListener( 'pointermove', this.onPointerMove );
+		window.addEventListener( 'pointerup', this.onPointerUp );
+		window.addEventListener( 'pointercancel', this.onPointerUp );
+		window.addEventListener( 'blur', this.onPointerUp );
+	}
+
+	/** Continues a stroke, a selection drag, a region drag or a pan. */
+	private onPointerMove = ( event: PointerEvent ): void => {
+		const tool = this.options.getTool();
+
+		if ( tool === 'hand' ) {
+			if ( this.last ) {
+				this.options.pan(
+					event.clientX - this.last.x,
+					event.clientY - this.last.y
+				);
+				this.last = { x: event.clientX, y: event.clientY };
+			}
+
+			return;
+		}
+
+		const point = this.toCanvas( event );
+
+		if ( ! point ) {
+			return;
+		}
+
+		if ( tool === 'eyedropper' ) {
+			// Dragging keeps sampling, which is how you find the exact shade you meant.
+			this.pick( point );
+
+			return;
+		}
+
+		if ( this.dragFrom ) {
+			this.updatePreview( event );
+
+			return;
+		}
+
+		if ( this.dragStart ) {
+			this.continueSelect( point );
+
+			return;
+		}
+
+		if ( ! this.drawing || ! this.last ) {
+			return;
+		}
+
+		const brush = this.options.getBrush();
+		const spacing =
+			tool === 'retouch' || tool === 'tone' || tool === 'clone'
+				? RETOUCH_SPACING
+				: STAMP_SPACING;
+
+		// Fill the gap between pointer samples, or a fast stroke lays down dots.
+		for ( const step of interpolateStroke( this.last, point, brush.size * spacing ) ) {
+			this.strokeDab( step, tool );
+		}
+
+		this.last = point;
+	};
+
+	/** Ends the gesture, committing anything that was only previewed. */
+	private onPointerUp = ( event?: Event ): void => {
+		window.removeEventListener( 'pointermove', this.onPointerMove );
+		window.removeEventListener( 'pointerup', this.onPointerUp );
+		window.removeEventListener( 'pointercancel', this.onPointerUp );
+		window.removeEventListener( 'blur', this.onPointerUp );
+
+		const wasDrawing = this.drawing;
+		const dragFrom = this.dragFrom;
+
+		this.drawing = false;
+		this.last = null;
+		this.dragStart = null;
+		this.dragFrom = null;
+		this.work = null;
+		this.carry = null;
+		this.hidePreview();
+
+		if ( dragFrom && event instanceof PointerEvent ) {
+			this.commitRegion( dragFrom, event );
+		}
+
+		if ( wasDrawing ) {
+			this.options.onStrokeEnd();
+		}
+	};
+
+	// -- Selection ------------------------------------------------------------
+
+	/**
+	 * Starts a marquee.
+	 *
+	 * @param point Canvas coordinates.
+	 */
+	private beginSelect( point: { x: number; y: number } ): void {
+		const shape = this.options.getSelectionShape();
+		const norm = this.normalise( point );
+
+		if ( shape === 'polygon' ) {
+			// Polygons are placed click by click and closed deliberately, so they never
+			// enter the drag lifecycle at all.
+			this.path = appendPathPoint( this.path, norm, 0 );
+			this.options.setSelection( { shape: 'polygon', points: this.path } );
+
+			return;
+		}
+
+		this.dragStart = norm;
+		this.path = [ norm ];
+		this.options.setSelection( null );
+	}
+
+	/**
+	 * Extends a marquee.
+	 *
+	 * @param point Canvas coordinates.
+	 */
+	private continueSelect( point: { x: number; y: number } ): void {
+		const shape = this.options.getSelectionShape();
+		const norm = this.normalise( point );
+
+		if ( ! this.dragStart ) {
+			return;
+		}
+
+		if ( shape === 'lasso' ) {
+			this.path = appendPathPoint( this.path, norm );
+			this.options.setSelection( { shape: 'lasso', points: this.path } );
+
+			return;
+		}
+
+		this.options.setSelection(
+			selectionFromDrag( shape as 'rect' | 'ellipse', this.dragStart, norm )
+		);
+	}
+
+	/**
+	 * Selects the contiguous region matching the colour under the pointer.
+	 *
+	 * The same flood fill the paint bucket uses, traced into a path -- which is the
+	 * whole reason the wand was cheap to add.
+	 *
+	 * @param point Canvas coordinates.
+	 */
+	private wand( point: { x: number; y: number } ): void {
+		const source = this.options.readDocument();
+
+		if ( ! source ) {
+			return;
+		}
+
+		const brush = this.options.getBrush();
+		const mask = floodFillMask(
+			source.pixels,
+			source.width,
+			source.height,
+			point.x,
+			point.y,
+			brush.tolerance
+		);
+
+		if ( ! mask ) {
+			return;
+		}
+
+		const ctx = mask.getContext( '2d' );
+		const pixels = ctx?.getImageData( 0, 0, mask.width, mask.height );
+
+		if ( ! pixels ) {
+			return;
+		}
+
+		const points = traceMask( pixels );
+
+		this.options.setSelection(
+			points.length > 2 ? { shape: 'lasso', points } : null
+		);
+	}
+
+	// -- Point tools ----------------------------------------------------------
+
+	/**
+	 * Samples the colour under the pointer into the foreground.
+	 *
+	 * @param point Canvas coordinates.
+	 */
+	private pick( point: { x: number; y: number } ): void {
+		const source = this.options.readDocument();
+
+		if ( ! source ) {
+			return;
+		}
+
+		const x = Math.round( point.x );
+		const y = Math.round( point.y );
+
+		if ( x < 0 || y < 0 || x >= source.width || y >= source.height ) {
+			return;
+		}
+
+		const index = ( y * source.width + x ) * 4;
+
+		this.options.setBrush( {
+			colour: rgbToHex(
+				source.pixels[ index ],
+				source.pixels[ index + 1 ],
+				source.pixels[ index + 2 ]
+			),
+		} );
+	}
+
+	/**
+	 * Zooms in, or out with Alt held.
+	 *
+	 * @param event Pointer event, positioned within the stage.
+	 */
+	private zoom( event: PointerEvent ): void {
+		const rect = this.options.stage.getBoundingClientRect();
+
+		this.options.zoomAt(
+			event.altKey ? 1 / 1.4 : 1.4,
+			event.clientX - rect.left,
+			event.clientY - rect.top
+		);
+	}
+
+	/**
+	 * Draws the current text at a point.
+	 *
+	 * @param point Canvas coordinates of the baseline start.
+	 */
+	private placeText( point: { x: number; y: number } ): void {
+		const brush = this.options.getBrush();
+		const rendered = textCanvas( {
+			text: brush.text,
+			size: brush.fontSize,
+			family: brush.fontFamily,
+			colour: brush.colour,
+			bold: brush.bold,
+			italic: brush.italic,
+			strokeWidth: brush.shapeStyle === 'stroke' ? brush.strokeWidth : 0,
+		} );
+
+		if ( ! rendered ) {
+			return;
+		}
+
+		this.options.composite(
+			this.options.getTargetLayerId(),
+			rendered.canvas,
+			point.x + rendered.offsetX,
+			point.y + rendered.offsetY,
+			brush.opacity
+		);
+
+		this.options.onStrokeEnd();
+	}
+
+	/**
+	 * Floods the region matching the colour under the pointer.
+	 *
+	 * Matched against the *composed* document rather than the target layer, because
+	 * that is what the user can see -- filling against an invisible layer's contents
+	 * would look arbitrary.
+	 *
+	 * @param point Canvas coordinates.
+	 */
+	private fill( point: { x: number; y: number } ): void {
+		const source = this.options.readDocument();
+
+		if ( ! source ) {
+			return;
+		}
+
+		const brush = this.options.getBrush();
+		const mask = floodFillMask(
+			source.pixels,
+			source.width,
+			source.height,
+			point.x,
+			point.y,
+			brush.tolerance
+		);
+
+		if ( ! mask ) {
+			return;
+		}
+
+		this.options.fillMask(
+			this.options.getTargetLayerId(),
+			mask,
+			brush.colour,
+			brush.opacity
+		);
+
+		this.options.onStrokeEnd();
+	}
+
+	// -- Region drags ---------------------------------------------------------
+
+	/**
+	 * Commits a gradient or a shape once the drag ends.
+	 *
+	 * @param from  Canvas coordinates the drag began at.
+	 * @param event The releasing pointer event.
+	 */
+	private commitRegion(
+		from: { x: number; y: number },
+		event: PointerEvent
+	): void {
+		const to = this.toCanvas( event );
+		const tool = this.options.getTool();
+		const brush = this.options.getBrush();
+		const canvas = this.options.getCanvas();
+
+		if ( ! to ) {
+			return;
+		}
+
+		const end = event.shiftKey && tool === 'shape' ? squareDrag( from, to ) : to;
+
+		const bitmap =
+			tool === 'gradient'
+				? gradientCanvas(
+						canvas.width,
+						canvas.height,
+						brush.gradient,
+						from,
+						end,
+						brush.colour,
+						brush.background,
+						brush.gradientFade
+				  )
+				: shapeCanvas( canvas.width, canvas.height, from, end, {
+						kind: brush.shapeKind,
+						style: brush.shapeStyle,
+						colour: brush.colour,
+						strokeWidth: brush.strokeWidth,
+				  } );
+
+		if ( ! bitmap ) {
+			return;
+		}
+
+		this.options.composite(
+			this.options.getTargetLayerId(),
+			bitmap,
+			0,
+			0,
+			brush.opacity
+		);
+		this.options.onStrokeEnd();
+	}
+
+	/**
+	 * Creates the dashed drag preview.
+	 *
+	 * Screen-space SVG rather than a real render: committing a canvas-sized bitmap on
+	 * every pointer move would allocate and upload megabytes per frame on a large
+	 * document, to show something an outline conveys perfectly.
+	 *
+	 * @param origin Where the drag began.
+	 * @param event  Current pointer position.
+	 */
+	private showPreview( origin: PointerEvent, event: PointerEvent ): void {
+		if ( ! this.preview ) {
+			const svg = document.createElementNS( 'http://www.w3.org/2000/svg', 'svg' );
+			svg.setAttribute( 'class', 'dg-drag-preview' );
+			svg.setAttribute( 'aria-hidden', 'true' );
+
+			this.previewPath = document.createElementNS(
+				'http://www.w3.org/2000/svg',
+				'path'
+			);
+			svg.appendChild( this.previewPath );
+			this.options.stage.appendChild( svg );
+			this.preview = svg;
+		}
+
+		this.previewOrigin = {
+			x: origin.clientX,
+			y: origin.clientY,
+		};
+		this.preview.style.display = '';
+		this.updatePreview( event );
+	}
+
+	/** Where the current region drag started, in client pixels. */
+	private previewOrigin: { x: number; y: number } | null = null;
+
+	/**
+	 * Redraws the drag preview.
+	 *
+	 * @param event Current pointer position.
+	 */
+	private updatePreview( event: PointerEvent ): void {
+		if ( ! this.previewPath || ! this.previewOrigin ) {
+			return;
+		}
+
+		const rect = this.options.stage.getBoundingClientRect();
+		const from = {
+			x: this.previewOrigin.x - rect.left,
+			y: this.previewOrigin.y - rect.top,
+		};
+		let to = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+
+		const tool = this.options.getTool();
+		const brush = this.options.getBrush();
+
+		if ( event.shiftKey && tool === 'shape' ) {
+			to = squareDrag( from, to );
+		}
+
+		if ( tool === 'gradient' || brush.shapeKind === 'line' ) {
+			this.previewPath.setAttribute(
+				'd',
+				`M ${ from.x } ${ from.y } L ${ to.x } ${ to.y }`
+			);
+
+			return;
+		}
+
+		const box = rectFromDrag( from, to );
+
+		if ( brush.shapeKind === 'ellipse' ) {
+			const rx = box.width / 2;
+			const ry = box.height / 2;
+
+			this.previewPath.setAttribute(
+				'd',
+				`M ${ box.x } ${ box.y + ry } a ${ rx } ${ ry } 0 1 0 ${ box.width } 0 ` +
+					`a ${ rx } ${ ry } 0 1 0 ${ -box.width } 0 Z`
+			);
+
+			return;
+		}
+
+		this.previewPath.setAttribute(
+			'd',
+			`M ${ box.x } ${ box.y } h ${ box.width } v ${ box.height } h ${ -box.width } Z`
+		);
+	}
+
+	/** Hides the drag preview. */
+	private hidePreview(): void {
+		if ( this.preview ) {
+			this.preview.style.display = 'none';
+			this.previewPath?.setAttribute( 'd', '' );
+		}
+
+		this.previewOrigin = null;
+	}
+
+	// -- Strokes --------------------------------------------------------------
+
+	/**
+	 * Prepares a retouching stroke.
+	 *
+	 * The pixel operations read the composed document, because that is what the user
+	 * sees -- the base image layer is not canvas-aligned, so reading it directly would
+	 * blur the wrong pixels the moment the image had been moved. Reading once per
+	 * stroke rather than once per dab is what keeps them usable on a big photo.
+	 *
+	 * @param tool Active tool.
+	 */
+	private beginPixelStroke( tool: ActiveTool ): void {
+		if ( tool !== 'retouch' && tool !== 'tone' && tool !== 'clone' ) {
+			return;
+		}
+
+		const source = this.options.readDocument();
+
+		this.carry = null;
+		this.work = source
+			? {
+					data: new Uint8ClampedArray( source.pixels ),
+					width: source.width,
+					height: source.height,
+			  }
+			: null;
+	}
+
+	/**
+	 * Places one dab, whichever kind the tool wants.
+	 *
+	 * @param point Canvas coordinates.
+	 * @param tool  Active tool.
+	 */
+	private strokeDab( point: { x: number; y: number }, tool: ActiveTool ): void {
+		if ( tool === 'retouch' || tool === 'tone' || tool === 'clone' ) {
+			this.pixelDab( point, tool );
+
+			return;
+		}
+
+		const brush = this.options.getBrush();
+
+		// No bounds test here on purpose. Rejecting dabs whose *centre* falls outside
+		// the selection lets half of every edge dab escape, because a brush is wider
+		// than its centre. The renderer masks the stroke instead, clipping it pixel
+		// by pixel.
+		this.options.stamp(
+			this.options.getTargetLayerId(),
+			brushStamp( brush.shape, brush.size, brush.hardness ),
+			point.x,
+			point.y,
+			brush.size,
+			brush.colour,
+			brush.opacity,
+			tool === 'eraser'
+		);
+	}
+
+	/**
+	 * Applies one retouching dab and composites the changed pixels back.
+	 *
+	 * Only the dab's own dirty rectangle is uploaded, so the cost is proportional to
+	 * the brush rather than to the document.
+	 *
+	 * @param point Canvas coordinates.
+	 * @param tool  Active tool.
+	 */
+	private pixelDab( point: { x: number; y: number }, tool: ActiveTool ): void {
+		const work = this.work;
+
+		if ( ! work ) {
+			return;
+		}
+
+		const brush = this.options.getBrush();
+		const op: PixelOp =
+			tool === 'clone' ? 'clone' : tool === 'tone' ? brush.tone : brush.retouch;
+
+		const result = applyPixelDab( {
+			op,
+			target: work,
+			x: point.x,
+			y: point.y,
+			radius: brush.size,
+			strength: brush.strength,
+			hardness: brush.hardness,
+			offsetX: this.cloneOffset?.x ?? 0,
+			offsetY: this.cloneOffset?.y ?? 0,
+			carry: this.carry,
+		} );
+
+		if ( ! result ) {
+			return;
+		}
+
+		this.carry = result.carry ?? this.carry;
+
+		const patch = document.createElement( 'canvas' );
+		patch.width = result.rect.width;
+		patch.height = result.rect.height;
+
+		const ctx = patch.getContext( '2d' );
+
+		if ( ! ctx ) {
+			return;
+		}
+
+		const region = ctx.createImageData( result.rect.width, result.rect.height );
+
+		for ( let row = 0; row < result.rect.height; row++ ) {
+			const from = ( ( result.rect.y + row ) * work.width + result.rect.x ) * 4;
+
+			region.data.set(
+				work.data.subarray( from, from + result.rect.width * 4 ),
+				row * result.rect.width * 4
+			);
+		}
+
+		ctx.putImageData( region, 0, 0 );
+
+		this.options.composite(
+			this.options.getTargetLayerId(),
+			patch,
+			result.rect.x,
+			result.rect.y,
+			1
+		);
+	}
+
+	/**
+	 * Converts canvas pixels into normalised canvas coordinates.
+	 *
+	 * @param point Canvas pixels.
+	 */
+	private normalise( point: Point ): Point {
+		const canvas = this.options.getCanvas();
+
+		return { x: point.x / canvas.width, y: point.y / canvas.height };
+	}
+
+	/** Where the clone stamp is currently sampling from, if anywhere. */
+	getCloneSource(): { x: number; y: number } | null {
+		return this.cloneSource;
+	}
+
+	/** Forgets the clone sample point. */
+	clearCloneSource(): void {
+		this.cloneSource = null;
+		this.cloneOffset = null;
+		this.options.onToolStateChange?.();
+	}
+
+	/** Abandons a half-placed polygon. */
+	clearPath(): void {
+		this.path = [];
+		this.dragStart = null;
+	}
+
+	/** Removes the listeners. */
+	destroy(): void {
+		this.onPointerUp();
+		this.preview?.remove();
+		this.preview = null;
+		this.previewPath = null;
+		this.options.stage.removeEventListener( 'pointerdown', this.onPointerDown );
+	}
+}

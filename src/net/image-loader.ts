@@ -1,0 +1,93 @@
+/**
+ * Loading source pixels into something WebGL can sample without tainting.
+ *
+ * This is the single most failure-prone step in the whole editor, so it is isolated
+ * here with an explicit fallback chain.
+ *
+ * A WebGL context that samples a cross-origin texture becomes *tainted*, and a
+ * tainted context makes both `extract.pixels()` (which draws the histogram) and
+ * `toBlob()` (which saves the result) throw a SecurityError. On a stock WordPress
+ * site uploads are same-origin and none of this matters. On a site using a CDN or a
+ * media-offload plugin, uploads come from another host and the naive path breaks --
+ * which is precisely the site where the failure would otherwise be discovered by a
+ * user, at save time, after they had already done the work.
+ */
+
+import type { RestClient } from './rest';
+import type { MediaPayload } from '../types';
+
+/** A loaded image plus whatever cleanup its loading strategy needs. */
+export interface LoadedImage {
+	image: HTMLImageElement;
+	/** Releases any object URL created for the fallback path. */
+	release: () => void;
+	/** Which strategy succeeded, for diagnostics. */
+	via: 'direct' | 'proxy';
+}
+
+/**
+ * Loads an image element from a URL with CORS explicitly requested.
+ *
+ * Requesting `crossOrigin = 'anonymous'` is what makes this safe rather than
+ * hopeful: with it set, a server that does not send `Access-Control-Allow-Origin`
+ * causes the *load* to fail instead of silently succeeding and poisoning the canvas
+ * later. So a resolved promise here is a guarantee the texture is usable.
+ *
+ * @param url Image URL.
+ */
+function loadElement( url: string ): Promise< HTMLImageElement > {
+	return new Promise( ( resolve, reject ) => {
+		const image = new Image();
+
+		image.crossOrigin = 'anonymous';
+		image.decoding = 'async';
+
+		image.addEventListener( 'load', () => resolve( image ), { once: true } );
+		image.addEventListener(
+			'error',
+			() => reject( new Error( `Could not load image from ${ url }` ) ),
+			{ once: true }
+		);
+
+		image.src = url;
+	} );
+}
+
+/**
+ * Loads an attachment's full-size pixels, falling back to the REST byte proxy.
+ *
+ * @param payload Media payload from `GET /media/<id>`.
+ * @param client  REST client, used only for the fallback.
+ * @return The loaded image and its cleanup.
+ * @throws {Error} When neither strategy works.
+ */
+export async function loadSourceImage(
+	payload: MediaPayload,
+	client: RestClient
+): Promise< LoadedImage > {
+	try {
+		const image = await loadElement( payload.url );
+
+		return { image, release: () => {}, via: 'direct' };
+	} catch {
+		// Either the file is genuinely missing, or -- far more likely -- it is served
+		// from a CDN that does not send CORS headers. Both are handled the same way:
+		// pull the bytes through our own origin, where a blob URL can never taint.
+	}
+
+	const blob = await client.getSourceBlob( payload.sourceUrl );
+	const objectUrl = URL.createObjectURL( blob );
+
+	try {
+		const image = await loadElement( objectUrl );
+
+		return {
+			image,
+			release: () => URL.revokeObjectURL( objectUrl ),
+			via: 'proxy',
+		};
+	} catch ( error ) {
+		URL.revokeObjectURL( objectUrl );
+		throw error;
+	}
+}

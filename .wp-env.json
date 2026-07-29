@@ -1,0 +1,16 @@
+{
+	"core": null,
+	"plugins": [
+		"."
+	],
+	"mappings": {
+		"wp-content/plugins/daguerre": ".",
+		"wp-content/plugins/desktop-mode": "../alcazaba-plugin"
+	},
+	"config": {
+		"WP_DEBUG": true,
+		"SCRIPT_DEBUG": true
+	},
+	"port": 8894,
+	"testsPort": 8895
+}
