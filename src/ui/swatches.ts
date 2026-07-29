@@ -12,7 +12,15 @@
  * 56px-wide native dialog trigger and nothing else.
  */
 
-import { createButton, createColourField } from './controls';
+import {
+	createButton,
+	createColourField,
+	createIconButton,
+	createSwatchGrid,
+	floatingHost,
+	positionFloating,
+} from './controls';
+import type { IconButtonHandle } from './controls';
 import { __ } from '../i18n';
 
 export interface SwatchesOptions {
@@ -63,6 +71,10 @@ export class Swatches {
 
 	private popover: HTMLElement | null = null;
 
+	private swapButton: IconButtonHandle;
+
+	private resetButton: IconButtonHandle;
+
 	private release: Array< () => void > = [];
 
 	private off: () => void;
@@ -76,27 +88,25 @@ export class Swatches {
 		this.foreground = this.makeSwatch( 'colour', __( 'Foreground colour' ) );
 		this.background = this.makeSwatch( 'background', __( 'Background colour' ) );
 
-		const swap = document.createElement( 'button' );
-		swap.type = 'button';
-		swap.className = 'dg-swatches__action dg-swatches__swap';
-		swap.textContent = '⇄';
-		swap.title = __( 'Swap colours (X)' );
-		swap.setAttribute( 'aria-label', __( 'Swap colours' ) );
-		swap.addEventListener( 'click', () => this.swap() );
+		this.swapButton = createIconButton( {
+			glyph: '⇄',
+			label: __( 'Swap colours (X)' ),
+			className: 'dg-swatches__action',
+			onClick: () => this.swap(),
+		} );
 
-		const reset = document.createElement( 'button' );
-		reset.type = 'button';
-		reset.className = 'dg-swatches__action dg-swatches__reset';
-		reset.textContent = '◨';
-		reset.title = __( 'Reset to black and white (D)' );
-		reset.setAttribute( 'aria-label', __( 'Reset colours' ) );
-		reset.addEventListener( 'click', () => this.reset() );
+		this.resetButton = createIconButton( {
+			glyph: '◨',
+			label: __( 'Reset to black and white (D)' ),
+			className: 'dg-swatches__action',
+			onClick: () => this.reset(),
+		} );
 
 		const stack = document.createElement( 'div' );
 		stack.className = 'dg-swatches__stack';
 		stack.append( this.foreground, this.background );
 
-		this.el.append( stack, swap, reset );
+		this.el.append( stack, this.swapButton.el, this.resetButton.el );
 
 		this.off = options.onColoursChange( () => this.sync() );
 		this.sync();
@@ -162,25 +172,17 @@ export class Swatches {
 			},
 		} );
 
-		const palette = document.createElement( 'div' );
-		palette.className = 'dg-swatch-popover__palette';
-
-		for ( const colour of PALETTE ) {
-			const chip = document.createElement( 'button' );
-
-			chip.type = 'button';
-			chip.className = 'dg-swatch-popover__chip';
-			chip.style.background = colour;
-			chip.title = colour;
-			chip.setAttribute( 'aria-label', colour );
-			chip.addEventListener( 'click', () => {
+		const palette = createSwatchGrid( {
+			label: __( 'Palette' ),
+			colours: PALETTE,
+			value: this.options.getColours()[ which ],
+			onChange: ( colour ) => {
 				this.options.setColours( { [ which ]: colour } );
 				field.setValue( colour );
+				palette.setValue( colour );
 				this.sync();
-			} );
-
-			palette.appendChild( chip );
-		}
+			},
+		} );
 
 		const done = createButton( {
 			label: __( 'Done' ),
@@ -188,11 +190,16 @@ export class Swatches {
 			onClick: () => this.closePicker(),
 		} );
 
-		popover.append( field.el, palette, done.el );
-		anchor.after( popover );
+		popover.append( field.el, palette.el, done.el );
+
+		// On the editor root, in fixed coordinates: the rail scrolls, so a popover
+		// anchored inside it is clipped the moment it reaches past the edge -- but the
+		// body would lose the palette, which lives on `.dg-editor`.
+		floatingHost( anchor ).appendChild( popover );
+		positionFloating( popover, anchor, 'block-end' );
 
 		this.popover = popover;
-		this.release = [ field.destroy, done.destroy ];
+		this.release = [ field.destroy, palette.destroy, done.destroy ];
 
 		// Clicking anywhere else closes it, which is what a popover is expected to do.
 		const onAway = ( event: MouseEvent ) => {
@@ -255,6 +262,8 @@ export class Swatches {
 	/** Releases listeners. */
 	destroy(): void {
 		this.closePicker();
+		this.swapButton.destroy();
+		this.resetButton.destroy();
 		this.off();
 		this.el.remove();
 	}

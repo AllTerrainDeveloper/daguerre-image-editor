@@ -17,7 +17,7 @@
  * so even the fallback path inherits the desktop's palette.
  */
 
-import { hasComponent } from '../platform';
+import { hasComponent, pickComponent } from '../platform';
 
 /** Handle on a built control. */
 export interface SliderHandle {
@@ -353,34 +353,59 @@ export interface NumberFieldOptions {
 /**
  * Builds a compact numeric field.
  *
- * `<wpd-number-field>` clamps on commit and emits an already-parsed number, so the
- * wpd path needs no coercion of its own.
+ * Three tiers, best first. `<wpd-number-field>` clamps on commit and emits an
+ * already-parsed number. When it is absent -- which is the common case, since the
+ * shell only registers it once a bundle importing it loads -- `<wpd-text-field>` in
+ * numeric mode is used instead: still the shell's own control, still the shell's own
+ * styling, and only the parsing has to be done here. A bare `<input type="number">` is
+ * the last resort, for a page with no Desktop Mode at all.
  *
  * @param options Field configuration.
  */
 export function createNumberField( options: NumberFieldOptions ): FieldHandle {
-	const useWpd = hasComponent( 'wpd-number-field' );
+	const tag = pickComponent( [ 'wpd-number-field', 'wpd-text-field' ] );
 
-	if ( useWpd ) {
-		const field = document.createElement( 'wpd-number-field' );
+	if ( tag ) {
+		const numeric = tag === 'wpd-number-field';
+		const field = document.createElement( tag );
 
 		field.setAttribute( 'label', options.label );
 		field.setAttribute( 'value', String( Math.round( options.value ) ) );
-		field.setAttribute( 'min', String( options.min ) );
-		field.setAttribute( 'max', String( options.max ) );
-		field.setAttribute( 'step', String( options.step ?? 1 ) );
 		field.classList.add( 'dg-field--compact' );
+
+		if ( numeric ) {
+			field.setAttribute( 'min', String( options.min ) );
+			field.setAttribute( 'max', String( options.max ) );
+			field.setAttribute( 'step', String( options.step ?? 1 ) );
+		} else {
+			// wpd-text-field passes `type` through to its inner input, so the browser
+			// still gives spinners and a numeric keypad; the clamping is ours.
+			field.setAttribute( 'type', 'number' );
+		}
 
 		if ( options.suffix ) {
 			field.setAttribute( 'suffix', options.suffix );
 		}
 
 		const onChange = ( event: Event ) => {
-			const detail = ( event as CustomEvent< { value: number } > ).detail;
+			const detail = ( event as CustomEvent< { value: number | string } > ).detail;
 
-			if ( detail && Number.isFinite( detail.value ) ) {
-				options.onChange( detail.value );
+			if ( ! detail ) {
+				return;
 			}
+
+			const next = Number( detail.value );
+
+			if ( ! Number.isFinite( next ) ) {
+				return;
+			}
+
+			// wpd-number-field has already clamped; a text field has not.
+			options.onChange(
+				numeric
+					? next
+					: Math.min( options.max, Math.max( options.min, next ) )
+			);
 		};
 
 		field.addEventListener( 'wpd-input-change', onChange );
@@ -776,4 +801,226 @@ export function createSection( heading: string ): HTMLElement {
 	section.appendChild( title );
 
 	return section;
+}
+
+/** Handle on an icon button. */
+export interface IconButtonHandle extends ButtonHandle {
+	/** Replaces the glyph, for a button that toggles between two states. */
+	setGlyph: ( glyph: string ) => void;
+}
+
+export interface IconButtonOptions {
+	/** The glyph shown. */
+	glyph: string;
+	/** Accessible name, and the tooltip. */
+	label: string;
+	/** Extra class for sizing and placement. */
+	className?: string;
+	variant?: 'primary' | 'secondary' | 'ghost';
+	onClick: () => void;
+}
+
+/**
+ * Builds an icon-only button.
+ *
+ * Its own factory rather than a flag on `createButton()` because the two differ in
+ * more than presentation: an icon button has no visible text, so the accessible name
+ * has to come from an attribute, and every caller getting that wrong once is exactly
+ * how a toolbar ends up unusable with a screen reader.
+ *
+ * @param options Button configuration.
+ */
+export function createIconButton( options: IconButtonOptions ): IconButtonHandle {
+	const useWpd = hasComponent( 'wpd-button' );
+	const el = document.createElement( useWpd ? 'wpd-button' : 'button' );
+
+	el.classList.add( 'dg-icon-button' );
+
+	if ( options.className ) {
+		el.classList.add( options.className );
+	}
+
+	el.textContent = options.glyph;
+	el.setAttribute( 'title', options.label );
+	el.setAttribute( 'aria-label', options.label );
+
+	if ( useWpd ) {
+		el.setAttribute( 'variant', options.variant ?? 'ghost' );
+		el.setAttribute( 'icon-only', '' );
+	} else {
+		( el as HTMLButtonElement ).type = 'button';
+		el.classList.add( `dg-button--${ options.variant ?? 'ghost' }` );
+	}
+
+	el.addEventListener( 'click', options.onClick );
+
+	return {
+		el,
+		setGlyph: ( glyph ) => {
+			el.textContent = glyph;
+		},
+		setDisabled: ( disabled ) => {
+			el.toggleAttribute( 'disabled', disabled );
+			el.classList.toggle( 'is-disabled', disabled );
+
+			if ( useWpd ) {
+				el.setAttribute( 'aria-disabled', String( disabled ) );
+			}
+		},
+		setPressed: ( pressed ) => {
+			el.classList.toggle( 'is-active', pressed );
+			el.setAttribute( 'aria-pressed', String( pressed ) );
+		},
+		destroy: () => el.removeEventListener( 'click', options.onClick ),
+	};
+}
+
+/** Handle on a grid of colour swatches. */
+export interface SwatchGridHandle {
+	el: HTMLElement;
+	/** Marks one swatch as chosen. */
+	setValue: ( value: string ) => void;
+	destroy: () => void;
+}
+
+export interface SwatchGridOptions {
+	/** Accessible name for the group. */
+	label: string;
+	/** Colours offered, as CSS hex. */
+	colours: string[];
+	/** Which one is currently chosen, if any. */
+	value?: string;
+	onChange: ( value: string ) => void;
+}
+
+/**
+ * Builds a palette of colour swatches.
+ *
+ * Prefers Desktop Mode's `<wpd-swatch-grid>` and `<wpd-swatch>`, which is exactly the
+ * kind of control worth borrowing rather than restyling: the shell already knows how a
+ * chosen swatch should look against its own palette.
+ *
+ * @param options Palette configuration.
+ */
+export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle {
+	const useWpd = hasComponent( 'wpd-swatch-grid' ) && hasComponent( 'wpd-swatch' );
+	const el = document.createElement( useWpd ? 'wpd-swatch-grid' : 'div' );
+	const listeners: Array< () => void > = [];
+
+	el.classList.add( 'dg-palette' );
+	el.setAttribute( 'aria-label', options.label );
+
+	if ( ! useWpd ) {
+		el.setAttribute( 'role', 'group' );
+	}
+
+	const chips = new Map< string, HTMLElement >();
+
+	for ( const colour of options.colours ) {
+		const chip = document.createElement( useWpd ? 'wpd-swatch' : 'button' );
+
+		chip.classList.add( 'dg-palette__chip' );
+		chip.setAttribute( 'title', colour );
+		chip.setAttribute( 'aria-label', colour );
+
+		if ( useWpd ) {
+			chip.setAttribute( 'value', colour );
+			chip.setAttribute( 'preview', colour );
+			chip.setAttribute( 'size', 'small' );
+		} else {
+			( chip as HTMLButtonElement ).type = 'button';
+			chip.style.background = colour;
+		}
+
+		const onPick = () => options.onChange( colour );
+
+		// wpd-swatch announces its own event; a bare button only has click.
+		const event = useWpd ? 'wpd-pick' : 'click';
+
+		chip.addEventListener( event, onPick );
+		listeners.push( () => chip.removeEventListener( event, onPick ) );
+
+		chips.set( colour, chip );
+		el.appendChild( chip );
+	}
+
+	const setValue = ( value: string ) => {
+		for ( const [ colour, chip ] of chips ) {
+			const on = colour.toLowerCase() === value.toLowerCase();
+
+			chip.toggleAttribute( 'selected', on );
+			chip.classList.toggle( 'is-selected', on );
+		}
+	};
+
+	if ( options.value ) {
+		setValue( options.value );
+	}
+
+	return {
+		el,
+		setValue,
+		destroy: () => {
+			for ( const off of listeners ) {
+				off();
+			}
+		},
+	};
+}
+
+/**
+ * Where a floating element should be attached.
+ *
+ * The nearest editor root, not the body. The body escapes the clipping but also
+ * escapes the palette: every colour in this stylesheet is a custom property declared
+ * on `.dg-editor`, so a popover parented to the body inherits none of them and renders
+ * as transparent text over the canvas. Staying inside the editor keeps the variables
+ * and still clears the tool rail's own scroll container.
+ *
+ * @param anchor Element the popover belongs to.
+ */
+export function floatingHost( anchor: HTMLElement ): HTMLElement {
+	return anchor.closest( '.dg-editor' ) ?? document.body;
+}
+
+/**
+ * Positions a floating element next to an anchor, using fixed coordinates.
+ *
+ * Absolute positioning is the obvious choice and the wrong one here: the tool rail
+ * scrolls, and a scroll container clips absolutely positioned descendants that reach
+ * outside it. A popover anchored that way is in the DOM, has a size, passes every
+ * query -- and is invisible. Fixed positioning is measured against the viewport, so
+ * nothing between the element and the screen can clip it.
+ *
+ * The element must be appended somewhere before this is called, so it has a box to
+ * measure.
+ *
+ * @param el        Floating element.
+ * @param anchor    Element to sit beside.
+ * @param placement Which side to prefer.
+ */
+export function positionFloating(
+	el: HTMLElement,
+	anchor: HTMLElement,
+	placement: 'inline-end' | 'block-end' = 'inline-end'
+): void {
+	const from = anchor.getBoundingClientRect();
+
+	el.style.position = 'fixed';
+	el.style.insetInlineStart = 'auto';
+	el.style.insetBlockStart = 'auto';
+
+	const box = el.getBoundingClientRect();
+	const gap = 6;
+
+	let left =
+		placement === 'inline-end' ? from.right + gap : from.left;
+	let top = placement === 'inline-end' ? from.top : from.bottom + gap;
+
+	// Nudge back on screen rather than letting a popover hang off the edge.
+	left = Math.max( gap, Math.min( left, window.innerWidth - box.width - gap ) );
+	top = Math.max( gap, Math.min( top, window.innerHeight - box.height - gap ) );
+
+	el.style.left = `${ Math.round( left ) }px`;
+	el.style.top = `${ Math.round( top ) }px`;
 }

@@ -35,13 +35,14 @@ import {
 	createButton,
 	createCheckbox,
 	createColourField,
+	createIconButton,
 	createNumberField,
 	createSection,
 	createSelect,
 	createSlider,
 	createTextField,
 } from './controls';
-import type { SliderHandle } from './controls';
+import type { IconButtonHandle, SliderHandle } from './controls';
 import { CropOverlay } from './crop-overlay';
 import { CurveEditor } from './curve-editor';
 import { TransformOverlay } from './transform-overlay';
@@ -233,8 +234,17 @@ export function registerBuiltInPanels(): void {
 			const list = document.createElement( 'div' );
 			list.className = 'dg-layers';
 
+			/** Controls belonging to the rows currently drawn. */
+			let rowHandles: IconButtonHandle[] = [];
+
 			const draw = () => {
 				list.replaceChildren();
+
+				for ( const handle of rowHandles ) {
+					handle.destroy();
+				}
+
+				rowHandles = [];
 
 				// Front-most first, which is how every layers palette reads.
 				for ( const layer of [ ...ctx.getLayers() ].reverse() ) {
@@ -242,17 +252,20 @@ export function registerBuiltInPanels(): void {
 					row.className = 'dg-layer';
 					row.classList.toggle( 'is-active', layer.id === ctx.getActiveLayerId() );
 
-					const eye = document.createElement( 'button' );
-					eye.type = 'button';
-					eye.className = 'dg-layer__eye';
-					eye.textContent = layer.visible ? '●' : '○';
-					eye.title = layer.visible ? __( 'Hide layer' ) : __( 'Show layer' );
-					eye.setAttribute( 'aria-label', eye.title );
-					eye.addEventListener( 'click', ( event ) => {
-						event.stopPropagation();
-						ctx.setLayers(
-							updateLayer( ctx.getLayers(), layer.id, { visible: ! layer.visible } )
-						);
+					// The row's controls come from the adaptive kit, so a layers palette
+					// inside Desktop Mode is built from its buttons rather than from
+					// look-alikes. Each row is rebuilt on every change, so the handles
+					// are collected for teardown instead of being held individually.
+					const eye = createIconButton( {
+						glyph: layer.visible ? '●' : '○',
+						label: layer.visible ? __( 'Hide layer' ) : __( 'Show layer' ),
+						className: 'dg-layer__eye',
+						onClick: () =>
+							ctx.setLayers(
+								updateLayer( ctx.getLayers(), layer.id, {
+									visible: ! layer.visible,
+								} )
+							),
 					} );
 
 					const name = document.createElement( 'button' );
@@ -263,44 +276,48 @@ export function registerBuiltInPanels(): void {
 						ctx.setLayers( ctx.getLayers(), layer.id )
 					);
 
-					const up = document.createElement( 'button' );
-					up.type = 'button';
-					up.className = 'dg-layer__move';
-					up.textContent = '↑';
-					up.title = __( 'Bring forward' );
-					up.setAttribute( 'aria-label', up.title );
-					up.addEventListener( 'click', () =>
-						ctx.setLayers( reorderLayer( ctx.getLayers(), layer.id, 1 ), layer.id )
-					);
+					const up = createIconButton( {
+						glyph: '↑',
+						label: __( 'Bring forward' ),
+						className: 'dg-layer__move',
+						onClick: () =>
+							ctx.setLayers(
+								reorderLayer( ctx.getLayers(), layer.id, 1 ),
+								layer.id
+							),
+					} );
 
-					const down = document.createElement( 'button' );
-					down.type = 'button';
-					down.className = 'dg-layer__move';
-					down.textContent = '↓';
-					down.title = __( 'Send backward' );
-					down.setAttribute( 'aria-label', down.title );
-					down.addEventListener( 'click', () =>
-						ctx.setLayers( reorderLayer( ctx.getLayers(), layer.id, -1 ), layer.id )
-					);
+					const down = createIconButton( {
+						glyph: '↓',
+						label: __( 'Send backward' ),
+						className: 'dg-layer__move',
+						onClick: () =>
+							ctx.setLayers(
+								reorderLayer( ctx.getLayers(), layer.id, -1 ),
+								layer.id
+							),
+					} );
 
-					row.append( eye, name, up, down );
+					rowHandles.push( eye, up, down );
+					row.append( eye.el, name, up.el, down.el );
 
 					// The base image is the document's reason for existing; removing it
 					// would leave an edit of nothing.
 					if ( layer.id !== BASE_LAYER_ID ) {
-						const remove = document.createElement( 'button' );
-						remove.type = 'button';
-						remove.className = 'dg-layer__delete';
-						remove.textContent = '×';
-						remove.title = __( 'Delete layer' );
-						remove.setAttribute( 'aria-label', remove.title );
-						remove.addEventListener( 'click', () =>
-							ctx.setLayers(
-								ctx.getLayers().filter( ( entry ) => entry.id !== layer.id )
-							)
-						);
+						const remove = createIconButton( {
+							glyph: '×',
+							label: __( 'Delete layer' ),
+							className: 'dg-layer__delete',
+							onClick: () =>
+								ctx.setLayers(
+									ctx.getLayers().filter(
+										( entry ) => entry.id !== layer.id
+									)
+								),
+						} );
 
-						row.appendChild( remove );
+						rowHandles.push( remove );
+						row.appendChild( remove.el );
 					}
 
 					list.appendChild( row );
@@ -325,6 +342,10 @@ export function registerBuiltInPanels(): void {
 			host.append( list, add.el, hint );
 
 			return () => {
+				for ( const handle of rowHandles ) {
+					handle.destroy();
+				}
+
 				off();
 				add.destroy();
 			};
@@ -1007,11 +1028,22 @@ export function registerBuiltInPanels(): void {
 			const list = document.createElement( 'div' );
 			list.className = 'dg-presets';
 
+			/** Controls belonging to the rows currently drawn. */
+			let rowHandles: Array< { destroy: () => void } > = [];
+
+			let presetName = '';
+
 			const status = document.createElement( 'p' );
 			status.className = 'dg-hint';
 
 			const refresh = async () => {
 				list.replaceChildren();
+
+				for ( const handle of rowHandles ) {
+					handle.destroy();
+				}
+
+				rowHandles = [];
 
 				let presets;
 
@@ -1038,29 +1070,29 @@ export function registerBuiltInPanels(): void {
 					const row = document.createElement( 'div' );
 					row.className = 'dg-preset';
 
-					const apply = document.createElement( 'button' );
-					apply.type = 'button';
-					apply.className = 'dg-preset__apply';
-					apply.textContent = preset.name;
-					apply.addEventListener( 'click', () => ctx.applyPreset( preset ) );
-
-					const remove = document.createElement( 'button' );
-					remove.type = 'button';
-					remove.className = 'dg-preset__delete';
-					remove.textContent = '×';
-					remove.title = sprintf( __( 'Delete “%s”' ), preset.name );
-					remove.setAttribute( 'aria-label', remove.title );
-					remove.addEventListener( 'click', async () => {
-						await ctx.deletePreset( preset.id );
-						await refresh();
+					const apply = createButton( {
+						label: preset.name,
+						variant: 'ghost',
+						onClick: () => ctx.applyPreset( preset ),
 					} );
 
-					row.append( apply, remove );
+					apply.el.classList.add( 'dg-preset__apply' );
+
+					const remove = createIconButton( {
+						glyph: '×',
+						label: sprintf( __( 'Delete “%s”' ), preset.name ),
+						className: 'dg-preset__delete',
+						onClick: async () => {
+							await ctx.deletePreset( preset.id );
+							await refresh();
+						},
+					} );
+
+					rowHandles.push( apply, remove );
+					row.append( apply.el, remove.el );
 					list.appendChild( row );
 				}
 			};
-
-			let presetName = '';
 
 			const name = createTextField( {
 				label: __( 'Preset name' ),
@@ -1095,6 +1127,10 @@ export function registerBuiltInPanels(): void {
 			void refresh();
 
 			return () => {
+				for ( const handle of rowHandles ) {
+					handle.destroy();
+				}
+
 				name.destroy();
 				save.destroy();
 			};

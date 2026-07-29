@@ -99,12 +99,23 @@ selection rectangle cannot disagree about where the pointer is.
 |---|---|---|
 | Select | Move & transform, Select (rectangle / ellipse / freeform / polygon), Magic wand, Crop | `V` `M` `W` `C` |
 | Retouch | Eyedropper, Retouch (blur / sharpen / smudge / heal), Clone stamp, Dodge & burn (dodge / burn / desaturate / saturate) | `I` `R` `S` `O` |
-| Paint | Brush, Eraser, Fill, Gradient | `B` `E` `G` `N` |
-| Draw | Shape (rectangle / rounded / ellipse / line / triangle / star), Text | `U` `T` |
+| Paint | Brush, History brush, Eraser, Fill | `B` `Y` `E` `G` |
+| Draw | Gradient, Shape (rectangle / rounded / ellipse / line / triangle / star), Path, Text | `N` `U` `P` `T` |
 | View | Hand, Zoom | `H` `Z` |
 
 `X` swaps the foreground and background swatches, `D` restores black on white — the swatches sit at
-the foot of the rail because almost every tool reads one of them.
+the foot of the rail because almost every tool reads one of them. `Q` toggles the quick mask, which
+fills the selection in translucent red instead of outlining it: marching ants say where an edge is,
+a mask says how soft it is, which an outline cannot show at all. `F` fills the screen — via the
+Fullscreen API when it is allowed, and a CSS class when it is not, because inside a Desktop Mode
+window the request is usually refused and an editor that silently ignores a keypress is worse than
+one that just grows. `⋯` lists every tool by name with its shortcut, since sixteen glyphs are quick
+to click and slow to learn.
+
+Two Photoshop slots are deliberately absent: the frame tool, which places an empty image
+placeholder and has nothing to do in a library editor, and the separate lasso slot — freeform and
+polygon are shapes of the one Select tool, chosen in its options bar, which is where every other
+selection setting already lives.
 
 Sixteen tools, but only four gestures, and each one is a single method:
 
@@ -164,8 +175,27 @@ hasComponent( 'wpd-range-field' ) ? createWpdSlider( … ) : createNativeSlider(
 The shell registers a core subset of `<wpd-*>` eagerly and the rest only when a bundle importing
 them loads, so "is Desktop Mode running" is the wrong question — the only trustworthy one is whether
 *this* tag is in the custom element registry right now. An unregistered tag renders as inert markup
-with no error, which is why this is a hard gate. The native fallbacks read Desktop Mode's CSS custom
-properties (`--wpd-fg`, `--wpd-accent`, …), so even the fallback path inherits the desktop palette.
+with no error, which is why this is a hard gate.
+
+It is a *layered* gate, not a binary one. `createNumberField()` asks for `<wpd-number-field>` first,
+then `<wpd-text-field type="number">`, then a bare input — and that middle tier is the one that
+actually runs most of the time, because the shell does not register the number field until some
+bundle imports it. A text field in numeric mode is still the shell's own control with the shell's own
+styling; only the clamping has to be done here.
+
+Whether Desktop Mode is *enabled* is a separate question from whether its components are present, so
+PHP answers it directly: `desktop_mode_is_enabled()` — a **per-user** preference, not a plugin check
+— travels in the config as `desktopMode` and puts `is-desktop-mode` on the editor root. That is what
+the fallback controls key their house style off, since inside a chromeless iframe no component is
+registered at all.
+
+The editor does **not** adopt Desktop Mode's window palette. That palette is light
+(`--desktop-mode-window-bg: #fff`) because it dresses the frame; judging an exposure against a white
+panel is judging the panel, which is why every serious photo editor is dark. What it does adopt is
+the accent and the corner radius: `--desktop-mode-window-link-accent`, falling back to
+`--wp-admin-theme-color`, so with Desktop Mode off the editor still follows the user's chosen admin
+colour scheme. An earlier version of that chain read `--wpd-accent`, which nothing in either plugin
+defines — it fell through to a hardcoded blue every time and ignored the colour scheme entirely.
 
 Verified in both worlds. With Desktop Mode inactive the editor runs on the admin page with native
 controls. With it active, the admin page loads inside a Desktop Mode *iframe* window and still works
@@ -227,10 +257,10 @@ src/
   ui/tool-rail.ts          the sixteen tools, two columns, keyboard shortcuts
   ui/stage-tools.ts        every canvas gesture, through one coordinate conversion
   ui/options-bar.ts        the contextual strip; a second view of one model
-  ui/swatches.ts           foreground/background pair with swap and reset
   ui/crop-overlay.ts       the draggable crop rectangle
   ui/curve-editor.ts       the tone curve graph
   ui/controls.ts           the adaptive control kit, one factory per control
+  ui/swatches.ts           foreground/background pair, swap, reset, palette
   ui/                      histogram plot, rulers, transform handles
   hosts/                   one adapter per surface
 ```
@@ -336,7 +366,7 @@ browser implementation gives you a slider that validates and then does nothing.
 | 5 | Crop, straighten, rotate, flip; curves and levels via a LUT | ✅ |
 | 6 | Sharpen, blur, vignette, grain, presets | ✅ |
 | — | Layers, selection, painting, copy/paste, rulers, snapping | ✅ |
-| — | Sixteen-tool rail: wand, retouch, clone, dodge/burn, gradient, shape, text, hand, zoom | ✅ |
+| — | Eighteen-tool rail: wand, retouch, clone, dodge/burn, history brush, gradient, shape, path, text, hand, zoom, quick mask, full screen | ✅ |
 
 Not yet done, and honestly out of scope so far: linear-light compositing, 16-bit intermediates,
 batch apply across a selection, and a WGSL program so the filter can run on WebGPU.

@@ -1636,6 +1636,38 @@ void main( void )
         read.pixels[index + 3]
       ];
     }
+    /**
+     * Reads the image alone, with every painted layer left out.
+     *
+     * What the history brush paints from. Composed on demand rather than snapshotted at
+     * load, because holding a second full-resolution copy of a twenty-megapixel photo
+     * for the whole session -- against the chance that one brush gets used -- is the
+     * kind of cost that only shows up on someone else's machine.
+     *
+     * @return Canvas-aligned pixels, or null when nothing is loaded.
+     */
+    readPristinePixels() {
+      const base = this.layerTextures.get(BASE_LAYER_ID) ?? this.texture;
+      const layer = this.layers.find((entry) => entry.id === BASE_LAYER_ID);
+      if (!base || !layer || this.canvas.width <= 0 || this.canvas.height <= 0) {
+        return null;
+      }
+      const target = this.pixi.RenderTexture.create({
+        width: this.canvas.width,
+        height: this.canvas.height
+      });
+      const sprite = new this.pixi.Sprite(base);
+      const { x, y, scaleX, scaleY, rotation, flipH, flipV } = layer.transform;
+      sprite.anchor.set(0.5);
+      sprite.scale.set(scaleX * (flipH ? -1 : 1), scaleY * (flipV ? -1 : 1));
+      sprite.rotation = rotation * Math.PI / 180;
+      sprite.position.set(x * this.canvas.width, y * this.canvas.height);
+      this.app.renderer.render({ container: sprite, target, clear: true });
+      const { pixels } = this.app.renderer.extract.pixels(target);
+      sprite.destroy();
+      target.destroy(true);
+      return { pixels, width: this.canvas.width, height: this.canvas.height };
+    }
     /** Reads the composed document as raw bytes, for flood fill. */
     readDocumentPixels() {
       if (!this.documentTexture) {
@@ -3133,6 +3165,9 @@ void main( void )
               weight
             );
             break;
+          case "restore":
+            blend(target, index, sampleAt(source, x, y), weight);
+            break;
         }
       }
     }
@@ -3292,6 +3327,22 @@ void main( void )
   function desktop$1() {
     const api2 = window.wp?.desktop;
     return api2?.isActive?.() ? api2 : void 0;
+  }
+  function isDesktopMode() {
+    return desktop$1() !== void 0;
+  }
+  function isDesktopModeEnabled() {
+    const config = window.daguerreConfig;
+    const flag = config?.desktopMode;
+    return flag === true || flag === "1" || flag === 1 || isDesktopMode();
+  }
+  function pickComponent(tags) {
+    for (const tag of tags) {
+      if (hasComponent(tag)) {
+        return tag;
+      }
+    }
+    return null;
   }
   function hasComponent(tag) {
     return typeof customElements !== "undefined" && customElements.get(tag) !== void 0;
@@ -3505,23 +3556,35 @@ void main( void )
     };
   }
   function createNumberField(options) {
-    const useWpd = hasComponent("wpd-number-field");
-    if (useWpd) {
-      const field = document.createElement("wpd-number-field");
+    const tag = pickComponent(["wpd-number-field", "wpd-text-field"]);
+    if (tag) {
+      const numeric = tag === "wpd-number-field";
+      const field = document.createElement(tag);
       field.setAttribute("label", options.label);
       field.setAttribute("value", String(Math.round(options.value)));
-      field.setAttribute("min", String(options.min));
-      field.setAttribute("max", String(options.max));
-      field.setAttribute("step", String(options.step ?? 1));
       field.classList.add("dg-field--compact");
+      if (numeric) {
+        field.setAttribute("min", String(options.min));
+        field.setAttribute("max", String(options.max));
+        field.setAttribute("step", String(options.step ?? 1));
+      } else {
+        field.setAttribute("type", "number");
+      }
       if (options.suffix) {
         field.setAttribute("suffix", options.suffix);
       }
       const onChange = (event) => {
         const detail = event.detail;
-        if (detail && Number.isFinite(detail.value)) {
-          options.onChange(detail.value);
+        if (!detail) {
+          return;
         }
+        const next = Number(detail.value);
+        if (!Number.isFinite(next)) {
+          return;
+        }
+        options.onChange(
+          numeric ? next : Math.min(options.max, Math.max(options.min, next))
+        );
       };
       field.addEventListener("wpd-input-change", onChange);
       field.addEventListener("wpd-input-commit", onChange);
@@ -3781,6 +3844,110 @@ void main( void )
     section.appendChild(title);
     return section;
   }
+  function createIconButton(options) {
+    const useWpd = hasComponent("wpd-button");
+    const el = document.createElement(useWpd ? "wpd-button" : "button");
+    el.classList.add("dg-icon-button");
+    if (options.className) {
+      el.classList.add(options.className);
+    }
+    el.textContent = options.glyph;
+    el.setAttribute("title", options.label);
+    el.setAttribute("aria-label", options.label);
+    if (useWpd) {
+      el.setAttribute("variant", options.variant ?? "ghost");
+      el.setAttribute("icon-only", "");
+    } else {
+      el.type = "button";
+      el.classList.add(`dg-button--${options.variant ?? "ghost"}`);
+    }
+    el.addEventListener("click", options.onClick);
+    return {
+      el,
+      setGlyph: (glyph) => {
+        el.textContent = glyph;
+      },
+      setDisabled: (disabled) => {
+        el.toggleAttribute("disabled", disabled);
+        el.classList.toggle("is-disabled", disabled);
+        if (useWpd) {
+          el.setAttribute("aria-disabled", String(disabled));
+        }
+      },
+      setPressed: (pressed) => {
+        el.classList.toggle("is-active", pressed);
+        el.setAttribute("aria-pressed", String(pressed));
+      },
+      destroy: () => el.removeEventListener("click", options.onClick)
+    };
+  }
+  function createSwatchGrid(options) {
+    const useWpd = hasComponent("wpd-swatch-grid") && hasComponent("wpd-swatch");
+    const el = document.createElement(useWpd ? "wpd-swatch-grid" : "div");
+    const listeners2 = [];
+    el.classList.add("dg-palette");
+    el.setAttribute("aria-label", options.label);
+    if (!useWpd) {
+      el.setAttribute("role", "group");
+    }
+    const chips = /* @__PURE__ */ new Map();
+    for (const colour of options.colours) {
+      const chip = document.createElement(useWpd ? "wpd-swatch" : "button");
+      chip.classList.add("dg-palette__chip");
+      chip.setAttribute("title", colour);
+      chip.setAttribute("aria-label", colour);
+      if (useWpd) {
+        chip.setAttribute("value", colour);
+        chip.setAttribute("preview", colour);
+        chip.setAttribute("size", "small");
+      } else {
+        chip.type = "button";
+        chip.style.background = colour;
+      }
+      const onPick = () => options.onChange(colour);
+      const event = useWpd ? "wpd-pick" : "click";
+      chip.addEventListener(event, onPick);
+      listeners2.push(() => chip.removeEventListener(event, onPick));
+      chips.set(colour, chip);
+      el.appendChild(chip);
+    }
+    const setValue = (value) => {
+      for (const [colour, chip] of chips) {
+        const on = colour.toLowerCase() === value.toLowerCase();
+        chip.toggleAttribute("selected", on);
+        chip.classList.toggle("is-selected", on);
+      }
+    };
+    if (options.value) {
+      setValue(options.value);
+    }
+    return {
+      el,
+      setValue,
+      destroy: () => {
+        for (const off of listeners2) {
+          off();
+        }
+      }
+    };
+  }
+  function floatingHost(anchor) {
+    return anchor.closest(".dg-editor") ?? document.body;
+  }
+  function positionFloating(el, anchor, placement = "inline-end") {
+    const from = anchor.getBoundingClientRect();
+    el.style.position = "fixed";
+    el.style.insetInlineStart = "auto";
+    el.style.insetBlockStart = "auto";
+    const box = el.getBoundingClientRect();
+    const gap = 6;
+    let left = placement === "inline-end" ? from.right + gap : from.left;
+    let top = placement === "inline-end" ? from.top : from.bottom + gap;
+    left = Math.max(gap, Math.min(left, window.innerWidth - box.width - gap));
+    top = Math.max(gap, Math.min(top, window.innerHeight - box.height - gap));
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+  }
   class OptionsBar {
     constructor(options) {
       this.fields = [];
@@ -3807,6 +3974,12 @@ void main( void )
           case "brush":
           case "eraser":
             this.renderBrushOptions(tool === "eraser");
+            return;
+          case "history":
+            this.renderHistoryOptions();
+            return;
+          case "path":
+            this.renderPathOptions();
             return;
           case "retouch":
           case "tone":
@@ -3948,6 +4121,49 @@ void main( void )
       this.hint(
         tool === "retouch" && brush.retouch === "heal" ? __("Dab over a blemish; it fills from the pixels around it.") : ""
       );
+    }
+    /** The history brush: size, strength, hardness. */
+    renderHistoryOptions() {
+      this.addSizeField();
+      this.addPercentField("strength", __("Strength"), 1);
+      this.addPercentField("hardness", __("Hardness"), 0);
+      this.hint(
+        __("Paint the original image back, wherever it has been painted over.")
+      );
+    }
+    /** The path tool: fill or outline, width, colour. */
+    renderPathOptions() {
+      const brush = this.options.ctx.getBrush();
+      this.add(
+        createSegmented({
+          label: __("Style"),
+          value: brush.shapeStyle,
+          options: [
+            { value: "fill", label: __("Fill") },
+            { value: "stroke", label: __("Outline") }
+          ],
+          onChange: (value) => {
+            this.options.ctx.setBrush({ shapeStyle: value });
+            this.render();
+          }
+        })
+      );
+      if (brush.shapeStyle === "stroke") {
+        this.add(
+          createNumberField({
+            label: __("Width"),
+            value: brush.strokeWidth,
+            min: 1,
+            max: 200,
+            suffix: "px",
+            onChange: (value) => this.options.ctx.setBrush({ strokeWidth: value })
+          })
+        );
+      }
+      this.divider();
+      this.addColourField();
+      this.addPercentField("opacity", __("Opacity"), 1);
+      this.hint(__("Click to place points, Enter to close and draw it."));
     }
     /** Clone stamp: size, strength, and the sample point. */
     renderCloneOptions() {
@@ -4246,6 +4462,7 @@ void main( void )
     eyedropper: "Eyedropper",
     retouch: "Retouch",
     brush: "Brush",
+    history: "History brush",
     clone: "Clone stamp",
     eraser: "Eraser",
     fill: "Fill",
@@ -4253,6 +4470,7 @@ void main( void )
     tone: "Dodge & burn",
     text: "Text",
     shape: "Shape",
+    path: "Path",
     hand: "Hand",
     zoom: "Zoom"
   };
@@ -5507,23 +5725,26 @@ void main( void )
       render: (host, ctx) => {
         const list = document.createElement("div");
         list.className = "dg-layers";
+        let rowHandles = [];
         const draw = () => {
           list.replaceChildren();
+          for (const handle of rowHandles) {
+            handle.destroy();
+          }
+          rowHandles = [];
           for (const layer of [...ctx.getLayers()].reverse()) {
             const row = document.createElement("div");
             row.className = "dg-layer";
             row.classList.toggle("is-active", layer.id === ctx.getActiveLayerId());
-            const eye = document.createElement("button");
-            eye.type = "button";
-            eye.className = "dg-layer__eye";
-            eye.textContent = layer.visible ? "●" : "○";
-            eye.title = layer.visible ? __("Hide layer") : __("Show layer");
-            eye.setAttribute("aria-label", eye.title);
-            eye.addEventListener("click", (event) => {
-              event.stopPropagation();
-              ctx.setLayers(
-                updateLayer(ctx.getLayers(), layer.id, { visible: !layer.visible })
-              );
+            const eye = createIconButton({
+              glyph: layer.visible ? "●" : "○",
+              label: layer.visible ? __("Hide layer") : __("Show layer"),
+              className: "dg-layer__eye",
+              onClick: () => ctx.setLayers(
+                updateLayer(ctx.getLayers(), layer.id, {
+                  visible: !layer.visible
+                })
+              )
             });
             const name = document.createElement("button");
             name.type = "button";
@@ -5533,41 +5754,39 @@ void main( void )
               "click",
               () => ctx.setLayers(ctx.getLayers(), layer.id)
             );
-            const up = document.createElement("button");
-            up.type = "button";
-            up.className = "dg-layer__move";
-            up.textContent = "↑";
-            up.title = __("Bring forward");
-            up.setAttribute("aria-label", up.title);
-            up.addEventListener(
-              "click",
-              () => ctx.setLayers(reorderLayer(ctx.getLayers(), layer.id, 1), layer.id)
-            );
-            const down = document.createElement("button");
-            down.type = "button";
-            down.className = "dg-layer__move";
-            down.textContent = "↓";
-            down.title = __("Send backward");
-            down.setAttribute("aria-label", down.title);
-            down.addEventListener(
-              "click",
-              () => ctx.setLayers(reorderLayer(ctx.getLayers(), layer.id, -1), layer.id)
-            );
-            row.append(eye, name, up, down);
+            const up = createIconButton({
+              glyph: "↑",
+              label: __("Bring forward"),
+              className: "dg-layer__move",
+              onClick: () => ctx.setLayers(
+                reorderLayer(ctx.getLayers(), layer.id, 1),
+                layer.id
+              )
+            });
+            const down = createIconButton({
+              glyph: "↓",
+              label: __("Send backward"),
+              className: "dg-layer__move",
+              onClick: () => ctx.setLayers(
+                reorderLayer(ctx.getLayers(), layer.id, -1),
+                layer.id
+              )
+            });
+            rowHandles.push(eye, up, down);
+            row.append(eye.el, name, up.el, down.el);
             if (layer.id !== BASE_LAYER_ID) {
-              const remove = document.createElement("button");
-              remove.type = "button";
-              remove.className = "dg-layer__delete";
-              remove.textContent = "×";
-              remove.title = __("Delete layer");
-              remove.setAttribute("aria-label", remove.title);
-              remove.addEventListener(
-                "click",
-                () => ctx.setLayers(
-                  ctx.getLayers().filter((entry) => entry.id !== layer.id)
+              const remove = createIconButton({
+                glyph: "×",
+                label: __("Delete layer"),
+                className: "dg-layer__delete",
+                onClick: () => ctx.setLayers(
+                  ctx.getLayers().filter(
+                    (entry) => entry.id !== layer.id
+                  )
                 )
-              );
-              row.appendChild(remove);
+              });
+              rowHandles.push(remove);
+              row.appendChild(remove.el);
             }
             list.appendChild(row);
           }
@@ -5586,6 +5805,9 @@ void main( void )
         draw();
         host.append(list, add.el, hint);
         return () => {
+          for (const handle of rowHandles) {
+            handle.destroy();
+          }
           off();
           add.destroy();
         };
@@ -6149,10 +6371,16 @@ void main( void )
       render: (host, ctx) => {
         const list = document.createElement("div");
         list.className = "dg-presets";
+        let rowHandles = [];
+        let presetName = "";
         const status = document.createElement("p");
         status.className = "dg-hint";
         const refresh = async () => {
           list.replaceChildren();
+          for (const handle of rowHandles) {
+            handle.destroy();
+          }
+          rowHandles = [];
           let presets;
           try {
             presets = await ctx.listPresets();
@@ -6170,26 +6398,26 @@ void main( void )
           for (const preset of presets) {
             const row = document.createElement("div");
             row.className = "dg-preset";
-            const apply = document.createElement("button");
-            apply.type = "button";
-            apply.className = "dg-preset__apply";
-            apply.textContent = preset.name;
-            apply.addEventListener("click", () => ctx.applyPreset(preset));
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.className = "dg-preset__delete";
-            remove.textContent = "×";
-            remove.title = sprintf(__("Delete “%s”"), preset.name);
-            remove.setAttribute("aria-label", remove.title);
-            remove.addEventListener("click", async () => {
-              await ctx.deletePreset(preset.id);
-              await refresh();
+            const apply = createButton({
+              label: preset.name,
+              variant: "ghost",
+              onClick: () => ctx.applyPreset(preset)
             });
-            row.append(apply, remove);
+            apply.el.classList.add("dg-preset__apply");
+            const remove = createIconButton({
+              glyph: "×",
+              label: sprintf(__("Delete “%s”"), preset.name),
+              className: "dg-preset__delete",
+              onClick: async () => {
+                await ctx.deletePreset(preset.id);
+                await refresh();
+              }
+            });
+            rowHandles.push(apply, remove);
+            row.append(apply.el, remove.el);
             list.appendChild(row);
           }
         };
-        let presetName = "";
         const name = createTextField({
           label: __("Preset name"),
           value: "",
@@ -6218,6 +6446,9 @@ void main( void )
         host.append(list, status, name.el, save.el);
         void refresh();
         return () => {
+          for (const handle of rowHandles) {
+            handle.destroy();
+          }
           name.destroy();
           save.destroy();
         };
@@ -6311,6 +6542,12 @@ void main( void )
     };
   }
   const RETOUCH_SPACING = 0.25;
+  const PIXEL_TOOLS = ["retouch", "tone", "clone", "history"];
+  const PIXEL_OPS = {
+    clone: "clone",
+    history: "restore",
+    tone: void 0
+  };
   class StageTools {
     constructor(options) {
       this.drawing = false;
@@ -6320,6 +6557,7 @@ void main( void )
       this.path = [];
       this.work = null;
       this.carry = null;
+      this.pristine = null;
       this.cloneSource = null;
       this.cloneOffset = null;
       this.preview = null;
@@ -6357,6 +6595,10 @@ void main( void )
             return;
           case "text":
             this.placeText(point);
+            return;
+          case "path":
+            this.path = appendPathPoint(this.path, this.normalise(point), 0);
+            this.options.setSelection({ shape: "polygon", points: this.path });
             return;
           case "select":
             this.beginSelect(point);
@@ -6422,7 +6664,7 @@ void main( void )
           return;
         }
         const brush = this.options.getBrush();
-        const spacing = tool === "retouch" || tool === "tone" || tool === "clone" ? RETOUCH_SPACING : STAMP_SPACING;
+        const spacing = PIXEL_TOOLS.includes(tool) ? RETOUCH_SPACING : STAMP_SPACING;
         for (const step of interpolateStroke(this.last, point, brush.size * spacing)) {
           this.strokeDab(step, tool);
         }
@@ -6441,6 +6683,7 @@ void main( void )
         this.dragFrom = null;
         this.work = null;
         this.carry = null;
+        this.pristine = null;
         this.hidePreview();
         if (dragFrom && event instanceof PointerEvent) {
           this.commitRegion(dragFrom, event);
@@ -6788,7 +7031,7 @@ void main( void )
      * @param tool Active tool.
      */
     beginPixelStroke(tool) {
-      if (tool !== "retouch" && tool !== "tone" && tool !== "clone") {
+      if (!PIXEL_TOOLS.includes(tool)) {
         return;
       }
       const source = this.options.readDocument();
@@ -6798,6 +7041,16 @@ void main( void )
         width: source.width,
         height: source.height
       } : null;
+      if (tool === "history") {
+        const pristine = this.options.readPristine();
+        this.pristine = pristine ? {
+          data: pristine.pixels,
+          width: pristine.width,
+          height: pristine.height
+        } : null;
+      } else {
+        this.pristine = null;
+      }
     }
     /**
      * Places one dab, whichever kind the tool wants.
@@ -6806,7 +7059,7 @@ void main( void )
      * @param tool  Active tool.
      */
     strokeDab(point, tool) {
-      if (tool === "retouch" || tool === "tone" || tool === "clone") {
+      if (PIXEL_TOOLS.includes(tool)) {
         this.pixelDab(point, tool);
         return;
       }
@@ -6837,10 +7090,14 @@ void main( void )
         return;
       }
       const brush = this.options.getBrush();
-      const op = tool === "clone" ? "clone" : tool === "tone" ? brush.tone : brush.retouch;
+      const op = PIXEL_OPS[tool] ?? (tool === "tone" ? brush.tone : brush.retouch);
+      if (op === "restore" && !this.pristine) {
+        return;
+      }
       const result = applyPixelDab({
         op,
         target: work,
+        source: op === "restore" ? this.pristine : void 0,
         x: point.x,
         y: point.y,
         radius: brush.size,
@@ -6896,6 +7153,58 @@ void main( void )
       this.cloneSource = null;
       this.cloneOffset = null;
       this.options.onToolStateChange?.();
+    }
+    /**
+     * Paints the placed path with the current colour and style.
+     *
+     * Called when the path is closed with Enter. Reuses the shape drawing, which is why
+     * a pen tool cost a dozen lines rather than a vector subsystem.
+     *
+     * @return Whether anything was drawn.
+     */
+    commitPath() {
+      const canvas = this.options.getCanvas();
+      const brush = this.options.getBrush();
+      if (this.path.length < 3) {
+        return false;
+      }
+      const surface = document.createElement("canvas");
+      surface.width = canvas.width;
+      surface.height = canvas.height;
+      const ctx = surface.getContext("2d");
+      if (!ctx) {
+        return false;
+      }
+      ctx.beginPath();
+      this.path.forEach((point, index) => {
+        const x = point.x * canvas.width;
+        const y = point.y * canvas.height;
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      ctx.closePath();
+      if (brush.shapeStyle === "fill") {
+        ctx.fillStyle = brush.colour;
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = brush.colour;
+        ctx.lineWidth = Math.max(1, brush.strokeWidth);
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      }
+      this.options.composite(
+        this.options.getTargetLayerId(),
+        surface,
+        0,
+        0,
+        brush.opacity
+      );
+      this.options.onStrokeEnd();
+      this.clearPath();
+      return true;
     }
     /** Abandons a half-placed polygon. */
     clearPath() {
@@ -7097,24 +7406,22 @@ void main( void )
       this.el.className = "dg-swatches";
       this.foreground = this.makeSwatch("colour", __("Foreground colour"));
       this.background = this.makeSwatch("background", __("Background colour"));
-      const swap = document.createElement("button");
-      swap.type = "button";
-      swap.className = "dg-swatches__action dg-swatches__swap";
-      swap.textContent = "⇄";
-      swap.title = __("Swap colours (X)");
-      swap.setAttribute("aria-label", __("Swap colours"));
-      swap.addEventListener("click", () => this.swap());
-      const reset = document.createElement("button");
-      reset.type = "button";
-      reset.className = "dg-swatches__action dg-swatches__reset";
-      reset.textContent = "◨";
-      reset.title = __("Reset to black and white (D)");
-      reset.setAttribute("aria-label", __("Reset colours"));
-      reset.addEventListener("click", () => this.reset());
+      this.swapButton = createIconButton({
+        glyph: "⇄",
+        label: __("Swap colours (X)"),
+        className: "dg-swatches__action",
+        onClick: () => this.swap()
+      });
+      this.resetButton = createIconButton({
+        glyph: "◨",
+        label: __("Reset to black and white (D)"),
+        className: "dg-swatches__action",
+        onClick: () => this.reset()
+      });
       const stack = document.createElement("div");
       stack.className = "dg-swatches__stack";
       stack.append(this.foreground, this.background);
-      this.el.append(stack, swap, reset);
+      this.el.append(stack, this.swapButton.el, this.resetButton.el);
       this.off = options.onColoursChange(() => this.sync());
       this.sync();
     }
@@ -7163,31 +7470,27 @@ void main( void )
           this.sync();
         }
       });
-      const palette = document.createElement("div");
-      palette.className = "dg-swatch-popover__palette";
-      for (const colour of PALETTE) {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "dg-swatch-popover__chip";
-        chip.style.background = colour;
-        chip.title = colour;
-        chip.setAttribute("aria-label", colour);
-        chip.addEventListener("click", () => {
+      const palette = createSwatchGrid({
+        label: __("Palette"),
+        colours: PALETTE,
+        value: this.options.getColours()[which],
+        onChange: (colour) => {
           this.options.setColours({ [which]: colour });
           field.setValue(colour);
+          palette.setValue(colour);
           this.sync();
-        });
-        palette.appendChild(chip);
-      }
+        }
+      });
       const done = createButton({
         label: __("Done"),
         variant: "secondary",
         onClick: () => this.closePicker()
       });
-      popover.append(field.el, palette, done.el);
-      anchor.after(popover);
+      popover.append(field.el, palette.el, done.el);
+      floatingHost(anchor).appendChild(popover);
+      positionFloating(popover, anchor, "block-end");
       this.popover = popover;
-      this.release = [field.destroy, done.destroy];
+      this.release = [field.destroy, palette.destroy, done.destroy];
       const onAway = (event) => {
         if (event.target instanceof Node && !popover.contains(event.target)) {
           this.closePicker();
@@ -7237,6 +7540,8 @@ void main( void )
     /** Releases listeners. */
     destroy() {
       this.closePicker();
+      this.swapButton.destroy();
+      this.resetButton.destroy();
       this.off();
       this.el.remove();
     }
@@ -7251,10 +7556,12 @@ void main( void )
     { id: "clone", glyph: "⎗", label: "Clone stamp", key: "s", group: 2 },
     { id: "tone", glyph: "◐", label: "Dodge & burn", key: "o", group: 2 },
     { id: "brush", glyph: "✎", label: "Brush", key: "b", group: 3 },
+    { id: "history", glyph: "↺", label: "History brush", key: "y", group: 3 },
     { id: "eraser", glyph: "◻", label: "Eraser", key: "e", group: 3 },
     { id: "fill", glyph: "◧", label: "Fill", key: "g", group: 3 },
-    { id: "gradient", glyph: "▨", label: "Gradient", key: "n", group: 3 },
+    { id: "gradient", glyph: "▨", label: "Gradient", key: "n", group: 4 },
     { id: "shape", glyph: "▬", label: "Shape", key: "u", group: 4 },
+    { id: "path", glyph: "✒", label: "Path", key: "p", group: 4 },
     { id: "text", glyph: "T", label: "Text", key: "t", group: 4 },
     { id: "hand", glyph: "☞", label: "Hand", key: "h", group: 5 },
     { id: "zoom", glyph: "⌕", label: "Zoom", key: "z", group: 5 }
@@ -7262,7 +7569,11 @@ void main( void )
   class ToolRail {
     constructor(options) {
       this.buttons = /* @__PURE__ */ new Map();
+      this.menu = null;
       this.detach = [];
+      this.menuHandles = [];
+      this.closeAway = null;
+      this.options = options;
       this.el = document.createElement("div");
       this.el.className = "dg-rail";
       const grid = document.createElement("div");
@@ -7271,27 +7582,65 @@ void main( void )
       grid.setAttribute("aria-orientation", "vertical");
       grid.setAttribute("aria-label", __("Tools"));
       let group = TOOLS[0]?.group;
+      let inGroup = 0;
       for (const tool of TOOLS) {
         if (tool.group !== group) {
+          if (inGroup % 2 === 1) {
+            const spacer = document.createElement("span");
+            spacer.className = "dg-rail__spacer";
+            spacer.setAttribute("aria-hidden", "true");
+            grid.appendChild(spacer);
+          }
           const rule = document.createElement("span");
           rule.className = "dg-rail__rule";
           rule.setAttribute("aria-hidden", "true");
           grid.appendChild(rule);
           group = tool.group;
+          inGroup = 0;
         }
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "dg-rail__button";
-        button.textContent = tool.glyph;
-        button.title = `${__(tool.label)} (${tool.key.toUpperCase()})`;
-        button.setAttribute("aria-label", __(tool.label));
-        button.setAttribute("aria-pressed", "false");
-        button.addEventListener("click", () => options.onSelect(tool.id));
+        inGroup++;
+        const button = createIconButton({
+          glyph: tool.glyph,
+          label: `${__(tool.label)} (${tool.key.toUpperCase()})`,
+          className: "dg-rail__button",
+          onClick: () => options.onSelect(tool.id)
+        });
+        button.el.setAttribute("aria-pressed", "false");
         this.buttons.set(tool.id, button);
-        grid.appendChild(button);
+        grid.appendChild(button.el);
       }
+      this.overflow = createIconButton({
+        glyph: "⋯",
+        label: __("All tools"),
+        className: "dg-rail__button",
+        onClick: () => this.toggleMenu()
+      });
+      grid.appendChild(this.overflow.el);
       this.swatches = new Swatches(options);
-      this.el.append(grid, this.swatches.el);
+      this.quickMask = createIconButton({
+        glyph: "◍",
+        label: __("Quick mask: show the selection as a red overlay (Q)"),
+        className: "dg-rail__mode",
+        onClick: () => {
+          options.setQuickMask(!options.getQuickMask());
+          this.syncModes();
+        }
+      });
+      this.fullScreen = createIconButton({
+        glyph: "⛶",
+        label: __("Full screen (F)"),
+        className: "dg-rail__mode",
+        onClick: () => {
+          options.setFullScreen(!options.getFullScreen());
+          this.syncModes();
+        }
+      });
+      const modes = document.createElement("div");
+      modes.className = "dg-rail__modes";
+      modes.setAttribute("role", "group");
+      modes.setAttribute("aria-label", __("Screen modes"));
+      modes.append(this.quickMask.el, this.fullScreen.el);
+      this.el.append(grid, this.swatches.el, modes);
       const onKey = (event) => {
         if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget$1(event.target)) {
           return;
@@ -7305,6 +7654,18 @@ void main( void )
         if (key === "d") {
           event.preventDefault();
           this.swatches.reset();
+          return;
+        }
+        if (key === "q") {
+          event.preventDefault();
+          options.setQuickMask(!options.getQuickMask());
+          this.syncModes();
+          return;
+        }
+        if (key === "f") {
+          event.preventDefault();
+          options.setFullScreen(!options.getFullScreen());
+          this.syncModes();
           return;
         }
         const match = TOOLS.find((tool) => tool.key === key);
@@ -7324,11 +7685,75 @@ void main( void )
      */
     sync(active2) {
       for (const [id, button] of this.buttons) {
-        const on = id === active2;
-        button.classList.toggle("is-active", on);
-        button.setAttribute("aria-pressed", String(on));
+        button.setPressed(id === active2);
       }
       this.swatches.sync();
+      this.syncModes();
+    }
+    /** Marks the quick-mask and full-screen toggles. */
+    syncModes() {
+      this.quickMask.setPressed(this.options.getQuickMask());
+      this.fullScreen.setPressed(this.options.getFullScreen());
+    }
+    /**
+     * Shows or hides the named tool list.
+     *
+     * A plain list rather than Desktop Mode's `wpd-menu`: this has to work identically
+     * with the shell absent, and a menu is the one control where a half-registered
+     * component would leave the user with nothing clickable.
+     */
+    toggleMenu() {
+      if (this.menu) {
+        this.closeMenu();
+        return;
+      }
+      const menu = document.createElement("div");
+      menu.className = "dg-rail-menu";
+      menu.setAttribute("role", "menu");
+      menu.setAttribute("aria-label", __("All tools"));
+      const handles = [];
+      for (const tool of TOOLS) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "dg-rail-menu__item";
+        item.setAttribute("role", "menuitem");
+        item.innerHTML = "";
+        const glyph = document.createElement("span");
+        glyph.className = "dg-rail-menu__glyph";
+        glyph.textContent = tool.glyph;
+        const name = document.createElement("span");
+        name.textContent = __(tool.label);
+        const key = document.createElement("kbd");
+        key.textContent = tool.key.toUpperCase();
+        item.append(glyph, name, key);
+        item.addEventListener("click", () => {
+          this.options.onSelect(tool.id);
+          this.closeMenu();
+        });
+        menu.appendChild(item);
+      }
+      floatingHost(this.el).appendChild(menu);
+      positionFloating(menu, this.overflow.el, "inline-end");
+      this.menu = menu;
+      this.menuHandles = handles;
+      const onAway = (event) => {
+        if (event.target instanceof Node && !menu.contains(event.target) && !this.overflow.el.contains(event.target)) {
+          this.closeMenu();
+        }
+      };
+      window.setTimeout(() => document.addEventListener("click", onAway), 0);
+      this.closeAway = () => document.removeEventListener("click", onAway);
+    }
+    /** Removes the tool list. */
+    closeMenu() {
+      this.closeAway?.();
+      this.closeAway = null;
+      for (const handle of this.menuHandles) {
+        handle.destroy();
+      }
+      this.menuHandles = [];
+      this.menu?.remove();
+      this.menu = null;
     }
     /** Removes the rail and its shortcuts. */
     destroy() {
@@ -7336,6 +7761,14 @@ void main( void )
         off();
       }
       this.detach = [];
+      this.closeMenu();
+      for (const button of this.buttons.values()) {
+        button.destroy();
+      }
+      this.buttons.clear();
+      this.overflow.destroy();
+      this.quickMask.destroy();
+      this.fullScreen.destroy();
       this.swatches.destroy();
       this.el.remove();
     }
@@ -7378,6 +7811,8 @@ void main( void )
       this.rulers = null;
       this.selection = null;
       this.selectionShape = "rect";
+      this.quickMask = false;
+      this.fullScreen = false;
       this.optionsBar = null;
       this.clipboard = null;
       this.stageTools = null;
@@ -7430,6 +7865,7 @@ void main( void )
       this.root.replaceChildren();
       this.root.classList.add("dg-editor");
       this.root.classList.add(`dg-editor--${this.options.host ?? "page"}`);
+      this.root.classList.toggle("is-desktop-mode", isDesktopModeEnabled());
       const topbar = document.createElement("div");
       topbar.className = "dg-topbar";
       topbar.setAttribute("role", "toolbar");
@@ -7813,7 +8249,11 @@ void main( void )
           return () => {
             this.brushListeners.delete(wrapped);
           };
-        }
+        },
+        getQuickMask: () => this.quickMask,
+        setQuickMask: (on) => this.setQuickMask(on),
+        getFullScreen: () => this.fullScreen,
+        setFullScreen: (on) => this.setFullScreen(on)
       });
       this.root.querySelector(".dg-body")?.prepend(this.toolRail.el);
       this.stage.dataset.tool = this.activeTool;
@@ -7880,6 +8320,7 @@ void main( void )
         fillMask: (id, mask, colour, opacity) => renderer.fillWithMask(id, mask, colour, opacity),
         composite: (id, source, x, y, opacity) => renderer.compositeCanvas(id, source, x, y, opacity),
         readDocument: () => renderer.readDocumentPixels(),
+        readPristine: () => renderer.readPristinePixels(),
         getSelectionShape: () => this.selectionShape,
         setSelection: (selection) => this.setSelection(selection),
         pan: (dx, dy) => renderer.pan(dx, dy),
@@ -7981,10 +8422,19 @@ void main( void )
           this.setSelection(null);
           return;
         }
-        if (event.key === "Enter" && this.selectionShape === "polygon") {
-          event.preventDefault();
-          this.stageTools?.clearPath();
-          return;
+        if (event.key === "Enter") {
+          if (this.activeTool === "path") {
+            event.preventDefault();
+            if (this.stageTools?.commitPath()) {
+              this.setSelection(null);
+            }
+            return;
+          }
+          if (this.selectionShape === "polygon") {
+            event.preventDefault();
+            this.stageTools?.clearPath();
+            return;
+          }
         }
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
           event.preventDefault();
@@ -8119,6 +8569,37 @@ void main( void )
       for (const listener of this.toolListeners) {
         listener(tool);
       }
+    }
+    /**
+     * Shows or hides the selection as a red overlay.
+     *
+     * @param on Whether to show it.
+     */
+    setQuickMask(on) {
+      this.quickMask = on;
+      this.stage.classList.toggle("is-quick-mask", on);
+      this.syncSelection();
+    }
+    /**
+     * Expands the editor to fill the screen, or gives the space back.
+     *
+     * Uses the Fullscreen API when it is available and a CSS class when it is not --
+     * inside a Desktop Mode window the request is often refused, and an editor that
+     * silently does nothing when you press F is worse than one that just grows.
+     *
+     * @param on Whether to fill the screen.
+     */
+    setFullScreen(on) {
+      this.fullScreen = on;
+      this.root.classList.toggle("is-full-screen", on);
+      if (on && this.root.requestFullscreen) {
+        void this.root.requestFullscreen().catch(() => {
+        });
+      } else if (!on && document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => {
+        });
+      }
+      this.renderer?.fit();
     }
     /**
      * Changes the shared brush settings.

@@ -25,7 +25,8 @@ export type PixelOp =
 	| 'burn'
 	| 'sponge'
 	| 'saturate'
-	| 'clone';
+	| 'clone'
+	| 'restore';
 
 /**
  * A block of RGBA pixels.
@@ -288,6 +289,13 @@ export function applyPixelDab( request: DabRequest ): DabResult | null {
 						sampleAt( source, x - offsetX, y - offsetY ),
 						weight
 					);
+					break;
+
+				case 'restore':
+					// The history brush: the same pixel, read from a pristine copy of
+					// the image. Clone with a zero offset and a different source, which
+					// is why it needed no kernel of its own.
+					blend( target, index, sampleAt( source, x, y ), weight );
 					break;
 			}
 		}

@@ -32,6 +32,51 @@ export function isDesktopMode(): boolean {
 }
 
 /**
+ * Whether Desktop Mode is switched on for this user.
+ *
+ * Distinct from `isDesktopMode()`, which only reports whether the shell's JavaScript
+ * happens to be on the page. This reads the flag PHP put in the config, which comes
+ * from `desktop_mode_is_enabled()` -- a per-user preference. It is the honest answer
+ * to "should this look like a desktop app", and it is true even inside a chromeless
+ * iframe, where the shell's own script is deliberately absent.
+ */
+export function isDesktopModeEnabled(): boolean {
+	const config = (
+		window as unknown as { daguerreConfig?: { desktopMode?: unknown } }
+	).daguerreConfig;
+	const flag = config?.desktopMode;
+
+	// Tolerant of `'1'` as well as `true`: the config now travels as JSON, but a site
+	// filtering `daguerre_config` can still put a stringified boolean in there, and a
+	// flag that reads as false when PHP says true is a bug that hides rather than
+	// announces itself.
+	return flag === true || flag === '1' || flag === 1 || isDesktopMode();
+}
+
+/**
+ * Picks the first registered tag from a list of candidates.
+ *
+ * Components register lazily: the shell defines a core subset eagerly and the rest
+ * only when a bundle importing them loads, so on any given page some are there and
+ * some are not. `wpd-number-field` in particular is usually absent while
+ * `wpd-text-field` is present -- and a text field in numeric mode is a far better
+ * answer than dropping straight to a bare input, because it is still the shell's own
+ * control with the shell's own styling.
+ *
+ * @param tags Candidates, best first.
+ * @return The first registered tag, or null when none of them are.
+ */
+export function pickComponent( tags: string[] ): string | null {
+	for ( const tag of tags ) {
+		if ( hasComponent( tag ) ) {
+			return tag;
+		}
+	}
+
+	return null;
+}
+
+/**
  * Whether a Desktop Mode web component has been registered on this page.
  *
  * The shell registers a core subset of `<wpd-*>` eagerly and the rest only when a

@@ -40,7 +40,7 @@ import type { OpType, Recipe } from './model/recipe';
 import { loadSourceImage } from './net/image-loader';
 import type { LoadedImage } from './net/image-loader';
 import { RestClient } from './net/rest';
-import { toast } from './platform';
+import { isDesktopModeEnabled, toast } from './platform';
 import type { DaguerreConfig, MediaPayload, Preset, SaveResult } from './types';
 import { registerBuiltInPanels } from './ui/built-in-panels';
 import { createButton } from './ui/controls';
@@ -169,6 +169,17 @@ class Editor implements EditorInstance {
 	/** Which shape the marquee tool draws. */
 	private selectionShape: SelectionShape = 'rect';
 
+	/**
+	 * Whether the selection is shown as a translucent red overlay.
+	 *
+	 * Marching ants tell you where an edge is; a quick mask tells you how soft it is,
+	 * which an outline cannot show at all.
+	 */
+	private quickMask = false;
+
+	/** Whether the editor has been expanded to fill the screen. */
+	private fullScreen = false;
+
 	private optionsBar: OptionsBar | null = null;
 
 	/** Pixels lifted by the last copy. */
@@ -254,6 +265,12 @@ class Editor implements EditorInstance {
 		this.root.replaceChildren();
 		this.root.classList.add( 'dg-editor' );
 		this.root.classList.add( `dg-editor--${ this.options.host ?? 'page' }` );
+
+		// Which house style the *fallback* controls wear. A component the shell has
+		// registered brings its own styling; a native input does not, and inside a
+		// chromeless iframe no component is registered at all -- so this is the only
+		// thing keeping the editor from looking like two plugins glued together.
+		this.root.classList.toggle( 'is-desktop-mode', isDesktopModeEnabled() );
 
 		const topbar = document.createElement( 'div' );
 		topbar.className = 'dg-topbar';
@@ -734,6 +751,10 @@ class Editor implements EditorInstance {
 					this.brushListeners.delete( wrapped );
 				};
 			},
+			getQuickMask: () => this.quickMask,
+			setQuickMask: ( on ) => this.setQuickMask( on ),
+			getFullScreen: () => this.fullScreen,
+			setFullScreen: ( on ) => this.setFullScreen( on ),
 		} );
 
 		this.root.querySelector( '.dg-body' )?.prepend( this.toolRail.el );
@@ -817,6 +838,7 @@ class Editor implements EditorInstance {
 			composite: ( id, source, x, y, opacity ) =>
 				renderer.compositeCanvas( id, source, x, y, opacity ),
 			readDocument: () => renderer.readDocumentPixels(),
+			readPristine: () => renderer.readPristinePixels(),
 			getSelectionShape: () => this.selectionShape,
 			setSelection: ( selection ) => this.setSelection( selection ),
 			pan: ( dx, dy ) => renderer.pan( dx, dy ),
@@ -943,12 +965,25 @@ class Editor implements EditorInstance {
 				return;
 			}
 
-			// Enter closes a polygon that is still being placed.
-			if ( event.key === 'Enter' && this.selectionShape === 'polygon' ) {
-				event.preventDefault();
-				this.stageTools?.clearPath();
+			// Enter closes whatever is being placed click by click: a polygon selection,
+			// or a path, which is drawn rather than selected.
+			if ( event.key === 'Enter' ) {
+				if ( this.activeTool === 'path' ) {
+					event.preventDefault();
 
-				return;
+					if ( this.stageTools?.commitPath() ) {
+						this.setSelection( null );
+					}
+
+					return;
+				}
+
+				if ( this.selectionShape === 'polygon' ) {
+					event.preventDefault();
+					this.stageTools?.clearPath();
+
+					return;
+				}
 			}
 
 			if ( ( event.metaKey || event.ctrlKey ) && event.key.toLowerCase() === 'a' ) {
@@ -1120,6 +1155,41 @@ class Editor implements EditorInstance {
 		for ( const listener of this.toolListeners ) {
 			listener( tool );
 		}
+	}
+
+	/**
+	 * Shows or hides the selection as a red overlay.
+	 *
+	 * @param on Whether to show it.
+	 */
+	private setQuickMask( on: boolean ): void {
+		this.quickMask = on;
+		this.stage.classList.toggle( 'is-quick-mask', on );
+		this.syncSelection();
+	}
+
+	/**
+	 * Expands the editor to fill the screen, or gives the space back.
+	 *
+	 * Uses the Fullscreen API when it is available and a CSS class when it is not --
+	 * inside a Desktop Mode window the request is often refused, and an editor that
+	 * silently does nothing when you press F is worse than one that just grows.
+	 *
+	 * @param on Whether to fill the screen.
+	 */
+	private setFullScreen( on: boolean ): void {
+		this.fullScreen = on;
+		this.root.classList.toggle( 'is-full-screen', on );
+
+		if ( on && this.root.requestFullscreen ) {
+			void this.root.requestFullscreen().catch( () => {
+				// The CSS class already did the useful part.
+			} );
+		} else if ( ! on && document.fullscreenElement ) {
+			void document.exitFullscreen().catch( () => {} );
+		}
+
+		this.renderer?.fit();
 	}
 
 	/**

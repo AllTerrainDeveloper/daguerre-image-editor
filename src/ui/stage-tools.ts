@@ -157,6 +157,8 @@ export interface StageToolsOptions {
 	) => void;
 	/** Reads the composed document, for flood fill's colour matching. */
 	readDocument: () => { pixels: Uint8ClampedArray; width: number; height: number } | null;
+	/** Reads the image without any painted layer, for the history brush. */
+	readPristine: () => { pixels: Uint8ClampedArray; width: number; height: number } | null;
 	/** Which shape the marquee draws. */
 	getSelectionShape: () => SelectionShape;
 	/** Replaces the selection. Null clears it. */
@@ -173,6 +175,21 @@ export interface StageToolsOptions {
 
 /** How much of a dab's width a retouching stroke advances before the next one. */
 const RETOUCH_SPACING = 0.25;
+
+/** The tools that work on pixels rather than laying down paint. */
+const PIXEL_TOOLS: ActiveTool[] = [ 'retouch', 'tone', 'clone', 'history' ];
+
+/**
+ * Which operation each pixel tool performs.
+ *
+ * Retouch and tone choose theirs from the options bar, so they are absent here and
+ * fall through to the brush setting.
+ */
+const PIXEL_OPS: Partial< Record< ActiveTool, PixelOp > > = {
+	clone: 'clone',
+	history: 'restore',
+	tone: undefined,
+};
 
 /**
  * Routes pointer events on the stage to whichever tool is active.
@@ -196,6 +213,9 @@ export class StageTools {
 	private work: PixelBuffer | null = null;
 
 	private carry: Carry | null = null;
+
+	/** The image before anything was painted, for the history brush. */
+	private pristine: PixelBuffer | null = null;
 
 	/** Where the clone stamp samples from, in canvas pixels. */
 	private cloneSource: { x: number; y: number } | null = null;
@@ -287,6 +307,15 @@ export class StageTools {
 
 			case 'text':
 				this.placeText( point );
+
+				return;
+
+			case 'path':
+				// Vertices are placed deliberately, one click at a time, and the shape
+				// is only drawn once the path is closed -- so no thinning, and no drag
+				// lifecycle at all.
+				this.path = appendPathPoint( this.path, this.normalise( point ), 0 );
+				this.options.setSelection( { shape: 'polygon', points: this.path } );
 
 				return;
 
@@ -387,10 +416,7 @@ export class StageTools {
 		}
 
 		const brush = this.options.getBrush();
-		const spacing =
-			tool === 'retouch' || tool === 'tone' || tool === 'clone'
-				? RETOUCH_SPACING
-				: STAMP_SPACING;
+		const spacing = PIXEL_TOOLS.includes( tool ) ? RETOUCH_SPACING : STAMP_SPACING;
 
 		// Fill the gap between pointer samples, or a fast stroke lays down dots.
 		for ( const step of interpolateStroke( this.last, point, brush.size * spacing ) ) {
@@ -416,6 +442,7 @@ export class StageTools {
 		this.dragFrom = null;
 		this.work = null;
 		this.carry = null;
+		this.pristine = null;
 		this.hidePreview();
 
 		if ( dragFrom && event instanceof PointerEvent ) {
@@ -808,7 +835,7 @@ export class StageTools {
 	 * @param tool Active tool.
 	 */
 	private beginPixelStroke( tool: ActiveTool ): void {
-		if ( tool !== 'retouch' && tool !== 'tone' && tool !== 'clone' ) {
+		if ( ! PIXEL_TOOLS.includes( tool ) ) {
 			return;
 		}
 
@@ -822,6 +849,22 @@ export class StageTools {
 					height: source.height,
 			  }
 			: null;
+
+		// The history brush reads the image as it was before anything was painted, so
+		// it needs a second buffer that the stroke never writes into.
+		if ( tool === 'history' ) {
+			const pristine = this.options.readPristine();
+
+			this.pristine = pristine
+				? {
+						data: pristine.pixels,
+						width: pristine.width,
+						height: pristine.height,
+				  }
+				: null;
+		} else {
+			this.pristine = null;
+		}
 	}
 
 	/**
@@ -831,7 +874,7 @@ export class StageTools {
 	 * @param tool  Active tool.
 	 */
 	private strokeDab( point: { x: number; y: number }, tool: ActiveTool ): void {
-		if ( tool === 'retouch' || tool === 'tone' || tool === 'clone' ) {
+		if ( PIXEL_TOOLS.includes( tool ) ) {
 			this.pixelDab( point, tool );
 
 			return;
@@ -873,11 +916,16 @@ export class StageTools {
 
 		const brush = this.options.getBrush();
 		const op: PixelOp =
-			tool === 'clone' ? 'clone' : tool === 'tone' ? brush.tone : brush.retouch;
+			PIXEL_OPS[ tool ] ?? ( tool === 'tone' ? brush.tone : brush.retouch );
+
+		if ( op === 'restore' && ! this.pristine ) {
+			return;
+		}
 
 		const result = applyPixelDab( {
 			op,
 			target: work,
+			source: op === 'restore' ? ( this.pristine as PixelBuffer ) : undefined,
 			x: point.x,
 			y: point.y,
 			radius: brush.size,
@@ -947,6 +995,68 @@ export class StageTools {
 		this.cloneSource = null;
 		this.cloneOffset = null;
 		this.options.onToolStateChange?.();
+	}
+
+	/**
+	 * Paints the placed path with the current colour and style.
+	 *
+	 * Called when the path is closed with Enter. Reuses the shape drawing, which is why
+	 * a pen tool cost a dozen lines rather than a vector subsystem.
+	 *
+	 * @return Whether anything was drawn.
+	 */
+	commitPath(): boolean {
+		const canvas = this.options.getCanvas();
+		const brush = this.options.getBrush();
+
+		if ( this.path.length < 3 ) {
+			return false;
+		}
+
+		const surface = document.createElement( 'canvas' );
+		surface.width = canvas.width;
+		surface.height = canvas.height;
+
+		const ctx = surface.getContext( '2d' );
+
+		if ( ! ctx ) {
+			return false;
+		}
+
+		ctx.beginPath();
+		this.path.forEach( ( point, index ) => {
+			const x = point.x * canvas.width;
+			const y = point.y * canvas.height;
+
+			if ( index === 0 ) {
+				ctx.moveTo( x, y );
+			} else {
+				ctx.lineTo( x, y );
+			}
+		} );
+		ctx.closePath();
+
+		if ( brush.shapeStyle === 'fill' ) {
+			ctx.fillStyle = brush.colour;
+			ctx.fill();
+		} else {
+			ctx.strokeStyle = brush.colour;
+			ctx.lineWidth = Math.max( 1, brush.strokeWidth );
+			ctx.lineJoin = 'round';
+			ctx.stroke();
+		}
+
+		this.options.composite(
+			this.options.getTargetLayerId(),
+			surface,
+			0,
+			0,
+			brush.opacity
+		);
+		this.options.onStrokeEnd();
+		this.clearPath();
+
+		return true;
 	}
 
 	/** Abandons a half-placed polygon. */

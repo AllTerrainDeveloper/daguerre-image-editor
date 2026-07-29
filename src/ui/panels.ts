@@ -39,6 +39,7 @@ export type ActiveTool =
 	| 'eyedropper'
 	| 'retouch'
 	| 'brush'
+	| 'history'
 	| 'clone'
 	| 'eraser'
 	| 'fill'
@@ -46,16 +47,19 @@ export type ActiveTool =
 	| 'tone'
 	| 'text'
 	| 'shape'
+	| 'path'
 	| 'hand'
 	| 'zoom';
 
 /** Tools that paint into a layer, and so need a raster target and a stroke history. */
 export const PAINTING_TOOLS: ActiveTool[] = [
 	'brush',
+	'history',
 	'eraser',
 	'fill',
 	'gradient',
 	'shape',
+	'path',
 	'text',
 	'retouch',
 	'tone',

@@ -14,6 +14,8 @@
  * shared state almost every tool reads.
  */
 
+import { createIconButton, floatingHost, positionFloating } from './controls';
+import type { IconButtonHandle } from './controls';
 import { __ } from '../i18n';
 import { Swatches } from './swatches';
 import type { SwatchesOptions } from './swatches';
@@ -50,11 +52,13 @@ export const TOOLS: ToolDef[] = [
 	{ id: 'tone', glyph: '◐', label: 'Dodge & burn', key: 'o', group: 2 },
 
 	{ id: 'brush', glyph: '✎', label: 'Brush', key: 'b', group: 3 },
+	{ id: 'history', glyph: '↺', label: 'History brush', key: 'y', group: 3 },
 	{ id: 'eraser', glyph: '◻', label: 'Eraser', key: 'e', group: 3 },
 	{ id: 'fill', glyph: '◧', label: 'Fill', key: 'g', group: 3 },
-	{ id: 'gradient', glyph: '▨', label: 'Gradient', key: 'n', group: 3 },
 
+	{ id: 'gradient', glyph: '▨', label: 'Gradient', key: 'n', group: 4 },
 	{ id: 'shape', glyph: '▬', label: 'Shape', key: 'u', group: 4 },
+	{ id: 'path', glyph: '✒', label: 'Path', key: 'p', group: 4 },
 	{ id: 'text', glyph: 'T', label: 'Text', key: 't', group: 4 },
 
 	{ id: 'hand', glyph: '☞', label: 'Hand', key: 'h', group: 5 },
@@ -66,6 +70,14 @@ export interface ToolRailOptions extends SwatchesOptions {
 	onSelect: ( tool: ActiveTool ) => void;
 	/** The tool currently active. */
 	getActive: () => ActiveTool;
+	/** Whether the selection is shown as a red overlay rather than as an outline. */
+	getQuickMask: () => boolean;
+	/** Turns the quick mask on or off. */
+	setQuickMask: ( on: boolean ) => void;
+	/** Whether the editor fills the screen. */
+	getFullScreen: () => boolean;
+	/** Fills the screen, or gives it back. */
+	setFullScreen: ( on: boolean ) => void;
 }
 
 /**
@@ -74,13 +86,30 @@ export interface ToolRailOptions extends SwatchesOptions {
 export class ToolRail {
 	public readonly el: HTMLElement;
 
-	private buttons = new Map< ActiveTool, HTMLButtonElement >();
+	private buttons = new Map< ActiveTool, IconButtonHandle >();
 
 	private swatches: Swatches;
 
+	private overflow: IconButtonHandle;
+
+	private quickMask: IconButtonHandle;
+
+	private fullScreen: IconButtonHandle;
+
+	/** The tool list, shown by the overflow button. */
+	private menu: HTMLElement | null = null;
+
+	private options: ToolRailOptions;
+
 	private detach: Array< () => void > = [];
 
+	private menuHandles: IconButtonHandle[] = [];
+
+	private closeAway: ( () => void ) | null = null;
+
 	constructor( options: ToolRailOptions ) {
+		this.options = options;
+
 		this.el = document.createElement( 'div' );
 		this.el.className = 'dg-rail';
 
@@ -91,33 +120,87 @@ export class ToolRail {
 		grid.setAttribute( 'aria-label', __( 'Tools' ) );
 
 		let group = TOOLS[ 0 ]?.group;
+		let inGroup = 0;
 
 		for ( const tool of TOOLS ) {
 			if ( tool.group !== group ) {
+				// A group with an odd number of tools would leave the next group starting
+				// in the second column, and every later separator half a row out of
+				// place. One empty cell keeps the columns honest however the tool list is
+				// later edited, which is better than relying on every group staying even.
+				if ( inGroup % 2 === 1 ) {
+					const spacer = document.createElement( 'span' );
+
+					spacer.className = 'dg-rail__spacer';
+					spacer.setAttribute( 'aria-hidden', 'true' );
+					grid.appendChild( spacer );
+				}
+
 				const rule = document.createElement( 'span' );
 
 				rule.className = 'dg-rail__rule';
 				rule.setAttribute( 'aria-hidden', 'true' );
 				grid.appendChild( rule );
 				group = tool.group;
+				inGroup = 0;
 			}
 
-			const button = document.createElement( 'button' );
+			inGroup++;
 
-			button.type = 'button';
-			button.className = 'dg-rail__button';
-			button.textContent = tool.glyph;
-			button.title = `${ __( tool.label ) } (${ tool.key.toUpperCase() })`;
-			button.setAttribute( 'aria-label', __( tool.label ) );
-			button.setAttribute( 'aria-pressed', 'false' );
-			button.addEventListener( 'click', () => options.onSelect( tool.id ) );
+			// From the kit, so the rail is built from Desktop Mode's buttons when they
+			// are registered rather than from something that merely resembles them.
+			const button = createIconButton( {
+				glyph: tool.glyph,
+				label: `${ __( tool.label ) } (${ tool.key.toUpperCase() })`,
+				className: 'dg-rail__button',
+				onClick: () => options.onSelect( tool.id ),
+			} );
 
+			button.el.setAttribute( 'aria-pressed', 'false' );
 			this.buttons.set( tool.id, button );
-			grid.appendChild( button );
+			grid.appendChild( button.el );
 		}
 
+		// The overflow: sixteen glyphs are quick to click and slow to learn, so the
+		// same list is also available by name.
+		this.overflow = createIconButton( {
+			glyph: '⋯',
+			label: __( 'All tools' ),
+			className: 'dg-rail__button',
+			onClick: () => this.toggleMenu(),
+		} );
+
+		grid.appendChild( this.overflow.el );
+
 		this.swatches = new Swatches( options );
-		this.el.append( grid, this.swatches.el );
+
+		this.quickMask = createIconButton( {
+			glyph: '◍',
+			label: __( 'Quick mask: show the selection as a red overlay (Q)' ),
+			className: 'dg-rail__mode',
+			onClick: () => {
+				options.setQuickMask( ! options.getQuickMask() );
+				this.syncModes();
+			},
+		} );
+
+		this.fullScreen = createIconButton( {
+			glyph: '⛶',
+			label: __( 'Full screen (F)' ),
+			className: 'dg-rail__mode',
+			onClick: () => {
+				options.setFullScreen( ! options.getFullScreen() );
+				this.syncModes();
+			},
+		} );
+
+		const modes = document.createElement( 'div' );
+		modes.className = 'dg-rail__modes';
+		modes.setAttribute( 'role', 'group' );
+		modes.setAttribute( 'aria-label', __( 'Screen modes' ) );
+		modes.append( this.quickMask.el, this.fullScreen.el );
+
+		this.el.append( grid, this.swatches.el, modes );
 
 		// Single-key shortcuts, but never while typing -- otherwise naming a preset
 		// would silently switch tools halfway through the word.
@@ -149,6 +232,22 @@ export class ToolRail {
 				return;
 			}
 
+			if ( key === 'q' ) {
+				event.preventDefault();
+				options.setQuickMask( ! options.getQuickMask() );
+				this.syncModes();
+
+				return;
+			}
+
+			if ( key === 'f' ) {
+				event.preventDefault();
+				options.setFullScreen( ! options.getFullScreen() );
+				this.syncModes();
+
+				return;
+			}
+
 			const match = TOOLS.find( ( tool ) => tool.key === key );
 
 			if ( match ) {
@@ -170,13 +269,103 @@ export class ToolRail {
 	 */
 	sync( active: ActiveTool ): void {
 		for ( const [ id, button ] of this.buttons ) {
-			const on = id === active;
-
-			button.classList.toggle( 'is-active', on );
-			button.setAttribute( 'aria-pressed', String( on ) );
+			button.setPressed( id === active );
 		}
 
 		this.swatches.sync();
+		this.syncModes();
+	}
+
+	/** Marks the quick-mask and full-screen toggles. */
+	private syncModes(): void {
+		this.quickMask.setPressed( this.options.getQuickMask() );
+		this.fullScreen.setPressed( this.options.getFullScreen() );
+	}
+
+	/**
+	 * Shows or hides the named tool list.
+	 *
+	 * A plain list rather than Desktop Mode's `wpd-menu`: this has to work identically
+	 * with the shell absent, and a menu is the one control where a half-registered
+	 * component would leave the user with nothing clickable.
+	 */
+	private toggleMenu(): void {
+		if ( this.menu ) {
+			this.closeMenu();
+
+			return;
+		}
+
+		const menu = document.createElement( 'div' );
+		menu.className = 'dg-rail-menu';
+		menu.setAttribute( 'role', 'menu' );
+		menu.setAttribute( 'aria-label', __( 'All tools' ) );
+
+		const handles: IconButtonHandle[] = [];
+
+		for ( const tool of TOOLS ) {
+			const item = document.createElement( 'button' );
+
+			item.type = 'button';
+			item.className = 'dg-rail-menu__item';
+			item.setAttribute( 'role', 'menuitem' );
+			item.innerHTML = '';
+
+			const glyph = document.createElement( 'span' );
+			glyph.className = 'dg-rail-menu__glyph';
+			glyph.textContent = tool.glyph;
+
+			const name = document.createElement( 'span' );
+			name.textContent = __( tool.label );
+
+			const key = document.createElement( 'kbd' );
+			key.textContent = tool.key.toUpperCase();
+
+			item.append( glyph, name, key );
+			item.addEventListener( 'click', () => {
+				this.options.onSelect( tool.id );
+				this.closeMenu();
+			} );
+
+			menu.appendChild( item );
+		}
+
+		// Attached to the editor root rather than beside the button: the rail scrolls,
+		// and a scroll container clips a popover that reaches outside it. The editor
+		// root is as far out as it can go while still inheriting the palette.
+		floatingHost( this.el ).appendChild( menu );
+		positionFloating( menu, this.overflow.el, 'inline-end' );
+
+		this.menu = menu;
+		this.menuHandles = handles;
+
+		const onAway = ( event: MouseEvent ) => {
+			if (
+				event.target instanceof Node &&
+				! menu.contains( event.target ) &&
+				! this.overflow.el.contains( event.target )
+			) {
+				this.closeMenu();
+			}
+		};
+
+		// Deferred, or the click that opened the menu closes it again.
+		window.setTimeout( () => document.addEventListener( 'click', onAway ), 0 );
+		this.closeAway = () => document.removeEventListener( 'click', onAway );
+	}
+
+	/** Removes the tool list. */
+	private closeMenu(): void {
+		this.closeAway?.();
+		this.closeAway = null;
+
+		for ( const handle of this.menuHandles ) {
+			handle.destroy();
+		}
+
+		this.menuHandles = [];
+		this.menu?.remove();
+		this.menu = null;
 	}
 
 	/** Removes the rail and its shortcuts. */
@@ -186,6 +375,16 @@ export class ToolRail {
 		}
 
 		this.detach = [];
+		this.closeMenu();
+
+		for ( const button of this.buttons.values() ) {
+			button.destroy();
+		}
+
+		this.buttons.clear();
+		this.overflow.destroy();
+		this.quickMask.destroy();
+		this.fullScreen.destroy();
 		this.swatches.destroy();
 		this.el.remove();
 	}

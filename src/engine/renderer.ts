@@ -666,6 +666,48 @@ export class EditorRenderer {
 		];
 	}
 
+	/**
+	 * Reads the image alone, with every painted layer left out.
+	 *
+	 * What the history brush paints from. Composed on demand rather than snapshotted at
+	 * load, because holding a second full-resolution copy of a twenty-megapixel photo
+	 * for the whole session -- against the chance that one brush gets used -- is the
+	 * kind of cost that only shows up on someone else's machine.
+	 *
+	 * @return Canvas-aligned pixels, or null when nothing is loaded.
+	 */
+	readPristinePixels():
+		| { pixels: Uint8ClampedArray; width: number; height: number }
+		| null {
+		const base = this.layerTextures.get( BASE_LAYER_ID ) ?? this.texture;
+		const layer = this.layers.find( ( entry ) => entry.id === BASE_LAYER_ID );
+
+		if ( ! base || ! layer || this.canvas.width <= 0 || this.canvas.height <= 0 ) {
+			return null;
+		}
+
+		const target = this.pixi.RenderTexture.create( {
+			width: this.canvas.width,
+			height: this.canvas.height,
+		} );
+		const sprite = new this.pixi.Sprite( base );
+		const { x, y, scaleX, scaleY, rotation, flipH, flipV } = layer.transform;
+
+		sprite.anchor.set( 0.5 );
+		sprite.scale.set( scaleX * ( flipH ? -1 : 1 ), scaleY * ( flipV ? -1 : 1 ) );
+		sprite.rotation = ( rotation * Math.PI ) / 180;
+		sprite.position.set( x * this.canvas.width, y * this.canvas.height );
+
+		this.app.renderer.render( { container: sprite, target, clear: true } );
+
+		const { pixels } = this.app.renderer.extract.pixels( target );
+
+		sprite.destroy();
+		target.destroy( true );
+
+		return { pixels, width: this.canvas.width, height: this.canvas.height };
+	}
+
 	/** Reads the composed document as raw bytes, for flood fill. */
 	readDocumentPixels(): { pixels: Uint8ClampedArray; width: number; height: number } | null {
 		if ( ! this.documentTexture ) {

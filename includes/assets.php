@@ -49,8 +49,15 @@ function daguerre_register_assets() {
 /**
  * Enqueues the editor bundle and hands it its runtime configuration.
  *
- * Safe to call more than once per request; the second call is a no-op because
- * `wp_localize_script()` only attaches data the first time a handle is enqueued.
+ * Safe to call more than once per request; the second call is a no-op because the
+ * inline script is only added the first time the handle is enqueued.
+ *
+ * The config goes out as JSON via `wp_add_inline_script()` rather than through
+ * `wp_localize_script()`, which casts every scalar to a string on its way to the
+ * browser -- `true` arrives as `'1'` and `false` as `''`. That is fine for text and
+ * quietly wrong for a flag: a strict check against `true` fails, and the JavaScript
+ * concludes Desktop Mode is off while PHP is saying it is on. Booleans and numbers now
+ * arrive as booleans and numbers.
  *
  * @since 0.1.0
  *
@@ -64,7 +71,11 @@ function daguerre_enqueue_editor() {
 	wp_enqueue_script( 'daguerre' );
 	wp_enqueue_style( 'daguerre' );
 
-	wp_localize_script( 'daguerre', 'daguerreConfig', daguerre_get_config() );
+	wp_add_inline_script(
+		'daguerre',
+		'window.daguerreConfig = ' . wp_json_encode( daguerre_get_config() ) . ';',
+		'before'
+	);
 }
 
 /**
@@ -85,6 +96,7 @@ function daguerre_get_config() {
 		'supportedMimes'  => daguerre_supported_mime_types(),
 		'maxRenderPixels' => daguerre_max_render_pixels(),
 		'canUpload'       => current_user_can( 'upload_files' ),
+		'desktopMode'     => daguerre_is_desktop_mode_active(),
 		'schema'          => daguerre_op_schema(),
 	);
 

@@ -131,6 +131,16 @@ export class OptionsBar {
 
 				return;
 
+			case 'history':
+				this.renderHistoryOptions();
+
+				return;
+
+			case 'path':
+				this.renderPathOptions();
+
+				return;
+
 			case 'retouch':
 			case 'tone':
 				this.renderPixelToolOptions( tool );
@@ -298,6 +308,57 @@ export class OptionsBar {
 				? __( 'Dab over a blemish; it fills from the pixels around it.' )
 				: ''
 		);
+	}
+
+	/** The history brush: size, strength, hardness. */
+	private renderHistoryOptions(): void {
+		this.addSizeField();
+		this.addPercentField( 'strength', __( 'Strength' ), 1 );
+		this.addPercentField( 'hardness', __( 'Hardness' ), 0 );
+
+		this.hint(
+			__( 'Paint the original image back, wherever it has been painted over.' )
+		);
+	}
+
+	/** The path tool: fill or outline, width, colour. */
+	private renderPathOptions(): void {
+		const brush = this.options.ctx.getBrush();
+
+		this.add(
+			createSegmented( {
+				label: __( 'Style' ),
+				value: brush.shapeStyle,
+				options: [
+					{ value: 'fill', label: __( 'Fill' ) },
+					{ value: 'stroke', label: __( 'Outline' ) },
+				],
+				onChange: ( value ) => {
+					this.options.ctx.setBrush( { shapeStyle: value as ShapeStyle } );
+					this.render();
+				},
+			} )
+		);
+
+		if ( brush.shapeStyle === 'stroke' ) {
+			this.add(
+				createNumberField( {
+					label: __( 'Width' ),
+					value: brush.strokeWidth,
+					min: 1,
+					max: 200,
+					suffix: 'px',
+					onChange: ( value ) =>
+						this.options.ctx.setBrush( { strokeWidth: value } ),
+				} )
+			);
+		}
+
+		this.divider();
+		this.addColourField();
+		this.addPercentField( 'opacity', __( 'Opacity' ), 1 );
+
+		this.hint( __( 'Click to place points, Enter to close and draw it.' ) );
 	}
 
 	/** Clone stamp: size, strength, and the sample point. */
@@ -662,6 +723,7 @@ const TOOL_NAMES: Record< string, string > = {
 	eyedropper: 'Eyedropper',
 	retouch: 'Retouch',
 	brush: 'Brush',
+	history: 'History brush',
 	clone: 'Clone stamp',
 	eraser: 'Eraser',
 	fill: 'Fill',
@@ -669,6 +731,7 @@ const TOOL_NAMES: Record< string, string > = {
 	tone: 'Dodge & burn',
 	text: 'Text',
 	shape: 'Shape',
+	path: 'Path',
 	hand: 'Hand',
 	zoom: 'Zoom',
 };

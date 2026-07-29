@@ -1,11 +1,18 @@
 /**
  * Daguerre editor styles.
  *
- * Colours are declared as custom properties that *fall back* to Daguerre's own
- * palette but prefer Desktop Mode's when it is present. That is what lets the
- * native control fallbacks still look like they belong inside a desktop window:
- * even when `<wpd-range-field>` is unavailable and a plain range input is used
- * instead, it picks up the shell's foreground, accent and surface colours.
+ * The surround stays dark in every host, and deliberately so: judging an exposure
+ * against a white panel is judging it against the panel. Photoshop, Lightroom and
+ * Capture One all made the same call. So Daguerre does *not* adopt Desktop Mode's
+ * window palette -- that palette is light (`--desktop-mode-window-bg: #fff`), because
+ * it dresses the frame around the content rather than the content itself.
+ *
+ * What it does adopt is what should genuinely agree with its surroundings: the accent
+ * and the corner radius. The accent comes from Desktop Mode's link accent, which is
+ * itself `--wp-admin-theme-color` -- so with Desktop Mode off, the editor still
+ * follows the user's chosen WordPress admin colour scheme rather than hardcoding
+ * blue. `.is-desktop-mode` on the root says which world we are in, for the handful of
+ * places where a native control fallback needs to lean one way or the other.
  *
  * Written with logical properties throughout so right-to-left locales work without
  * a separate stylesheet.
@@ -25,14 +32,25 @@
 }
 
 .dg-editor {
-	--dg-bg: var( --wpd-bg, #1d2327 );
-	--dg-surface: var( --wpd-surface, #2c3338 );
-	--dg-surface-raised: var( --wpd-surface-raised, #3c434a );
-	--dg-fg: var( --wpd-fg, #f0f0f1 );
-	--dg-fg-muted: var( --wpd-fg-muted, #a7aaad );
-	--dg-accent: var( --wpd-accent, #3582c4 );
-	--dg-border: var( --wpd-border, rgba( 255, 255, 255, 0.12 ) );
-	--dg-radius: var( --wpd-button-border-radius, 6px );
+	--dg-bg: #1d2327;
+	--dg-surface: #2c3338;
+	--dg-surface-raised: #3c434a;
+	--dg-fg: #f0f0f1;
+	--dg-fg-muted: #a7aaad;
+
+	/*
+	 * Desktop Mode's accent first, then WordPress's own admin theme colour, then a
+	 * literal. Both of the first two are real, declared properties -- an earlier
+	 * version of this chain read `--wpd-accent`, which nothing in either plugin ever
+	 * defines, so it silently fell through to the literal every time and the editor
+	 * ignored the user's colour scheme.
+	 */
+	--dg-accent: var(
+		--desktop-mode-window-link-accent,
+		var( --wp-admin-theme-color, #3582c4 )
+	);
+	--dg-border: rgba( 255, 255, 255, 0.12 );
+	--dg-radius: var( --desktop-mode-window-radius, 6px );
 	--dg-sidebar-width: 300px;
 
 	display: flex;
@@ -1136,6 +1154,12 @@ input.dg-field__control {
 	gap: 2px;
 }
 
+/* Keeps a group with an odd number of tools from shifting the next one sideways. */
+.dg-rail__spacer {
+	inline-size: 30px;
+	block-size: 30px;
+}
+
 /* A separator spans both columns, so groups read as bands rather than as gaps. */
 .dg-rail__rule {
 	grid-column: 1 / -1;
@@ -1144,7 +1168,12 @@ input.dg-field__control {
 	background: var( --dg-border );
 }
 
-.dg-rail__button {
+/*
+ * Two classes deep on purpose. These buttons come from the shared icon-button factory,
+ * whose own single-class rule is declared later in this file and would otherwise win on
+ * source order and shrink the whole rail.
+ */
+.dg-rail .dg-rail__button {
 	appearance: none;
 	inline-size: 30px;
 	block-size: 30px;
@@ -1155,22 +1184,22 @@ input.dg-field__control {
 	border-radius: var( --dg-radius );
 	background: transparent;
 	color: var( --dg-fg-muted );
-	font-size: 16px;
+	font-size: 15px;
 	line-height: 1;
 	cursor: pointer;
 }
 
-.dg-rail__button:hover {
+.dg-rail .dg-rail__button:hover {
 	background: var( --dg-surface-raised );
 	color: var( --dg-fg );
 }
 
-.dg-rail__button.is-active {
+.dg-rail .dg-rail__button.is-active {
 	background: var( --dg-accent );
 	color: #fff;
 }
 
-.dg-rail__button:focus-visible {
+.dg-rail .dg-rail__button:focus-visible {
 	outline: 2px solid var( --dg-accent );
 	outline-offset: 1px;
 }
@@ -1265,10 +1294,8 @@ input.dg-field__control {
 }
 
 .dg-swatch-popover {
-	position: absolute;
-	z-index: 20;
-	inset-block-start: 100%;
-	inset-inline-start: 0;
+	/* Placed by positionFloating(); z-index has to clear a Desktop Mode window. */
+	z-index: 100001;
 	inline-size: 208px;
 	display: flex;
 	flex-direction: column;
@@ -1646,4 +1673,172 @@ svg.dg-selection {
 	.dg-selection__over {
 		animation: none;
 	}
+}
+
+/* -- Icon buttons ----------------------------------------------------------- */
+
+/*
+ * The fallback for `createIconButton()`. A registered `<wpd-button icon-only>` brings
+ * its own styling; this is what stands in when it is absent, which inside a chromeless
+ * iframe is always.
+ */
+.dg-icon-button {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 22px;
+	block-size: 22px;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	color: var( --dg-fg-muted );
+	font-size: 12px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.dg-icon-button:hover {
+	background: var( --dg-surface-raised );
+	color: var( --dg-fg );
+}
+
+.dg-icon-button.is-active {
+	background: var( --dg-accent );
+	color: #fff;
+}
+
+.dg-icon-button:focus-visible {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+.dg-icon-button.is-disabled {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+/* -- Palette --------------------------------------------------------------- */
+
+.dg-palette {
+	display: grid;
+	grid-template-columns: repeat( 6, 1fr );
+	gap: 4px;
+}
+
+.dg-palette__chip {
+	appearance: none;
+	block-size: 22px;
+	padding: 0;
+	border: 1px solid var( --dg-border );
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.dg-palette__chip:hover {
+	transform: scale( 1.12 );
+}
+
+.dg-palette__chip.is-selected {
+	outline: 2px solid var( --dg-accent );
+	outline-offset: 1px;
+}
+
+/* -- Rail: overflow menu and screen modes ---------------------------------- */
+
+.dg-rail__modes {
+	display: flex;
+	gap: 4px;
+	padding-block-start: 6px;
+	border-block-start: 1px solid var( --dg-border );
+}
+
+.dg-rail .dg-rail__mode {
+	inline-size: 26px;
+	block-size: 22px;
+}
+
+.dg-rail-menu {
+	/* Placed by positionFloating(); z-index has to clear a Desktop Mode window. */
+	z-index: 100001;
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 210px;
+	padding: 6px;
+	background: var( --dg-surface-raised );
+	border: 1px solid var( --dg-border );
+	border-radius: var( --dg-radius );
+	box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.45 );
+}
+
+.dg-rail-menu__item {
+	appearance: none;
+	display: grid;
+	grid-template-columns: 20px 1fr auto;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 6px;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	color: var( --dg-fg );
+	font-size: 12px;
+	text-align: start;
+	cursor: pointer;
+}
+
+.dg-rail-menu__item:hover {
+	background: rgba( 255, 255, 255, 0.08 );
+}
+
+.dg-rail-menu__glyph {
+	text-align: center;
+	color: var( --dg-fg-muted );
+}
+
+.dg-rail-menu__item kbd {
+	padding: 1px 5px;
+	border: 1px solid var( --dg-border );
+	border-radius: 3px;
+	background: rgba( 0, 0, 0, 0.25 );
+	color: var( --dg-fg-muted );
+	font-size: 10px;
+}
+
+/* The rail owns the menu's positioning context. */
+.dg-rail {
+	position: relative;
+}
+
+/* -- Quick mask ------------------------------------------------------------ */
+
+/*
+ * Marching ants say where an edge is; a quick mask says how soft it is, which an
+ * outline cannot show at all. The selected region is filled rather than merely
+ * outlined, in the red every editor uses for this.
+ */
+.dg-stage.is-quick-mask .dg-selection__over {
+	fill: rgba( 214, 54, 56, 0.4 );
+	stroke: rgba( 214, 54, 56, 0.9 );
+	stroke-dasharray: none;
+	animation: none;
+}
+
+.dg-stage.is-quick-mask .dg-selection__under {
+	display: none;
+}
+
+/* -- Full screen ----------------------------------------------------------- */
+
+/*
+ * Used when the Fullscreen API is unavailable or refuses -- inside a Desktop Mode
+ * window the request is often denied, and an editor that silently does nothing when
+ * you press F is worse than one that just grows.
+ */
+.dg-editor.is-full-screen {
+	position: fixed;
+	inset: 0;
+	z-index: 100000;
+	max-block-size: none;
 }

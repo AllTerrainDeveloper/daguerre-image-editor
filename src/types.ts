@@ -23,6 +23,14 @@ export interface DaguerreConfig {
 	supportedMimes: string[];
 	maxRenderPixels: number;
 	canUpload: boolean;
+	/**
+	 * Whether Desktop Mode is active *for this user*, not merely installed.
+	 *
+	 * Desktop Mode is a per-user preference, so the plugin being active says nothing
+	 * about whether this person is looking at a desktop. The controls use it to decide
+	 * which house style to fall back to when a component is unavailable.
+	 */
+	desktopMode: boolean;
 	schema: OpSchema;
 }
 

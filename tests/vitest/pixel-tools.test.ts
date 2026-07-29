@@ -361,6 +361,52 @@ describe( 'applyPixelDab', () => {
 		expect( at( target, 10, 10 )[ 0 ] ).toBeGreaterThan( 200 );
 	} );
 
+	it( 'restore paints the same pixel back from a pristine copy', () => {
+		// What the history brush does: the source is the image before anything was
+		// painted, and the offset is zero -- clone with nowhere to go.
+		const target = solid( 21, 21, [ 255, 0, 0, 255 ] );
+		const pristine = solid( 21, 21, [ 0, 128, 255, 255 ] );
+
+		applyPixelDab( {
+			op: 'restore',
+			target,
+			source: pristine,
+			x: 10,
+			y: 10,
+			radius: 10,
+			strength: 1,
+			hardness: 1,
+		} );
+
+		expect( at( target, 10, 10 ) ).toEqual( [ 0, 128, 255, 255 ] );
+		// Outside the dab, the painted-over colour survives.
+		expect( at( target, 0, 0 ) ).toEqual( [ 255, 0, 0, 255 ] );
+		// And the pristine copy is never written to.
+		expect( at( pristine, 10, 10 ) ).toEqual( [ 0, 128, 255, 255 ] );
+	} );
+
+	it( 'restore fades at the edge of the dab like every other brush', () => {
+		const target = solid( 41, 41, [ 0, 0, 0, 255 ] );
+		const pristine = solid( 41, 41, [ 255, 255, 255, 255 ] );
+
+		applyPixelDab( {
+			op: 'restore',
+			target,
+			source: pristine,
+			x: 20,
+			y: 20,
+			radius: 30,
+			strength: 1,
+			hardness: 0,
+		} );
+
+		const centre = at( target, 20, 20 )[ 0 ];
+		const edge = at( target, 33, 20 )[ 0 ];
+
+		expect( centre ).toBeGreaterThan( edge );
+		expect( edge ).toBeGreaterThan( 0 );
+	} );
+
 	it( 'a strength of zero changes nothing', () => {
 		const buffer = solid( 21, 21, [ 90, 90, 90, 255 ] );
 
