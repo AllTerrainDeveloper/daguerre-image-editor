@@ -11,6 +11,7 @@ import { mount } from './api';
 import type { EditorInstance, MountOptions } from './api';
 import { bootBlockEditor } from './hosts/block-editor';
 import { bootDesktopMode, openInDesktop } from './hosts/desktop-mode';
+import { bootMediaDrag } from './hosts/media-drag';
 import { bootMediaModal } from './hosts/media-modal';
 import { bootOpenButtons } from './hosts/open-buttons';
 import { listPanels, registerPanel, unregisterPanel } from './ui/panels';
@@ -53,6 +54,7 @@ export const version: string = window.daguerreConfig?.version ?? '0.0.0';
 function boot(): void {
 	bootDesktopMode();
 	bootOpenButtons();
+	bootMediaDrag();
 	bootMediaModal();
 	bootBlockEditor();
 }

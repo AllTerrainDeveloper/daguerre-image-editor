@@ -7455,6 +7455,51 @@ void main( void )
       this.options.stage.removeEventListener("pointerdown", this.onPointerDown);
     }
   }
+  const ATTACHMENT_TYPE = "application/x-daguerre-attachment";
+  const CANDIDATES = [
+    // Grid mode and the media modal.
+    ".attachment[data-id]",
+    "[data-id]",
+    // List mode rows.
+    'tr[id^="post-"]'
+  ];
+  function attachmentIdFor(start) {
+    if (!start) {
+      return 0;
+    }
+    for (const selector of CANDIDATES) {
+      const match = start.closest(selector);
+      if (!match) {
+        continue;
+      }
+      const raw = match.getAttribute("data-id") ?? /post-(\d+)/.exec(match.id)?.[1] ?? "";
+      const id = Number(raw);
+      if (id > 0) {
+        return id;
+      }
+    }
+    return 0;
+  }
+  function bootMediaDrag() {
+    document.addEventListener(
+      "dragstart",
+      (event) => {
+        const transfer = event.dataTransfer;
+        if (!transfer || !(event.target instanceof Element)) {
+          return;
+        }
+        const id = attachmentIdFor(event.target);
+        if (!id) {
+          return;
+        }
+        try {
+          transfer.setData(ATTACHMENT_TYPE, String(id));
+        } catch {
+        }
+      },
+      true
+    );
+  }
   const PAGE_SIZE = 60;
   function thumbnailFor(item) {
     const sizes = item.media_details?.sizes ?? {};
@@ -7755,6 +7800,14 @@ void main( void )
     if (file) {
       return { file };
     }
+    const tagged = Number(transfer.getData(ATTACHMENT_TYPE));
+    if (tagged > 0) {
+      return { attachmentId: tagged };
+    }
+    const record = readMediaRecord(transfer);
+    if (record) {
+      return record;
+    }
     const html = transfer.getData("text/html");
     const id = /wp-image-(\d+)/.exec(html)?.[1] ?? /data-id=["']?(\d+)/.exec(html)?.[1];
     if (id) {
@@ -7768,13 +7821,37 @@ void main( void )
     const src = /<img[^>]+src=["']([^"']+)/i.exec(html)?.[1];
     return src ? { url: src } : null;
   }
+  const WP_MEDIA_TYPE = "application/x-wp-media-attachment";
+  function readMediaRecord(transfer) {
+    const raw = transfer.getData(WP_MEDIA_TYPE);
+    if (!raw) {
+      return null;
+    }
+    try {
+      const record = JSON.parse(raw);
+      if (record.mime && !record.mime.startsWith("image/")) {
+        return null;
+      }
+      if (Number(record.id) > 0) {
+        return { attachmentId: Number(record.id), title: record.title };
+      }
+      return record.url ? { url: record.url, title: record.title } : null;
+    } catch {
+      return null;
+    }
+  }
   function attachFileDrop(element, drop) {
     const looksLikeImage = (event) => {
       const types = Array.from(event.dataTransfer?.types ?? []);
-      return types.includes("Files") || types.includes("text/uri-list") || types.includes("text/html") || types.includes("text/plain");
+      return types.includes(ATTACHMENT_TYPE) || types.includes(WP_MEDIA_TYPE) || types.includes("Files") || types.includes("text/uri-list") || types.includes("text/html") || types.includes("text/plain");
+    };
+    const inside = (event) => {
+      const box = element.getBoundingClientRect();
+      return box.width > 0 && event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
     };
     const onOver = (event) => {
-      if (!looksLikeImage(event)) {
+      if (!looksLikeImage(event) || !inside(event)) {
+        element.classList.remove("is-drop-target");
         return;
       }
       event.preventDefault();
@@ -7784,27 +7861,37 @@ void main( void )
       element.classList.add("is-drop-target");
     };
     const onLeave = (event) => {
-      if (event.relatedTarget && element.contains(event.relatedTarget)) {
+      if (inside(event)) {
         return;
       }
       element.classList.remove("is-drop-target");
     };
     const onDrop = (event) => {
       element.classList.remove("is-drop-target");
-      const dropped = readDroppedImage(event.dataTransfer);
-      if (!dropped) {
+      if (!inside(event)) {
         return;
       }
+      const dropped = readDroppedImage(event.dataTransfer);
       event.preventDefault();
+      if (!dropped) {
+        toast(
+          sprintf(
+            __("That drag carried no image Daguerre could read (%s)."),
+            Array.from(event.dataTransfer?.types ?? []).join(", ") || __("no data")
+          ),
+          "info"
+        );
+        return;
+      }
       drop({ ...dropped, clientX: event.clientX, clientY: event.clientY });
     };
-    element.addEventListener("dragover", onOver);
-    element.addEventListener("dragleave", onLeave);
-    element.addEventListener("drop", onDrop);
+    document.addEventListener("dragover", onOver, true);
+    document.addEventListener("dragleave", onLeave, true);
+    document.addEventListener("drop", onDrop, true);
     return () => {
-      element.removeEventListener("dragover", onOver);
-      element.removeEventListener("dragleave", onLeave);
-      element.removeEventListener("drop", onDrop);
+      document.removeEventListener("dragover", onOver, true);
+      document.removeEventListener("dragleave", onLeave, true);
+      document.removeEventListener("drop", onDrop, true);
     };
   }
   function attachDragOut(root, result) {
@@ -10311,6 +10398,7 @@ void main( void )
   function boot() {
     bootDesktopMode();
     bootOpenButtons();
+    bootMediaDrag();
     bootMediaModal();
     bootBlockEditor();
   }

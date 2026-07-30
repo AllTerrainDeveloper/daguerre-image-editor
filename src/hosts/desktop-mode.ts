@@ -18,7 +18,9 @@
 
 import { mount } from '../api';
 import type { DroppedImage, EditorInstance } from '../api';
-import { __ } from '../i18n';
+import { __, sprintf } from '../i18n';
+import { toast } from '../platform';
+import { ATTACHMENT_TYPE } from './media-drag';
 import { renderPicker } from '../ui/picker';
 import type { SaveResult } from '../types';
 
@@ -539,6 +541,24 @@ function readDroppedImage(
 		return { file };
 	}
 
+	// Our own type first: the Media Library tags its drags with the attachment id, so
+	// there is nothing to infer.
+	const tagged = Number( transfer.getData( ATTACHMENT_TYPE ) );
+
+	if ( tagged > 0 ) {
+		return { attachmentId: tagged };
+	}
+
+	// Then Desktop Mode's, which is what a Media Library tile actually carries: the
+	// enhancement makes every `.attachment` draggable and writes the whole record as
+	// JSON. This is the canonical contract for a WordPress media drag and reading it
+	// beats inferring an id from markup, which is what the fallbacks below do.
+	const record = readMediaRecord( transfer );
+
+	if ( record ) {
+		return record;
+	}
+
 	const html = transfer.getData( 'text/html' );
 	const id =
 		/wp-image-(\d+)/.exec( html )?.[ 1 ] ??
@@ -565,6 +585,48 @@ function readDroppedImage(
 	return src ? { url: src } : null;
 }
 
+/** The type Desktop Mode's Media Library enhancement writes its record to. */
+const WP_MEDIA_TYPE = 'application/x-wp-media-attachment';
+
+/**
+ * Reads Desktop Mode's media record off a drag.
+ *
+ * @param transfer The drag's data.
+ * @return The attachment, or null when the drag carries no record.
+ */
+function readMediaRecord(
+	transfer: DataTransfer
+): Omit< DroppedImage, 'clientX' | 'clientY' > | null {
+	const raw = transfer.getData( WP_MEDIA_TYPE );
+
+	if ( ! raw ) {
+		return null;
+	}
+
+	try {
+		const record = JSON.parse( raw ) as {
+			id?: number;
+			url?: string;
+			title?: string;
+			mime?: string;
+		};
+
+		// A video or a PDF is a perfectly reasonable thing to drag; it is just not
+		// something this editor can put on a canvas.
+		if ( record.mime && ! record.mime.startsWith( 'image/' ) ) {
+			return null;
+		}
+
+		if ( Number( record.id ) > 0 ) {
+			return { attachmentId: Number( record.id ), title: record.title };
+		}
+
+		return record.url ? { url: record.url, title: record.title } : null;
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Accepts images dragged onto the editor by the browser.
  *
@@ -574,7 +636,14 @@ function readDroppedImage(
  * Library window, which is an iframe whose drags reach the parent as ordinary
  * `dragover`/`drop` events.
  *
- * @param element Drop area.
+ * Listened for on the **document**, not on the window body, and then hit-tested against
+ * the body's bounds. A drag over the desktop passes over a good deal of the shell's own
+ * furniture -- overlays, drag layers, the window chrome -- and an event whose target is
+ * one of those never reaches a listener bound to an element it is not inside. Bubbling
+ * to the document always happens; the hit test is what keeps us from claiming drops
+ * meant for someone else.
+ *
+ * @param element Drop area, used for hit-testing and for the highlight.
  * @param drop    Called with each image dropped.
  * @return Teardown.
  */
@@ -593,6 +662,8 @@ function attachFileDrop(
 		const types = Array.from( event.dataTransfer?.types ?? [] );
 
 		return (
+			types.includes( ATTACHMENT_TYPE ) ||
+			types.includes( WP_MEDIA_TYPE ) ||
 			types.includes( 'Files' ) ||
 			types.includes( 'text/uri-list' ) ||
 			types.includes( 'text/html' ) ||
@@ -600,8 +671,23 @@ function attachFileDrop(
 		);
 	};
 
+	/** Whether a point is inside the drop area. */
+	const inside = ( event: DragEvent ): boolean => {
+		const box = element.getBoundingClientRect();
+
+		return (
+			box.width > 0 &&
+			event.clientX >= box.left &&
+			event.clientX <= box.right &&
+			event.clientY >= box.top &&
+			event.clientY <= box.bottom
+		);
+	};
+
 	const onOver = ( event: DragEvent ) => {
-		if ( ! looksLikeImage( event ) ) {
+		if ( ! looksLikeImage( event ) || ! inside( event ) ) {
+			element.classList.remove( 'is-drop-target' );
+
 			return;
 		}
 
@@ -618,9 +704,7 @@ function attachFileDrop(
 	};
 
 	const onLeave = ( event: DragEvent ) => {
-		// Only when the pointer has actually left the element, not merely crossed onto
-		// a child -- dragleave fires for both.
-		if ( event.relatedTarget && element.contains( event.relatedTarget as Node ) ) {
+		if ( inside( event ) ) {
 			return;
 		}
 
@@ -630,24 +714,47 @@ function attachFileDrop(
 	const onDrop = ( event: DragEvent ) => {
 		element.classList.remove( 'is-drop-target' );
 
-		const dropped = readDroppedImage( event.dataTransfer );
-
-		if ( ! dropped ) {
+		if ( ! inside( event ) ) {
 			return;
 		}
 
+		const dropped = readDroppedImage( event.dataTransfer );
+
+		// Always claimed, even when unusable. `dragover` already told the user this was
+		// a valid target by highlighting; letting the browser have the drop after that
+		// would navigate the whole desktop to the dragged URL.
 		event.preventDefault();
+
+		if ( ! dropped ) {
+			// Said out loud rather than swallowed. A drop that highlights and then does
+			// nothing is indistinguishable from a broken feature -- which is exactly how
+			// the Media Library case went unnoticed.
+			toast(
+				sprintf(
+					__( 'That drag carried no image Daguerre could read (%s).' ),
+					Array.from( event.dataTransfer?.types ?? [] ).join( ', ' ) ||
+						__( 'no data' )
+				),
+				'info'
+			);
+
+			return;
+		}
+
 		drop( { ...dropped, clientX: event.clientX, clientY: event.clientY } );
 	};
 
-	element.addEventListener( 'dragover', onOver );
-	element.addEventListener( 'dragleave', onLeave );
-	element.addEventListener( 'drop', onDrop );
+	// Capture phase, so a drop is claimed before the shell's own document-level
+	// handlers can take it -- they yield to anything that has already called
+	// `preventDefault()`, which is exactly what this does when the point is ours.
+	document.addEventListener( 'dragover', onOver, true );
+	document.addEventListener( 'dragleave', onLeave, true );
+	document.addEventListener( 'drop', onDrop, true );
 
 	return () => {
-		element.removeEventListener( 'dragover', onOver );
-		element.removeEventListener( 'dragleave', onLeave );
-		element.removeEventListener( 'drop', onDrop );
+		document.removeEventListener( 'dragover', onOver, true );
+		document.removeEventListener( 'dragleave', onLeave, true );
+		document.removeEventListener( 'drop', onDrop, true );
 	};
 }
 

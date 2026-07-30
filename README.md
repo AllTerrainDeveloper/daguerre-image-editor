@@ -231,18 +231,28 @@ end up here:
 - **An attachment**, from a My WordPress media tile or a desktop icon, through the
   shell's drag manager. Its pixels load via the same CORS-safe path the document uses, so
   a CDN-served file falls back to the byte proxy instead of tainting the canvas.
-- **A URL**, which is what dragging a thumbnail out of the **Media Library** actually
-  offers — `text/uri-list` and nothing else. The Media Library is a chromeless iframe, so
-  its drags are ordinary HTML5 drags that the shell's drag manager never sees; they reach
-  the parent as plain `dragover`/`drop`. Missing this was why dragging from the Media
-  Library did nothing at all. A generated size in the URL (`photo-150x150.jpg`) is
-  stripped to load the original, falling back to the URL as dragged — because a file
-  legitimately named `poster-1920x1080.jpg` looks exactly like a generated size.
+- **A media record**, which is what dragging a thumbnail out of the **Media Library**
+  carries: Desktop Mode's enhancement makes every `.attachment` draggable and writes the
+  whole record as JSON on `application/x-wp-media-attachment`. That is the canonical
+  contract for a WordPress media drag, and reading it beats inferring an id from markup.
+- **A URL**, from `text/uri-list`, `text/plain` or an `<img src>` in `text/html`, for
+  drags carrying no record. A generated size (`photo-150x150.jpg`) is stripped to load
+  the original, falling back to the URL as dragged — a file legitimately named
+  `poster-1920x1080.jpg` looks exactly like a generated size.
 - **A file**, from Finder or Explorer. No upload needed: blob URL straight into a
   texture, like a paste.
 
-Desktop Mode's iframe bridge does not get in the way of the middle case: it only claims
-drags carrying *files*.
+These are listened for on the **document** and then hit-tested against the window body's
+bounds, not bound to the body itself. A drag across the desktop passes over the shell's
+own furniture — overlays, drag layers, window chrome — and an event whose target is one
+of those never reaches a listener on an element it is not inside. Bubbling to the
+document always happens; the hit test is what stops us claiming drops meant for someone
+else. Capture phase, so the drop is claimed before the shell's document-level handlers,
+which yield to anything that has already called `preventDefault()`.
+
+A drop that lands on the editor and cannot be read now says so, listing the types it
+found. Silence is indistinguishable from a broken feature — which is precisely how the
+Media Library case went unnoticed twice.
 
 Layer textures are retained for **every state on the undo stack**, not just the current
 one. That is what makes redo work: a dropped, pasted or typed layer keeps its pixels in a
