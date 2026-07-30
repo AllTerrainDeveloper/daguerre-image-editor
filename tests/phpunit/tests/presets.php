@@ -2,16 +2,16 @@
 /**
  * User presets.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 /**
  * Tests for includes/presets.php and the preset routes.
  *
- * @group daguerre
- * @group daguerre-presets
+ * @group lienzo
+ * @group lienzo-presets
  */
-class Tests_Daguerre_Presets extends WP_UnitTestCase {
+class Tests_Lienzo_Presets extends WP_UnitTestCase {
 
 	/**
 	 * Administrator user ID.
@@ -41,7 +41,7 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	 * @return array Recipe.
 	 */
 	private function recipe() {
-		$recipe           = daguerre_default_recipe( 7 );
+		$recipe           = lienzo_default_recipe( 7 );
 		$recipe['ops']    = array(
 			array(
 				'type' => 'saturation',
@@ -78,10 +78,10 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	 * A crop is a statement about one particular frame. Carrying it into a preset
 	 * would silently re-crop every image the look was applied to.
 	 *
-	 * @covers ::daguerre_recipe_to_preset
+	 * @covers ::lienzo_recipe_to_preset
 	 */
 	public function test_preset_strips_geometry_and_source() {
-		$preset = daguerre_recipe_to_preset( $this->recipe() );
+		$preset = lienzo_recipe_to_preset( $this->recipe() );
 
 		$this->assertArrayNotHasKey( 'canvas', $preset );
 		$this->assertArrayNotHasKey( 'layer', $preset );
@@ -94,19 +94,19 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	/**
 	 * Saving and listing round-trips.
 	 *
-	 * @covers ::daguerre_save_preset
-	 * @covers ::daguerre_get_presets
+	 * @covers ::lienzo_save_preset
+	 * @covers ::lienzo_get_presets
 	 */
 	public function test_save_and_list() {
 		wp_set_current_user( $this->admin );
 
-		$preset = daguerre_save_preset( 'Mono', $this->recipe() );
+		$preset = lienzo_save_preset( 'Mono', $this->recipe() );
 
 		$this->assertNotWPError( $preset );
 		$this->assertSame( 'Mono', $preset['name'] );
 		$this->assertNotEmpty( $preset['id'] );
 
-		$presets = daguerre_get_presets();
+		$presets = lienzo_get_presets();
 
 		$this->assertCount( 1, $presets );
 		$this->assertSame( 'Mono', $presets[0]['name'] );
@@ -115,31 +115,31 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	/**
 	 * Presets belong to one user and are invisible to another.
 	 *
-	 * @covers ::daguerre_get_presets
+	 * @covers ::lienzo_get_presets
 	 */
 	public function test_presets_are_per_user() {
 		$other = self::factory()->user->create( array( 'role' => 'administrator' ) );
 
 		wp_set_current_user( $this->admin );
-		daguerre_save_preset( 'Mine', $this->recipe() );
+		lienzo_save_preset( 'Mine', $this->recipe() );
 
 		wp_set_current_user( $other );
 
-		$this->assertSame( array(), daguerre_get_presets() );
+		$this->assertSame( array(), lienzo_get_presets() );
 	}
 
 	/**
 	 * An unnamed preset is rejected.
 	 *
-	 * @covers ::daguerre_save_preset
+	 * @covers ::lienzo_save_preset
 	 */
 	public function test_rejects_empty_name() {
 		wp_set_current_user( $this->admin );
 
-		$result = daguerre_save_preset( '   ', $this->recipe() );
+		$result = lienzo_save_preset( '   ', $this->recipe() );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_preset_no_name', $result->get_error_code() );
+		$this->assertSame( 'lienzo_preset_no_name', $result->get_error_code() );
 	}
 
 	/**
@@ -148,31 +148,31 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	 * Presets live in a single serialised meta row, so without a cap a script could
 	 * grow it until every page load paid to unserialise it.
 	 *
-	 * @covers ::daguerre_save_preset
+	 * @covers ::lienzo_save_preset
 	 */
 	public function test_enforces_the_ceiling() {
 		wp_set_current_user( $this->admin );
 
-		add_filter( 'daguerre_max_presets', static fn() => 2 );
+		add_filter( 'lienzo_max_presets', static fn() => 2 );
 
-		$this->assertNotWPError( daguerre_save_preset( 'One', $this->recipe() ) );
-		$this->assertNotWPError( daguerre_save_preset( 'Two', $this->recipe() ) );
+		$this->assertNotWPError( lienzo_save_preset( 'One', $this->recipe() ) );
+		$this->assertNotWPError( lienzo_save_preset( 'Two', $this->recipe() ) );
 
-		$result = daguerre_save_preset( 'Three', $this->recipe() );
+		$result = lienzo_save_preset( 'Three', $this->recipe() );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_too_many_presets', $result->get_error_code() );
+		$this->assertSame( 'lienzo_too_many_presets', $result->get_error_code() );
 	}
 
 	/**
 	 * A name is sanitised rather than stored raw.
 	 *
-	 * @covers ::daguerre_save_preset
+	 * @covers ::lienzo_save_preset
 	 */
 	public function test_sanitises_the_name() {
 		wp_set_current_user( $this->admin );
 
-		$preset = daguerre_save_preset( '<script>alert(1)</script>Warm', $this->recipe() );
+		$preset = lienzo_save_preset( '<script>alert(1)</script>Warm', $this->recipe() );
 
 		$this->assertStringNotContainsString( '<script>', $preset['name'] );
 	}
@@ -180,17 +180,17 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	/**
 	 * Deleting removes only the named preset.
 	 *
-	 * @covers ::daguerre_delete_preset
+	 * @covers ::lienzo_delete_preset
 	 */
 	public function test_delete() {
 		wp_set_current_user( $this->admin );
 
-		$keep   = daguerre_save_preset( 'Keep', $this->recipe() );
-		$remove = daguerre_save_preset( 'Remove', $this->recipe() );
+		$keep   = lienzo_save_preset( 'Keep', $this->recipe() );
+		$remove = lienzo_save_preset( 'Remove', $this->recipe() );
 
-		$this->assertTrue( daguerre_delete_preset( $remove['id'] ) );
+		$this->assertTrue( lienzo_delete_preset( $remove['id'] ) );
 
-		$presets = daguerre_get_presets();
+		$presets = lienzo_get_presets();
 
 		$this->assertCount( 1, $presets );
 		$this->assertSame( $keep['id'], $presets[0]['id'] );
@@ -199,27 +199,27 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	/**
 	 * Deleting something that is not there is an error, not a silent success.
 	 *
-	 * @covers ::daguerre_delete_preset
+	 * @covers ::lienzo_delete_preset
 	 */
 	public function test_delete_missing() {
 		wp_set_current_user( $this->admin );
 
-		$result = daguerre_delete_preset( 'nope' );
+		$result = lienzo_delete_preset( 'nope' );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_preset_not_found', $result->get_error_code() );
+		$this->assertSame( 'lienzo_preset_not_found', $result->get_error_code() );
 	}
 
 	/**
 	 * The routes are registered and round-trip.
 	 *
-	 * @covers ::daguerre_rest_create_preset
-	 * @covers ::daguerre_rest_get_presets
+	 * @covers ::lienzo_rest_create_preset
+	 * @covers ::lienzo_rest_get_presets
 	 */
 	public function test_routes_round_trip() {
 		wp_set_current_user( $this->admin );
 
-		$create = new WP_REST_Request( 'POST', '/daguerre/v1/presets' );
+		$create = new WP_REST_Request( 'POST', '/lienzo/v1/presets' );
 		$create->set_param( 'name', 'Faded' );
 		$create->set_param( 'recipe', wp_json_encode( $this->recipe() ) );
 
@@ -227,7 +227,7 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 
 		$this->assertSame( 201, $response->get_status() );
 
-		$listed = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/presets' ) );
+		$listed = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/presets' ) );
 
 		$this->assertCount( 1, $listed->get_data() );
 		$this->assertSame( 'Faded', $listed->get_data()[0]['name'] );
@@ -236,12 +236,12 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	/**
 	 * An anonymous request cannot read or write presets.
 	 *
-	 * @covers ::daguerre_rest_presets_permission
+	 * @covers ::lienzo_rest_presets_permission
 	 */
 	public function test_routes_require_a_user() {
 		wp_set_current_user( 0 );
 
-		$response = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/presets' ) );
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/presets' ) );
 
 		$this->assertSame( 401, $response->get_status() );
 	}
@@ -249,12 +249,12 @@ class Tests_Daguerre_Presets extends WP_UnitTestCase {
 	/**
 	 * A subscriber is refused.
 	 *
-	 * @covers ::daguerre_rest_presets_permission
+	 * @covers ::lienzo_rest_presets_permission
 	 */
 	public function test_routes_require_upload_capability() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
 
-		$response = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/presets' ) );
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/presets' ) );
 
 		$this->assertSame( 403, $response->get_status() );
 	}

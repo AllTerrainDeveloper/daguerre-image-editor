@@ -12,7 +12,7 @@
  * no-op rather than a console error.
  *
  * The `wp.desktop` types here are hand-written on purpose. Taking the
- * `desktop-mode` npm package as a dependency would mean Daguerre could not build
+ * `desktop-mode` npm package as a dependency would mean Lienzo could not build
  * with Desktop Mode absent from disk, and a standalone plugin has to.
  */
 
@@ -24,14 +24,14 @@ import { ATTACHMENT_TYPE } from './media-drag';
 import { renderPicker } from '../ui/picker';
 import type { SaveResult } from '../types';
 
-/** Window id registered by `daguerre_register_desktop_window()`. */
-const WINDOW_ID = 'daguerre';
+/** Window id registered by `lienzo_register_desktop_window()`. */
+const WINDOW_ID = 'lienzo';
 
 /** The `wp.desktop` surface this module uses. */
 /**
  * The parts of the shell's native render context this file uses.
  *
- * Declared here rather than imported: Daguerre builds without Desktop Mode present on
+ * Declared here rather than imported: Lienzo builds without Desktop Mode present on
  * disk, so its types are described narrowly at the point of use.
  */
 interface NativeRenderContext {
@@ -110,7 +110,7 @@ function takePending(): number {
  * There is more than one. WordPress enqueues the script, and the shell's lazy-load
  * payload injects the same URL again when a native window first opens -- so the IIFE
  * is evaluated twice and there are two module scopes. Module-level variables are then
- * two variables: `window.daguerre` belongs to whichever copy ran last, the render
+ * two variables: `window.lienzo` belongs to whichever copy ran last, the render
  * callback to whichever registered last, and a request to open an image reached a set
  * of window loaders that the live window had never been added to. It reported success
  * and did nothing.
@@ -145,9 +145,9 @@ interface SharedState {
 
 /** Reads the shared state, creating it on first use. */
 function state(): SharedState {
-	const holder = window as unknown as { __daguerreDesktop?: SharedState };
+	const holder = window as unknown as { __lienzoDesktop?: SharedState };
 
-	holder.__daguerreDesktop ??= {
+	holder.__lienzoDesktop ??= {
 		openers: new Set(),
 		pending: 0,
 		previewUrl: '',
@@ -156,12 +156,12 @@ function state(): SharedState {
 		listenerRegistered: false,
 	};
 
-	return holder.__daguerreDesktop;
+	return holder.__lienzoDesktop;
 }
 
 
 /** The message an iframe sends to ask the shell to open an image. */
-const OPEN_MESSAGE = 'daguerre-open';
+const OPEN_MESSAGE = 'lienzo-open';
 
 /**
  * Opens an image in the desktop window, from anywhere on the page.
@@ -191,7 +191,7 @@ export function openInDesktop( attachmentId: number ): boolean {
 			state().pending = id;
 		}
 
-		desktop()?.openWindow?.( WINDOW_ID, { source: 'daguerre' } );
+		desktop()?.openWindow?.( WINDOW_ID, { source: 'lienzo' } );
 
 		return true;
 	}
@@ -253,7 +253,7 @@ export function bootDesktopMode(): void {
 		registerFileOpener();
 	} catch ( error ) {
 		// eslint-disable-next-line no-console
-		console.warn( '[daguerre] file opener unavailable:', error );
+		console.warn( '[lienzo] file opener unavailable:', error );
 	}
 
 	listenForOpenRequests();
@@ -281,7 +281,7 @@ function registerPeekThumbnail(): void {
 
 	hooks.addFilter(
 		'desktop-mode.dock.peek-card-content',
-		'daguerre/thumbnail',
+		'lienzo/thumbnail',
 		( body: unknown, context: unknown ) => {
 			const win = ( context as { window?: { id?: string } } | undefined )
 				?.window;
@@ -295,7 +295,7 @@ function registerPeekThumbnail(): void {
 
 			const image = document.createElement( 'img' );
 
-			image.className = 'dg-peek-thumb';
+			image.className = 'lz-peek-thumb';
 			image.src = shared.previewUrl;
 			image.alt = shared.previewTitle;
 			image.loading = 'lazy';
@@ -345,8 +345,8 @@ function renderWindow(
 	ctx?: NativeRenderContext
 ): () => void {
 	const root =
-		body.querySelector< HTMLElement >( '[data-daguerre-root]' ) ?? body;
-	const config = window.daguerreConfig;
+		body.querySelector< HTMLElement >( '[data-lienzo-root]' ) ?? body;
+	const config = window.lienzoConfig;
 
 	let editor: EditorInstance | null = null;
 	let releaseDrop: ( () => void ) | null = null;
@@ -422,7 +422,7 @@ function renderWindow(
 		releaseDrop = registerDropTarget( root, drop );
 	} catch ( error ) {
 		// eslint-disable-next-line no-console
-		console.warn( '[daguerre] drag-and-drop unavailable:', error );
+		console.warn( '[lienzo] drag-and-drop unavailable:', error );
 	}
 
 	const releaseFiles = attachFileDrop( root, drop );
@@ -467,7 +467,7 @@ function registerDropTarget(
 
 		// A video or a PDF is a perfectly valid thing to drag; it is just not
 		// something this window can do anything with.
-		if ( bridge.mime && ! window.daguerreConfig?.supportedMimes.includes( bridge.mime ) ) {
+		if ( bridge.mime && ! window.lienzoConfig?.supportedMimes.includes( bridge.mime ) ) {
 			return 0;
 		}
 
@@ -478,7 +478,7 @@ function registerDropTarget(
 	// `this`, so a detached reference throws `Cannot read properties of undefined` --
 	// and it throws inside a render callback, which takes the whole window down with it.
 	return manager.registerDropTarget( {
-		id: 'daguerre-window',
+		id: 'lienzo-window',
 		element,
 		accept: ( payload ) => attachmentOf( payload ) > 0,
 		acceptLabel: __( 'Add as a layer' ),
@@ -731,7 +731,7 @@ function attachFileDrop(
 			// the Media Library case went unnoticed.
 			toast(
 				sprintf(
-					__( 'That drag carried no image Daguerre could read (%s).' ),
+					__( 'That drag carried no image Lienzo could read (%s).' ),
 					Array.from( event.dataTransfer?.types ?? [] ).join( ', ' ) ||
 						__( 'no data' )
 				),
@@ -775,7 +775,7 @@ function attachDragOut( root: HTMLElement, result: SaveResult ): void {
 		return;
 	}
 
-	const banner = root.querySelector< HTMLElement >( '.dg-saved a' );
+	const banner = root.querySelector< HTMLElement >( '.lz-saved a' );
 
 	if ( ! banner ) {
 		return;
@@ -800,7 +800,7 @@ function attachDragOut( root: HTMLElement, result: SaveResult ): void {
 }
 
 /**
- * Offers Daguerre as a way to open image files on the desktop.
+ * Offers Lienzo as a way to open image files on the desktop.
  *
  * Registered with `isDefault: false` so it appears alongside the built-in media
  * editor rather than silently replacing it; a user who wants it as the default sets
@@ -815,8 +815,8 @@ function registerFileOpener(): void {
 
 	// On the object, for the same reason the drop target is.
 	files.registerOpener( {
-		id: 'daguerre',
-		label: __( 'Edit in Daguerre' ),
+		id: 'lienzo',
+		label: __( 'Edit in Lienzo' ),
 		types: [ 'attachment' ],
 		isDefault: false,
 		sort: 15,

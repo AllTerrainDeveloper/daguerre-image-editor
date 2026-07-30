@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<ruleset name="Daguerre">
-	<description>WordPress Coding Standards for the Daguerre plugin.</description>
+<ruleset name="Lienzo">
+	<description>WordPress Coding Standards for the Lienzo plugin.</description>
 
 	<file>.</file>
 
@@ -26,7 +26,7 @@
 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<property name="text_domain" type="array">
-				<element value="daguerre"/>
+				<element value="lienzo"/>
 			</property>
 		</properties>
 	</rule>
@@ -34,8 +34,8 @@
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
 		<properties>
 			<property name="prefixes" type="array">
-				<element value="daguerre"/>
-				<element value="DAGUERRE"/>
+				<element value="lienzo"/>
+				<element value="LIENZO"/>
 			</property>
 		</properties>
 	</rule>

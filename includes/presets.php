@@ -10,7 +10,7 @@
  * Stored as user meta rather than a custom table. Presets are per-user, small, and
  * only ever read all at once, which is exactly what user meta is for.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * User meta key holding a user's presets.
  */
-define( 'DAGUERRE_PRESETS_META', 'daguerre_presets' );
+define( 'LIENZO_PRESETS_META', 'lienzo_presets' );
 
 /**
  * Returns the most presets one user may keep.
@@ -30,7 +30,7 @@ define( 'DAGUERRE_PRESETS_META', 'daguerre_presets' );
  *
  * @return int Maximum presets per user.
  */
-function daguerre_max_presets() {
+function lienzo_max_presets() {
 	/**
 	 * Filters the maximum number of presets a user may store.
 	 *
@@ -38,7 +38,7 @@ function daguerre_max_presets() {
 	 *
 	 * @param int $max Maximum presets.
 	 */
-	return (int) apply_filters( 'daguerre_max_presets', 100 );
+	return (int) apply_filters( 'lienzo_max_presets', 100 );
 }
 
 /**
@@ -49,9 +49,9 @@ function daguerre_max_presets() {
  * @param int $user_id Optional. User ID. Default 0, meaning the current user.
  * @return array List of presets, each with `id`, `name` and `recipe`.
  */
-function daguerre_get_presets( $user_id = 0 ) {
+function lienzo_get_presets( $user_id = 0 ) {
 	$user_id = $user_id ? (int) $user_id : get_current_user_id();
-	$stored  = get_user_meta( $user_id, DAGUERRE_PRESETS_META, true );
+	$stored  = get_user_meta( $user_id, LIENZO_PRESETS_META, true );
 
 	if ( ! is_array( $stored ) ) {
 		return array();
@@ -87,12 +87,12 @@ function daguerre_get_presets( $user_id = 0 ) {
  * @param array $recipe Validated recipe.
  * @return array Portable subset.
  */
-function daguerre_recipe_to_preset( $recipe ) {
+function lienzo_recipe_to_preset( $recipe ) {
 	return array(
-		'version' => DAGUERRE_RECIPE_VERSION,
+		'version' => LIENZO_RECIPE_VERSION,
 		'ops'     => isset( $recipe['ops'] ) ? $recipe['ops'] : array(),
 		'curves'  => isset( $recipe['curves'] ) ? $recipe['curves'] : array(),
-		'levels'  => isset( $recipe['levels'] ) ? $recipe['levels'] : daguerre_default_levels(),
+		'levels'  => isset( $recipe['levels'] ) ? $recipe['levels'] : lienzo_default_levels(),
 	);
 }
 
@@ -105,13 +105,13 @@ function daguerre_recipe_to_preset( $recipe ) {
  * @param array  $recipe Validated recipe to derive the preset from.
  * @return array|WP_Error The stored preset, or an error.
  */
-function daguerre_save_preset( $name, $recipe ) {
+function lienzo_save_preset( $name, $recipe ) {
 	$user_id = get_current_user_id();
 
 	if ( ! $user_id ) {
 		return new WP_Error(
-			'daguerre_not_logged_in',
-			__( 'You must be logged in to save a preset.', 'daguerre' ),
+			'lienzo_not_logged_in',
+			__( 'You must be logged in to save a preset.', 'lienzo' ),
 			array( 'status' => 401 )
 		);
 	}
@@ -120,18 +120,18 @@ function daguerre_save_preset( $name, $recipe ) {
 
 	if ( '' === $name ) {
 		return new WP_Error(
-			'daguerre_preset_no_name',
-			__( 'A preset needs a name.', 'daguerre' ),
+			'lienzo_preset_no_name',
+			__( 'A preset needs a name.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
 
-	$presets = daguerre_get_presets( $user_id );
+	$presets = lienzo_get_presets( $user_id );
 
-	if ( count( $presets ) >= daguerre_max_presets() ) {
+	if ( count( $presets ) >= lienzo_max_presets() ) {
 		return new WP_Error(
-			'daguerre_too_many_presets',
-			__( 'You have reached the maximum number of presets. Delete one first.', 'daguerre' ),
+			'lienzo_too_many_presets',
+			__( 'You have reached the maximum number of presets. Delete one first.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
@@ -139,12 +139,12 @@ function daguerre_save_preset( $name, $recipe ) {
 	$preset = array(
 		'id'     => wp_generate_uuid4(),
 		'name'   => $name,
-		'recipe' => daguerre_recipe_to_preset( $recipe ),
+		'recipe' => lienzo_recipe_to_preset( $recipe ),
 	);
 
 	$presets[] = $preset;
 
-	update_user_meta( $user_id, DAGUERRE_PRESETS_META, $presets );
+	update_user_meta( $user_id, LIENZO_PRESETS_META, $presets );
 
 	/**
 	 * Fires after a preset is saved.
@@ -154,7 +154,7 @@ function daguerre_save_preset( $name, $recipe ) {
 	 * @param array $preset  The stored preset.
 	 * @param int   $user_id Owner.
 	 */
-	do_action( 'daguerre_preset_saved', $preset, $user_id );
+	do_action( 'lienzo_preset_saved', $preset, $user_id );
 
 	return $preset;
 }
@@ -167,9 +167,9 @@ function daguerre_save_preset( $name, $recipe ) {
  * @param string $preset_id Preset identifier.
  * @return true|WP_Error True on success, or an error.
  */
-function daguerre_delete_preset( $preset_id ) {
+function lienzo_delete_preset( $preset_id ) {
 	$user_id = get_current_user_id();
-	$presets = daguerre_get_presets( $user_id );
+	$presets = lienzo_get_presets( $user_id );
 
 	$remaining = array_values(
 		array_filter(
@@ -182,13 +182,13 @@ function daguerre_delete_preset( $preset_id ) {
 
 	if ( count( $remaining ) === count( $presets ) ) {
 		return new WP_Error(
-			'daguerre_preset_not_found',
-			__( 'That preset no longer exists.', 'daguerre' ),
+			'lienzo_preset_not_found',
+			__( 'That preset no longer exists.', 'lienzo' ),
 			array( 'status' => 404 )
 		);
 	}
 
-	update_user_meta( $user_id, DAGUERRE_PRESETS_META, $remaining );
+	update_user_meta( $user_id, LIENZO_PRESETS_META, $remaining );
 
 	return true;
 }

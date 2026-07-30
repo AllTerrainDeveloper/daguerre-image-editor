@@ -1,16 +1,16 @@
 <?php
 /**
- * REST API routes under the `daguerre/v1` namespace.
+ * REST API routes under the `lienzo/v1` namespace.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
 
-add_action( 'rest_api_init', 'daguerre_register_rest_routes' );
+add_action( 'rest_api_init', 'lienzo_register_rest_routes' );
 
 /**
- * Registers every Daguerre REST route.
+ * Registers every Lienzo REST route.
  *
  * Routes are registered unconditionally, whether or not Desktop Mode is present.
  * The editor is reachable from four standalone admin surfaces and they all speak
@@ -20,17 +20,17 @@ add_action( 'rest_api_init', 'daguerre_register_rest_routes' );
  *
  * @return void
  */
-function daguerre_register_rest_routes() {
+function lienzo_register_rest_routes() {
 	register_rest_route(
-		DAGUERRE_REST_NAMESPACE,
+		LIENZO_REST_NAMESPACE,
 		'/media/(?P<id>[\d]+)',
 		array(
 			'methods'             => WP_REST_Server::READABLE,
-			'callback'            => daguerre_rest_handler( 'daguerre_rest_get_media' ),
-			'permission_callback' => 'daguerre_rest_permission',
+			'callback'            => lienzo_rest_handler( 'lienzo_rest_get_media' ),
+			'permission_callback' => 'lienzo_rest_permission',
 			'args'                => array(
 				'id' => array(
-					'description'       => __( 'Attachment ID to open in the editor.', 'daguerre' ),
+					'description'       => __( 'Attachment ID to open in the editor.', 'lienzo' ),
 					'type'              => 'integer',
 					'required'          => true,
 					'sanitize_callback' => 'absint',
@@ -40,21 +40,21 @@ function daguerre_register_rest_routes() {
 	);
 
 	register_rest_route(
-		DAGUERRE_REST_NAMESPACE,
+		LIENZO_REST_NAMESPACE,
 		'/media/(?P<id>[\d]+)/render',
 		array(
 			'methods'             => WP_REST_Server::CREATABLE,
-			'callback'            => daguerre_rest_handler( 'daguerre_rest_render' ),
-			'permission_callback' => 'daguerre_rest_save_permission',
+			'callback'            => lienzo_rest_handler( 'lienzo_rest_render' ),
+			'permission_callback' => 'lienzo_rest_save_permission',
 			'args'                => array(
 				'id'     => array(
-					'description'       => __( 'Attachment the edit was rendered from.', 'daguerre' ),
+					'description'       => __( 'Attachment the edit was rendered from.', 'lienzo' ),
 					'type'              => 'integer',
 					'required'          => true,
 					'sanitize_callback' => 'absint',
 				),
 				'recipe' => array(
-					'description' => __( 'The edit recipe, JSON encoded.', 'daguerre' ),
+					'description' => __( 'The edit recipe, JSON encoded.', 'lienzo' ),
 					'type'        => 'string',
 					'required'    => true,
 				),
@@ -63,26 +63,26 @@ function daguerre_register_rest_routes() {
 	);
 
 	register_rest_route(
-		DAGUERRE_REST_NAMESPACE,
+		LIENZO_REST_NAMESPACE,
 		'/presets',
 		array(
 			array(
 				'methods'             => WP_REST_Server::READABLE,
-				'callback'            => daguerre_rest_handler( 'daguerre_rest_get_presets' ),
-				'permission_callback' => 'daguerre_rest_presets_permission',
+				'callback'            => lienzo_rest_handler( 'lienzo_rest_get_presets' ),
+				'permission_callback' => 'lienzo_rest_presets_permission',
 			),
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
-				'callback'            => daguerre_rest_handler( 'daguerre_rest_create_preset' ),
-				'permission_callback' => 'daguerre_rest_presets_permission',
+				'callback'            => lienzo_rest_handler( 'lienzo_rest_create_preset' ),
+				'permission_callback' => 'lienzo_rest_presets_permission',
 				'args'                => array(
 					'name'   => array(
-						'description' => __( 'Display name for the preset.', 'daguerre' ),
+						'description' => __( 'Display name for the preset.', 'lienzo' ),
 						'type'        => 'string',
 						'required'    => true,
 					),
 					'recipe' => array(
-						'description' => __( 'The edit to derive the preset from, JSON encoded.', 'daguerre' ),
+						'description' => __( 'The edit to derive the preset from, JSON encoded.', 'lienzo' ),
 						'type'        => 'string',
 						'required'    => true,
 					),
@@ -92,25 +92,25 @@ function daguerre_register_rest_routes() {
 	);
 
 	register_rest_route(
-		DAGUERRE_REST_NAMESPACE,
+		LIENZO_REST_NAMESPACE,
 		'/presets/(?P<preset>[A-Za-z0-9-]+)',
 		array(
 			'methods'             => WP_REST_Server::DELETABLE,
-			'callback'            => daguerre_rest_handler( 'daguerre_rest_delete_preset' ),
-			'permission_callback' => 'daguerre_rest_presets_permission',
+			'callback'            => lienzo_rest_handler( 'lienzo_rest_delete_preset' ),
+			'permission_callback' => 'lienzo_rest_presets_permission',
 		)
 	);
 
 	register_rest_route(
-		DAGUERRE_REST_NAMESPACE,
+		LIENZO_REST_NAMESPACE,
 		'/media/(?P<id>[\d]+)/source',
 		array(
 			'methods'             => WP_REST_Server::READABLE,
-			'callback'            => daguerre_rest_handler( 'daguerre_rest_get_source' ),
-			'permission_callback' => 'daguerre_rest_permission',
+			'callback'            => lienzo_rest_handler( 'lienzo_rest_get_source' ),
+			'permission_callback' => 'lienzo_rest_permission',
 			'args'                => array(
 				'id' => array(
-					'description'       => __( 'Attachment ID whose original bytes to stream.', 'daguerre' ),
+					'description'       => __( 'Attachment ID whose original bytes to stream.', 'lienzo' ),
 					'type'              => 'integer',
 					'required'          => true,
 					'sanitize_callback' => 'absint',
@@ -121,7 +121,7 @@ function daguerre_register_rest_routes() {
 }
 
 /**
- * Shared permission callback for every Daguerre route.
+ * Shared permission callback for every Lienzo route.
  *
  * Distinguishes "not logged in" (401) from "logged in but not allowed" (403) so the
  * client can tell a expired session apart from a genuine permission problem and
@@ -132,21 +132,21 @@ function daguerre_register_rest_routes() {
  * @param WP_REST_Request $request Incoming request.
  * @return true|WP_Error True when allowed, WP_Error otherwise.
  */
-function daguerre_rest_permission( $request ) {
+function lienzo_rest_permission( $request ) {
 	if ( ! is_user_logged_in() ) {
 		return new WP_Error(
-			'daguerre_not_logged_in',
-			__( 'You must be logged in to edit images.', 'daguerre' ),
+			'lienzo_not_logged_in',
+			__( 'You must be logged in to edit images.', 'lienzo' ),
 			array( 'status' => 401 )
 		);
 	}
 
 	$attachment_id = (int) $request['id'];
 
-	if ( ! daguerre_can_edit( $attachment_id ) ) {
+	if ( ! lienzo_can_edit( $attachment_id ) ) {
 		return new WP_Error(
-			'daguerre_cannot_edit',
-			__( 'You are not allowed to edit this image.', 'daguerre' ),
+			'lienzo_cannot_edit',
+			__( 'You are not allowed to edit this image.', 'lienzo' ),
 			array( 'status' => 403 )
 		);
 	}
@@ -168,8 +168,8 @@ function daguerre_rest_permission( $request ) {
  * @param WP_REST_Request $request Incoming request.
  * @return true|WP_Error True when allowed, WP_Error otherwise.
  */
-function daguerre_rest_save_permission( $request ) {
-	$allowed = daguerre_rest_permission( $request );
+function lienzo_rest_save_permission( $request ) {
+	$allowed = lienzo_rest_permission( $request );
 
 	if ( is_wp_error( $allowed ) ) {
 		return $allowed;
@@ -177,8 +177,8 @@ function daguerre_rest_save_permission( $request ) {
 
 	if ( ! current_user_can( 'upload_files' ) ) {
 		return new WP_Error(
-			'daguerre_cannot_upload',
-			__( 'You are not allowed to add files to the media library.', 'daguerre' ),
+			'lienzo_cannot_upload',
+			__( 'You are not allowed to add files to the media library.', 'lienzo' ),
 			array( 'status' => 403 )
 		);
 	}
@@ -197,19 +197,19 @@ function daguerre_rest_save_permission( $request ) {
  *
  * @return true|WP_Error True when allowed, WP_Error otherwise.
  */
-function daguerre_rest_presets_permission() {
+function lienzo_rest_presets_permission() {
 	if ( ! is_user_logged_in() ) {
 		return new WP_Error(
-			'daguerre_not_logged_in',
-			__( 'You must be logged in to use presets.', 'daguerre' ),
+			'lienzo_not_logged_in',
+			__( 'You must be logged in to use presets.', 'lienzo' ),
 			array( 'status' => 401 )
 		);
 	}
 
 	if ( ! current_user_can( 'upload_files' ) ) {
 		return new WP_Error(
-			'daguerre_cannot_edit',
-			__( 'You are not allowed to edit images.', 'daguerre' ),
+			'lienzo_cannot_edit',
+			__( 'You are not allowed to edit images.', 'lienzo' ),
 			array( 'status' => 403 )
 		);
 	}
@@ -218,32 +218,32 @@ function daguerre_rest_presets_permission() {
 }
 
 /**
- * GET /daguerre/v1/presets
+ * GET /lienzo/v1/presets
  *
  * @since 0.1.0
  *
  * @return WP_REST_Response The current user's presets.
  */
-function daguerre_rest_get_presets() {
-	return rest_ensure_response( daguerre_get_presets() );
+function lienzo_rest_get_presets() {
+	return rest_ensure_response( lienzo_get_presets() );
 }
 
 /**
- * POST /daguerre/v1/presets
+ * POST /lienzo/v1/presets
  *
  * @since 0.1.0
  *
  * @param WP_REST_Request $request Incoming request.
  * @return WP_REST_Response|WP_Error The stored preset, or an error.
  */
-function daguerre_rest_create_preset( $request ) {
-	$recipe = daguerre_validate_recipe( $request->get_param( 'recipe' ) );
+function lienzo_rest_create_preset( $request ) {
+	$recipe = lienzo_validate_recipe( $request->get_param( 'recipe' ) );
 
 	if ( is_wp_error( $recipe ) ) {
 		return $recipe;
 	}
 
-	$preset = daguerre_save_preset( $request->get_param( 'name' ), $recipe );
+	$preset = lienzo_save_preset( $request->get_param( 'name' ), $recipe );
 
 	if ( is_wp_error( $preset ) ) {
 		return $preset;
@@ -256,15 +256,15 @@ function daguerre_rest_create_preset( $request ) {
 }
 
 /**
- * DELETE /daguerre/v1/presets/<id>
+ * DELETE /lienzo/v1/presets/<id>
  *
  * @since 0.1.0
  *
  * @param WP_REST_Request $request Incoming request.
  * @return WP_REST_Response|WP_Error Confirmation, or an error.
  */
-function daguerre_rest_delete_preset( $request ) {
-	$deleted = daguerre_delete_preset( (string) $request['preset'] );
+function lienzo_rest_delete_preset( $request ) {
+	$deleted = lienzo_delete_preset( (string) $request['preset'] );
 
 	if ( is_wp_error( $deleted ) ) {
 		return $deleted;
@@ -286,7 +286,7 @@ function daguerre_rest_delete_preset( $request ) {
  * @param callable $handler Route callback.
  * @return callable Wrapped callback.
  */
-function daguerre_rest_handler( $handler ) {
+function lienzo_rest_handler( $handler ) {
 	return static function ( $request ) use ( $handler ) {
 		ob_start();
 
@@ -301,12 +301,12 @@ function daguerre_rest_handler( $handler ) {
 }
 
 /**
- * GET /daguerre/v1/media/<id>
+ * GET /lienzo/v1/media/<id>
  *
  * Returns everything the editor needs to open an image: where to fetch the pixels,
  * how big they are, and any recipe from a previous edit.
  *
- * When the requested attachment was itself produced by Daguerre, the response
+ * When the requested attachment was itself produced by Lienzo, the response
  * points at the *original* it was derived from. That is what makes a re-edit
  * first-generation rather than a re-render of already-baked pixels.
  *
@@ -315,16 +315,16 @@ function daguerre_rest_handler( $handler ) {
  * @param WP_REST_Request $request Incoming request.
  * @return WP_REST_Response|WP_Error Response payload or error.
  */
-function daguerre_rest_get_media( $request ) {
+function lienzo_rest_get_media( $request ) {
 	$attachment_id = (int) $request['id'];
-	$source_id     = daguerre_resolve_source_id( $attachment_id );
+	$source_id     = lienzo_resolve_source_id( $attachment_id );
 
 	// The pointer could name an attachment the current user cannot read.
-	if ( $source_id !== $attachment_id && ! daguerre_can_edit( $source_id ) ) {
+	if ( $source_id !== $attachment_id && ! lienzo_can_edit( $source_id ) ) {
 		$source_id = $attachment_id;
 	}
 
-	$path = daguerre_get_source_path( $source_id );
+	$path = lienzo_get_source_path( $source_id );
 
 	if ( is_wp_error( $path ) ) {
 		return $path;
@@ -335,8 +335,8 @@ function daguerre_rest_get_media( $request ) {
 
 	if ( ! $dimensions ) {
 		return new WP_Error(
-			'daguerre_unreadable_image',
-			__( 'The image dimensions could not be read. The file may be corrupt.', 'daguerre' ),
+			'lienzo_unreadable_image',
+			__( 'The image dimensions could not be read. The file may be corrupt.', 'lienzo' ),
 			array( 'status' => 422 )
 		);
 	}
@@ -347,10 +347,10 @@ function daguerre_rest_get_media( $request ) {
 		$url = wp_get_attachment_url( $source_id );
 	}
 
-	$recipe = daguerre_get_recipe( $attachment_id );
+	$recipe = lienzo_get_recipe( $attachment_id );
 
 	if ( null === $recipe ) {
-		$recipe = daguerre_default_recipe( $source_id );
+		$recipe = lienzo_default_recipe( $source_id );
 	}
 
 	$payload = array(
@@ -358,14 +358,14 @@ function daguerre_rest_get_media( $request ) {
 		'sourceId'  => $source_id,
 		'mime'      => $source_post->post_mime_type,
 		'url'       => $url,
-		'sourceUrl' => rest_url( DAGUERRE_REST_NAMESPACE . '/media/' . $source_id . '/source' ),
+		'sourceUrl' => rest_url( LIENZO_REST_NAMESPACE . '/media/' . $source_id . '/source' ),
 		'width'     => (int) $dimensions[0],
 		'height'    => (int) $dimensions[1],
 		'title'     => $source_post->post_title,
 		'alt'       => (string) get_post_meta( $source_id, '_wp_attachment_image_alt', true ),
 		'recipe'    => $recipe,
 		'canSave'   => current_user_can( 'upload_files' ),
-		'schema'    => daguerre_op_schema(),
+		'schema'    => lienzo_op_schema(),
 	);
 
 	/**
@@ -377,13 +377,13 @@ function daguerre_rest_get_media( $request ) {
 	 * @param int   $attachment_id Attachment the client asked for.
 	 * @param int   $source_id     Attachment the pixels will be loaded from.
 	 */
-	$payload = apply_filters( 'daguerre_rest_media_payload', $payload, $attachment_id, $source_id );
+	$payload = apply_filters( 'lienzo_rest_media_payload', $payload, $attachment_id, $source_id );
 
 	return rest_ensure_response( $payload );
 }
 
 /**
- * POST /daguerre/v1/media/<id>/render
+ * POST /lienzo/v1/media/<id>/render
  *
  * Accepts a rendered image and stores it as a new attachment.
  *
@@ -398,15 +398,15 @@ function daguerre_rest_get_media( $request ) {
  * @param WP_REST_Request $request Incoming request.
  * @return WP_REST_Response|WP_Error Response payload or error.
  */
-function daguerre_rest_render( $request ) {
+function lienzo_rest_render( $request ) {
 	$attachment_id = (int) $request['id'];
-	$source_id     = daguerre_resolve_source_id( $attachment_id );
+	$source_id     = lienzo_resolve_source_id( $attachment_id );
 
-	if ( $source_id !== $attachment_id && ! daguerre_can_edit( $source_id ) ) {
+	if ( $source_id !== $attachment_id && ! lienzo_can_edit( $source_id ) ) {
 		$source_id = $attachment_id;
 	}
 
-	$recipe = daguerre_validate_recipe( $request->get_param( 'recipe' ) );
+	$recipe = lienzo_validate_recipe( $request->get_param( 'recipe' ) );
 
 	if ( is_wp_error( $recipe ) ) {
 		return $recipe;
@@ -414,8 +414,8 @@ function daguerre_rest_render( $request ) {
 
 	if ( $recipe['source'] !== $source_id ) {
 		return new WP_Error(
-			'daguerre_recipe_source_mismatch',
-			__( 'The edit recipe does not belong to this image.', 'daguerre' ),
+			'lienzo_recipe_source_mismatch',
+			__( 'The edit recipe does not belong to this image.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
@@ -424,13 +424,13 @@ function daguerre_rest_render( $request ) {
 
 	if ( empty( $files['file'] ) ) {
 		return new WP_Error(
-			'daguerre_render_missing_file',
-			__( 'No rendered image was uploaded.', 'daguerre' ),
+			'lienzo_render_missing_file',
+			__( 'No rendered image was uploaded.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
 
-	$new_id = daguerre_store_render( $files['file'], $source_id, $recipe );
+	$new_id = lienzo_store_render( $files['file'], $source_id, $recipe );
 
 	if ( is_wp_error( $new_id ) ) {
 		return $new_id;
@@ -451,13 +451,13 @@ function daguerre_rest_render( $request ) {
 	);
 
 	$response->set_status( 201 );
-	$response->header( 'Location', rest_url( DAGUERRE_REST_NAMESPACE . '/media/' . $new_id ) );
+	$response->header( 'Location', rest_url( LIENZO_REST_NAMESPACE . '/media/' . $new_id ) );
 
 	return $response;
 }
 
 /**
- * GET /daguerre/v1/media/<id>/source
+ * GET /lienzo/v1/media/<id>/source
  *
  * Streams the original image bytes from the same origin as wp-admin.
  *
@@ -472,9 +472,9 @@ function daguerre_rest_render( $request ) {
  * @param WP_REST_Request $request Incoming request.
  * @return WP_REST_Response|WP_Error Streaming response, or error.
  */
-function daguerre_rest_get_source( $request ) {
+function lienzo_rest_get_source( $request ) {
 	$attachment_id = (int) $request['id'];
-	$path          = daguerre_get_source_path( $attachment_id );
+	$path          = lienzo_get_source_path( $attachment_id );
 
 	if ( is_wp_error( $path ) ) {
 		return $path;

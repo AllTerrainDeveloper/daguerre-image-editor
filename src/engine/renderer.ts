@@ -203,7 +203,7 @@ export class EditorRenderer {
 			resolution: window.devicePixelRatio || 1,
 		} );
 
-		app.canvas.classList.add( 'dg-canvas' );
+		app.canvas.classList.add( 'lz-canvas' );
 		options.host.appendChild( app.canvas as unknown as Node );
 
 		const renderer = new EditorRenderer( pixi, app, options );
@@ -283,7 +283,7 @@ export class EditorRenderer {
 			glProgram: this.pixi.GlProgram.from( {
 				vertex: ADJUST_VERT,
 				fragment: ADJUST_FRAG,
-				name: 'daguerre-adjust',
+				name: 'lienzo-adjust',
 			} ),
 			resources: {
 				adjustUniforms: uniforms,

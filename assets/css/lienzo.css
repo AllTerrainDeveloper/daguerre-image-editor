@@ -1,9 +1,9 @@
 /**
- * Daguerre editor styles.
+ * Lienzo editor styles.
  *
  * The surround stays dark in every host, and deliberately so: judging an exposure
  * against a white panel is judging it against the panel. Photoshop, Lightroom and
- * Capture One all made the same call. So Daguerre does *not* adopt Desktop Mode's
+ * Capture One all made the same call. So Lienzo does *not* adopt Desktop Mode's
  * window palette -- that palette is light (`--desktop-mode-window-bg: #fff`), because
  * it dresses the frame around the content rather than the content itself.
  *
@@ -27,16 +27,16 @@
  * nothing on screen. This restores the expected meaning at a specificity that wins
  * over the single-class layout rules below.
  */
-.dg-editor [ hidden ] {
+.lz-editor [ hidden ] {
 	display: none;
 }
 
-.dg-editor {
-	--dg-bg: #1d2327;
-	--dg-surface: #2c3338;
-	--dg-surface-raised: #3c434a;
-	--dg-fg: #f0f0f1;
-	--dg-fg-muted: #a7aaad;
+.lz-editor {
+	--lz-bg: #1d2327;
+	--lz-surface: #2c3338;
+	--lz-surface-raised: #3c434a;
+	--lz-fg: #f0f0f1;
+	--lz-fg-muted: #a7aaad;
 
 	/*
 	 * Desktop Mode's accent first, then WordPress's own admin theme colour, then a
@@ -45,13 +45,13 @@
 	 * defines, so it silently fell through to the literal every time and the editor
 	 * ignored the user's colour scheme.
 	 */
-	--dg-accent: var(
+	--lz-accent: var(
 		--desktop-mode-window-link-accent,
 		var( --wp-admin-theme-color, #3582c4 )
 	);
-	--dg-border: rgba( 255, 255, 255, 0.12 );
-	--dg-radius: var( --desktop-mode-window-radius, 6px );
-	--dg-sidebar-width: 300px;
+	--lz-border: rgba( 255, 255, 255, 0.12 );
+	--lz-radius: var( --desktop-mode-window-radius, 6px );
+	--lz-sidebar-width: 300px;
 
 	/*
 	 * Desktop Mode's component palette, themed dark for the editor.
@@ -66,17 +66,17 @@
 	 * the components were built to expose. One block themes every `<wpd-*>` the editor
 	 * will ever mount, including ones added later.
 	 */
-	--wpd-fg: var( --dg-fg );
-	--wpd-fg-muted: var( --dg-fg-muted );
-	--wpd-border: var( --dg-border );
-	--wpd-surface: var( --dg-surface-raised );
+	--wpd-fg: var( --lz-fg );
+	--wpd-fg-muted: var( --lz-fg-muted );
+	--wpd-border: var( --lz-border );
+	--wpd-surface: var( --lz-surface-raised );
 	--wpd-hover: rgba( 255, 255, 255, 0.08 );
-	--wpd-accent: var( --dg-accent );
+	--wpd-accent: var( --lz-accent );
 	--wpd-fg-on-accent: #fff;
-	--wpd-button-bg: var( --dg-surface-raised );
-	--wpd-button-fg: var( --dg-fg );
-	--wpd-chip-bg: var( --dg-surface-raised );
-	--wpd-chip-fg: var( --dg-fg );
+	--wpd-button-bg: var( --lz-surface-raised );
+	--wpd-button-fg: var( --lz-fg );
+	--wpd-chip-bg: var( --lz-surface-raised );
+	--wpd-chip-fg: var( --lz-fg );
 	/* Lightened from WordPress's #d63638, which is unreadable on a dark surface. */
 	--wpd-danger: #f86368;
 	--wpd-scrim: rgba( 0, 0, 0, 0.6 );
@@ -86,14 +86,14 @@
 	 * that is what made every number field a white slab. Overridden only within the
 	 * editor, so the shell's own chrome is untouched.
 	 */
-	--desktop-mode-window-bg: var( --dg-surface );
-	--desktop-mode-fg: var( --dg-fg );
+	--desktop-mode-window-bg: var( --lz-surface );
+	--desktop-mode-fg: var( --lz-fg );
 
 	display: flex;
 	flex-direction: column;
 	min-block-size: 0;
-	background: var( --dg-bg );
-	color: var( --dg-fg );
+	background: var( --lz-bg );
+	color: var( --lz-fg );
 	font-size: 13px;
 }
 
@@ -104,44 +104,44 @@
  * a footer that would otherwise push the canvas into a scroll region, so on this
  * one screen they are collapsed.
  */
-.daguerre-page #wpcontent,
-.daguerre-page #wpbody-content {
+.lienzo-page #wpcontent,
+.lienzo-page #wpbody-content {
 	padding-block-end: 0;
 	padding-inline-start: 0;
 }
 
-.daguerre-page #wpfooter {
+.lienzo-page #wpfooter {
 	display: none;
 }
 
-.daguerre-page .dg-editor--page {
+.lienzo-page .lz-editor--page {
 	block-size: calc( 100vh - var( --wp-admin--admin-bar--height, 32px ) );
 }
 
 /* -- Toolbar --------------------------------------------------------------- */
 
-.dg-topbar {
+.lz-topbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 16px;
 	padding: 10px 16px;
-	background: var( --dg-surface );
-	border-block-end: 1px solid var( --dg-border );
+	background: var( --lz-surface );
+	border-block-end: 1px solid var( --lz-border );
 	flex: 0 0 auto;
 }
 
-.dg-topbar__title {
+.lz-topbar__title {
 	margin: 0;
 	font-size: 14px;
 	font-weight: 600;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.dg-topbar__actions {
+.lz-topbar__actions {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -150,13 +150,13 @@
 
 /* -- Body ------------------------------------------------------------------ */
 
-.dg-body {
+.lz-body {
 	display: flex;
 	flex: 1 1 auto;
 	min-block-size: 0;
 }
 
-.dg-stage {
+.lz-stage {
 	position: relative;
 	flex: 1 1 auto;
 	min-inline-size: 0;
@@ -185,7 +185,7 @@
  * too made the two indistinguishable, so there was no way to see where the document
  * ended.
  */
-.dg-canvas-backdrop {
+.lz-canvas-backdrop {
 	position: absolute;
 	z-index: 0;
 	border-radius: 1px;
@@ -203,7 +203,7 @@
 	background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 
-.dg-canvas {
+.lz-canvas {
 	display: block;
 	inline-size: 100%;
 	block-size: 100%;
@@ -212,51 +212,51 @@
 	z-index: 1;
 }
 
-.dg-status {
+.lz-status {
 	margin: 0;
 	padding: 24px;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	text-align: center;
 	max-inline-size: 40ch;
 }
 
-.dg-status--error {
+.lz-status--error {
 	color: #f86368;
 }
 
 /* -- Sidebar --------------------------------------------------------------- */
 
-.dg-sidebar {
-	flex: 0 0 var( --dg-sidebar-width );
-	inline-size: var( --dg-sidebar-width );
+.lz-sidebar {
+	flex: 0 0 var( --lz-sidebar-width );
+	inline-size: var( --lz-sidebar-width );
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	padding: 12px;
-	background: var( --dg-surface );
-	border-inline-start: 1px solid var( --dg-border );
+	background: var( --lz-surface );
+	border-inline-start: 1px solid var( --lz-border );
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 }
 
-.dg-section {
+.lz-section {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
 }
 
-.dg-section__heading {
+.lz-section__heading {
 	margin: 0;
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 }
 
 /* -- Sidebar header and the tool picker ------------------------------------ */
 
-.dg-sidebar__header {
+.lz-sidebar__header {
 	position: relative;
 	display: flex;
 	align-items: center;
@@ -265,38 +265,38 @@
 	flex: 0 0 auto;
 }
 
-.dg-sidebar__title {
+.lz-sidebar__title {
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 }
 
-.dg-sidebar__picker-toggle {
+.lz-sidebar__picker-toggle {
 	appearance: none;
 	border: 1px solid transparent;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 14px;
 	line-height: 1;
 	padding: 2px 8px;
 	cursor: pointer;
 }
 
-.dg-sidebar__picker-toggle:hover,
-.dg-sidebar__picker-toggle[ aria-expanded='true' ] {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-sidebar__picker-toggle:hover,
+.lz-sidebar__picker-toggle[ aria-expanded='true' ] {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-sidebar__picker-toggle:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-sidebar__picker-toggle:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
-.dg-picker-menu {
+.lz-picker-menu {
 	position: absolute;
 	inset-block-start: calc( 100% + 4px );
 	inset-inline-end: 0;
@@ -306,43 +306,43 @@
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	background: var( --dg-surface-raised );
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+	background: var( --lz-surface-raised );
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 	box-shadow: 0 6px 20px rgba( 0, 0, 0, 0.35 );
 }
 
-.dg-picker-menu__item {
+.lz-picker-menu__item {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	padding: 4px 6px;
 	border-radius: 4px;
 	font-size: 12px;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	cursor: pointer;
 }
 
-.dg-picker-menu__item:hover {
+.lz-picker-menu__item:hover {
 	background: rgba( 255, 255, 255, 0.06 );
 }
 
 /* -- Collapsible panels ---------------------------------------------------- */
 
-.dg-panels {
+.lz-panels {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
 }
 
-.dg-panel {
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+.lz-panel {
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 	background: rgba( 255, 255, 255, 0.02 );
 	overflow: hidden;
 }
 
-.dg-panel__header {
+.lz-panel__header {
 	inline-size: 100%;
 	display: flex;
 	align-items: center;
@@ -351,7 +351,7 @@
 	appearance: none;
 	border: none;
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -360,33 +360,33 @@
 	cursor: pointer;
 }
 
-.dg-panel__header:hover {
-	color: var( --dg-fg );
+.lz-panel__header:hover {
+	color: var( --lz-fg );
 	background: rgba( 255, 255, 255, 0.04 );
 }
 
-.dg-panel__header:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-panel__header:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: -2px;
 }
 
-.dg-panel__chevron {
+.lz-panel__chevron {
 	display: inline-block;
 	font-size: 9px;
 	transform: rotate( 90deg );
 	transition: transform 140ms ease;
 }
 
-.dg-panel.is-collapsed .dg-panel__chevron {
+.lz-panel.is-collapsed .lz-panel__chevron {
 	transform: rotate( 0deg );
 }
 
 /* The chevron points the other way in right-to-left locales. */
-[ dir='rtl' ] .dg-panel.is-collapsed .dg-panel__chevron {
+[ dir='rtl' ] .lz-panel.is-collapsed .lz-panel__chevron {
 	transform: rotate( 180deg );
 }
 
-.dg-panel__body {
+.lz-panel__body {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
@@ -395,7 +395,7 @@
 
 /* -- Image info ------------------------------------------------------------ */
 
-.dg-info {
+.lz-info {
 	margin: 0;
 	display: grid;
 	grid-template-columns: auto 1fr;
@@ -403,28 +403,28 @@
 	font-size: 12px;
 }
 
-.dg-info dt {
-	color: var( --dg-fg-muted );
+.lz-info dt {
+	color: var( --lz-fg-muted );
 }
 
-.dg-info dd {
+.lz-info dd {
 	margin: 0;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	font-variant-numeric: tabular-nums;
 }
 
 /* -- Histogram ------------------------------------------------------------- */
 
-.dg-histogram {
+.lz-histogram {
 	position: relative;
 	block-size: 120px;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: #0d1013;
-	border: 1px solid var( --dg-border );
+	border: 1px solid var( --lz-border );
 	overflow: hidden;
 }
 
-.dg-histogram__canvas {
+.lz-histogram__canvas {
 	display: block;
 	inline-size: 100%;
 	block-size: 100%;
@@ -432,18 +432,18 @@
 
 /* -- Adjustment rows ------------------------------------------------------- */
 
-.dg-adjust {
+.lz-adjust {
 	display: flex;
 	align-items: flex-end;
 	gap: 6px;
 }
 
-.dg-adjust > :first-child {
+.lz-adjust > :first-child {
 	flex: 1 1 auto;
 	min-inline-size: 0;
 }
 
-.dg-adjust__reset {
+.lz-adjust__reset {
 	flex: 0 0 auto;
 	opacity: 0;
 	transition: opacity 120ms ease;
@@ -454,174 +454,174 @@
  * seven of them competing for attention would drown out the sliders themselves --
  * but hiding it from keyboard users would make it unreachable, hence :focus-within.
  */
-.dg-adjust:hover .dg-adjust__reset,
-.dg-adjust:focus-within .dg-adjust__reset {
+.lz-adjust:hover .lz-adjust__reset,
+.lz-adjust:focus-within .lz-adjust__reset {
 	opacity: 1;
 }
 
 /* -- Generic labelled field ------------------------------------------------ */
 
-.dg-field {
+.lz-field {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
 }
 
-.dg-field__label {
+.lz-field__label {
 	font-size: 12px;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 }
 
-select.dg-field__control {
+select.lz-field__control {
 	inline-size: 100%;
 	max-inline-size: 100%;
 	padding: 4px 6px;
 	font-size: 12px;
-	color: var( --dg-fg );
-	background: var( --dg-surface-raised );
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+	color: var( --lz-fg );
+	background: var( --lz-surface-raised );
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 }
 
-select.dg-field__control:focus-visible {
-	outline: 2px solid var( --dg-accent );
+select.lz-field__control:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
 /* -- Saved banner ---------------------------------------------------------- */
 
-.dg-saved {
+.lz-saved {
 	margin: 0;
 	padding: 8px 10px;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: rgba( 0, 163, 42, 0.15 );
 	border: 1px solid rgba( 0, 163, 42, 0.4 );
 	font-size: 12px;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 }
 
-.dg-saved a {
-	color: var( --dg-accent );
+.lz-saved a {
+	color: var( --lz-accent );
 }
 
 /* -- Native slider fallback ------------------------------------------------ */
 
-.dg-slider {
+.lz-slider {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 }
 
-.dg-slider__head {
+.lz-slider__head {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
 	gap: 8px;
 }
 
-.dg-slider__label {
+.lz-slider__label {
 	font-size: 12px;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 }
 
-.dg-slider__value {
+.lz-slider__value {
 	font-size: 11px;
 	font-variant-numeric: tabular-nums;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 }
 
-.dg-slider.is-modified .dg-slider__value {
-	color: var( --dg-accent );
+.lz-slider.is-modified .lz-slider__value {
+	color: var( --lz-accent );
 	font-weight: 600;
 }
 
-.dg-slider__input {
+.lz-slider__input {
 	inline-size: 100%;
 	margin: 0;
-	accent-color: var( --dg-accent );
+	accent-color: var( --lz-accent );
 	cursor: ew-resize;
 }
 
-.dg-slider__input:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-slider__input:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 2px;
 }
 
 /* -- Buttons --------------------------------------------------------------- */
 
-button.dg-button {
+button.lz-button {
 	appearance: none;
 	border: 1px solid transparent;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	padding: 5px 10px;
 	font-size: 12px;
 	line-height: 1.4;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	background: transparent;
 	cursor: pointer;
 }
 
-button.dg-button:hover:not( .is-disabled ) {
-	background: var( --dg-surface-raised );
+button.lz-button:hover:not( .is-disabled ) {
+	background: var( --lz-surface-raised );
 }
 
-button.dg-button--primary {
-	background: var( --dg-accent );
+button.lz-button--primary {
+	background: var( --lz-accent );
 	color: #fff;
 }
 
-button.dg-button--secondary {
-	border-color: var( --dg-border );
+button.lz-button--secondary {
+	border-color: var( --lz-border );
 }
 
-button.dg-button:focus-visible {
-	outline: 2px solid var( --dg-accent );
+button.lz-button:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
-.dg-button.is-disabled,
-.dg-button[ disabled ] {
+.lz-button.is-disabled,
+.lz-button[ disabled ] {
 	opacity: 0.4;
 	cursor: default;
 	pointer-events: none;
 }
 
-.dg-button.is-pressed {
-	background: var( --dg-accent );
+.lz-button.is-pressed {
+	background: var( --lz-accent );
 	color: #fff;
 }
 
 /* -- Picker ---------------------------------------------------------------- */
 
-.dg-picker {
+.lz-picker {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 	padding: 24px 24px 48px;
 }
 
-.dg-picker__heading {
+.lz-picker__heading {
 	margin: 0;
 	font-size: 20px;
 }
 
-.dg-picker__status {
+.lz-picker__status {
 	margin: 0;
 	color: #646970;
 }
 
-.dg-picker__status--error {
+.lz-picker__status--error {
 	color: #d63638;
 }
 
-.dg-picker__grid {
+.lz-picker__grid {
 	display: grid;
 	grid-template-columns: repeat( auto-fill, minmax( 150px, 1fr ) );
 	gap: 14px;
 }
 
 /* A button now, not a link, so it needs the button chrome reset off it. */
-.dg-picker__tile {
+.lz-picker__tile {
 	appearance: none;
 	display: flex;
 	flex-direction: column;
@@ -638,14 +638,14 @@ button.dg-button:focus-visible {
 	transition: border-color 120ms ease, background-color 120ms ease;
 }
 
-.dg-picker__tile:hover,
-.dg-picker__tile:focus-visible {
-	border-color: var( --dg-accent );
+.lz-picker__tile:hover,
+.lz-picker__tile:focus-visible {
+	border-color: var( --lz-accent );
 	background: rgba( 255, 255, 255, 0.08 );
 	outline: none;
 }
 
-.dg-picker__thumb {
+.lz-picker__thumb {
 	inline-size: 100%;
 	aspect-ratio: 1;
 	object-fit: cover;
@@ -654,7 +654,7 @@ button.dg-button:focus-visible {
 	display: block;
 }
 
-.dg-picker__caption {
+.lz-picker__caption {
 	font-size: 12px;
 	line-height: 1.3;
 	color: #50575e;
@@ -669,7 +669,7 @@ button.dg-button:focus-visible {
  * Above the media modal (z-index 160000) so the editor is not trapped behind the
  * thing that opened it.
  */
-.dg-overlay {
+.lz-overlay {
 	position: fixed;
 	inset: 0;
 	z-index: 200000;
@@ -680,7 +680,7 @@ button.dg-button:focus-visible {
 	background: rgba( 0, 0, 0, 0.65 );
 }
 
-.dg-overlay__dialog {
+.lz-overlay__dialog {
 	inline-size: min( 1400px, 100% );
 	block-size: min( 900px, 100% );
 	display: flex;
@@ -689,31 +689,31 @@ button.dg-button:focus-visible {
 	box-shadow: 0 20px 60px rgba( 0, 0, 0, 0.5 );
 }
 
-.dg-overlay__editor {
+.lz-overlay__editor {
 	inline-size: 100%;
 	block-size: 100%;
 	display: flex;
 }
 
-.dg-overlay__editor .dg-editor {
+.lz-overlay__editor .lz-editor {
 	inline-size: 100%;
 }
 
 /* Stop the page behind the overlay scrolling under it. */
-body.dg-overlay-open {
+body.lz-overlay-open {
 	overflow: hidden;
 }
 
-.dg-modal-button {
+.lz-modal-button {
 	margin-block-start: 6px;
 }
 
 @media ( max-width: 782px ) {
-	.dg-overlay {
+	.lz-overlay {
 		padding: 0;
 	}
 
-	.dg-overlay__dialog {
+	.lz-overlay__dialog {
 		inline-size: 100%;
 		block-size: 100%;
 		border-radius: 0;
@@ -723,7 +723,7 @@ body.dg-overlay-open {
 /* -- Fallback toasts ------------------------------------------------------- */
 
 /* Only used when Desktop Mode's own toast system is unavailable. */
-.dg-toasts {
+.lz-toasts {
 	position: fixed;
 	inset-block-start: 48px;
 	inset-inline-end: 16px;
@@ -734,7 +734,7 @@ body.dg-overlay-open {
 	pointer-events: none;
 }
 
-.dg-toast {
+.lz-toast {
 	padding: 10px 14px;
 	border-radius: 6px;
 	background: #1d2327;
@@ -746,45 +746,45 @@ body.dg-overlay-open {
 	transition: opacity 300ms ease;
 }
 
-.dg-toast--success {
+.lz-toast--success {
 	border-inline-start: 3px solid #00a32a;
 }
 
-.dg-toast--error {
+.lz-toast--error {
 	border-inline-start: 3px solid #d63638;
 }
 
-.dg-toast.is-leaving {
+.lz-toast.is-leaving {
 	opacity: 0;
 }
 
 /* -- Narrow viewports ------------------------------------------------------ */
 
 @media ( max-width: 782px ) {
-	.dg-body {
+	.lz-body {
 		flex-direction: column;
 	}
 
-	.dg-sidebar {
+	.lz-sidebar {
 		flex-basis: auto;
 		inline-size: 100%;
 		border-inline-start: none;
-		border-block-start: 1px solid var( --dg-border );
+		border-block-start: 1px solid var( --lz-border );
 	}
 
-	.dg-stage {
+	.lz-stage {
 		min-block-size: 40vh;
 	}
 
 	/* Touch has no hover, so the per-slider reset has to stay visible. */
-	.dg-adjust__reset {
+	.lz-adjust__reset {
 		opacity: 1;
 	}
 }
 
 @media ( prefers-reduced-motion: reduce ) {
-	.dg-adjust__reset,
-	.dg-toast {
+	.lz-adjust__reset,
+	.lz-toast {
 		transition: none;
 	}
 }
@@ -796,7 +796,7 @@ body.dg-overlay-open {
  * affordance, not part of the image, and re-rendering a photograph on every
  * pointer move to redraw a dashed line would be absurd.
  */
-.dg-crop {
+.lz-crop {
 	position: absolute;
 	z-index: 2;
 	pointer-events: none;
@@ -812,19 +812,19 @@ body.dg-overlay-open {
  * it would cover the entire page. It therefore lives in its own clipped layer,
  * separate from the one carrying the border and handles.
  */
-.dg-crop__clip {
+.lz-crop__clip {
 	position: absolute;
 	inset: 0;
 	overflow: hidden;
 	pointer-events: none;
 }
 
-.dg-crop__dim {
+.lz-crop__dim {
 	position: absolute;
 	box-shadow: 0 0 0 9999px rgba( 0, 0, 0, 0.45 );
 }
 
-.dg-crop__box {
+.lz-crop__box {
 	position: absolute;
 	pointer-events: auto;
 	cursor: move;
@@ -832,41 +832,41 @@ body.dg-overlay-open {
 	touch-action: none;
 }
 
-.dg-crop__guide {
+.lz-crop__guide {
 	position: absolute;
 	background: rgba( 255, 255, 255, 0.35 );
 	pointer-events: none;
 }
 
-.dg-crop__guide--v1,
-.dg-crop__guide--v2 {
+.lz-crop__guide--v1,
+.lz-crop__guide--v2 {
 	inline-size: 1px;
 	inset-block: 0;
 }
 
-.dg-crop__guide--v1 {
+.lz-crop__guide--v1 {
 	inset-inline-start: 33.33%;
 }
 
-.dg-crop__guide--v2 {
+.lz-crop__guide--v2 {
 	inset-inline-start: 66.66%;
 }
 
-.dg-crop__guide--h1,
-.dg-crop__guide--h2 {
+.lz-crop__guide--h1,
+.lz-crop__guide--h2 {
 	block-size: 1px;
 	inset-inline: 0;
 }
 
-.dg-crop__guide--h1 {
+.lz-crop__guide--h1 {
 	inset-block-start: 33.33%;
 }
 
-.dg-crop__guide--h2 {
+.lz-crop__guide--h2 {
 	inset-block-start: 66.66%;
 }
 
-.dg-crop__handle {
+.lz-crop__handle {
 	position: absolute;
 	inline-size: 14px;
 	block-size: 14px;
@@ -876,54 +876,54 @@ body.dg-overlay-open {
 	touch-action: none;
 }
 
-.dg-crop__handle--nw { inset-block-start: -7px; inset-inline-start: -7px; cursor: nwse-resize; }
-.dg-crop__handle--ne { inset-block-start: -7px; inset-inline-end: -7px; cursor: nesw-resize; }
-.dg-crop__handle--sw { inset-block-end: -7px; inset-inline-start: -7px; cursor: nesw-resize; }
-.dg-crop__handle--se { inset-block-end: -7px; inset-inline-end: -7px; cursor: nwse-resize; }
+.lz-crop__handle--nw { inset-block-start: -7px; inset-inline-start: -7px; cursor: nwse-resize; }
+.lz-crop__handle--ne { inset-block-start: -7px; inset-inline-end: -7px; cursor: nesw-resize; }
+.lz-crop__handle--sw { inset-block-end: -7px; inset-inline-start: -7px; cursor: nesw-resize; }
+.lz-crop__handle--se { inset-block-end: -7px; inset-inline-end: -7px; cursor: nwse-resize; }
 
-.dg-crop__handle--n { inset-block-start: -7px; inset-inline-start: calc( 50% - 7px ); cursor: ns-resize; }
-.dg-crop__handle--s { inset-block-end: -7px; inset-inline-start: calc( 50% - 7px ); cursor: ns-resize; }
-.dg-crop__handle--w { inset-inline-start: -7px; inset-block-start: calc( 50% - 7px ); cursor: ew-resize; }
-.dg-crop__handle--e { inset-inline-end: -7px; inset-block-start: calc( 50% - 7px ); cursor: ew-resize; }
+.lz-crop__handle--n { inset-block-start: -7px; inset-inline-start: calc( 50% - 7px ); cursor: ns-resize; }
+.lz-crop__handle--s { inset-block-end: -7px; inset-inline-start: calc( 50% - 7px ); cursor: ns-resize; }
+.lz-crop__handle--w { inset-inline-start: -7px; inset-block-start: calc( 50% - 7px ); cursor: ew-resize; }
+.lz-crop__handle--e { inset-inline-end: -7px; inset-block-start: calc( 50% - 7px ); cursor: ew-resize; }
 
 /* -- Curve editor ---------------------------------------------------------- */
 
-.dg-curve {
+.lz-curve {
 	inline-size: 100%;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: #0d1013;
-	border: 1px solid var( --dg-border );
+	border: 1px solid var( --lz-border );
 	overflow: hidden;
 }
 
-.dg-curve__canvas {
+.lz-curve__canvas {
 	display: block;
 	inline-size: 100%;
 	touch-action: none;
 	cursor: crosshair;
 }
 
-.dg-curve__canvas:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-curve__canvas:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: -2px;
 }
 
-.dg-hint {
+.lz-hint {
 	margin: 0;
 	font-size: 11px;
 	line-height: 1.4;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 }
 
 /* -- Button rows ----------------------------------------------------------- */
 
-.dg-buttons {
+.lz-buttons {
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
 }
 
-.dg-buttons .dg-button {
+.lz-buttons .lz-button {
 	flex: 1 1 auto;
 	font-size: 15px;
 	line-height: 1;
@@ -932,25 +932,25 @@ body.dg-overlay-open {
 
 /* -- Presets --------------------------------------------------------------- */
 
-.dg-presets {
+.lz-presets {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 }
 
-.dg-preset {
+.lz-preset {
 	display: flex;
 	align-items: stretch;
 	gap: 2px;
 }
 
-.dg-preset__apply {
+.lz-preset__apply {
 	flex: 1 1 auto;
 	appearance: none;
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 	background: transparent;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	font-size: 12px;
 	text-align: start;
 	padding: 5px 8px;
@@ -960,42 +960,42 @@ body.dg-overlay-open {
 	white-space: nowrap;
 }
 
-.dg-preset__apply:hover {
-	background: var( --dg-surface-raised );
+.lz-preset__apply:hover {
+	background: var( --lz-surface-raised );
 }
 
-.dg-preset__delete {
+.lz-preset__delete {
 	flex: 0 0 auto;
 	appearance: none;
 	border: 1px solid transparent;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	cursor: pointer;
 	padding: 0 8px;
 	font-size: 15px;
 	line-height: 1;
 }
 
-.dg-preset__delete:hover {
+.lz-preset__delete:hover {
 	color: #f86368;
 	background: rgba( 248, 99, 104, 0.12 );
 }
 
-.dg-preset__apply:focus-visible,
-.dg-preset__delete:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-preset__apply:focus-visible,
+.lz-preset__delete:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
-input.dg-field__control {
+input.lz-field__control {
 	inline-size: 100%;
 	padding: 5px 8px;
 	font-size: 12px;
-	color: var( --dg-fg );
-	background: var( --dg-surface-raised );
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+	color: var( --lz-fg );
+	background: var( --lz-surface-raised );
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 }
 
 /* -- Transform handles ------------------------------------------------------ */
@@ -1004,14 +1004,14 @@ input.dg-field__control {
  * These act on the layer, never on the canvas. That is what keeps a drag stable:
  * the surface the pointer is measured against cannot move mid-gesture.
  */
-.dg-transform {
+.lz-transform {
 	position: absolute;
 	pointer-events: none;
 	overflow: visible;
 	z-index: 2;
 }
 
-.dg-transform__box {
+.lz-transform__box {
 	position: absolute;
 	pointer-events: auto;
 	cursor: move;
@@ -1020,7 +1020,7 @@ input.dg-field__control {
 	box-sizing: border-box;
 }
 
-.dg-transform__handle {
+.lz-transform__handle {
 	position: absolute;
 	inline-size: 12px;
 	block-size: 12px;
@@ -1030,13 +1030,13 @@ input.dg-field__control {
 	touch-action: none;
 }
 
-.dg-transform__handle--nw { inset-block-start: -6px; inset-inline-start: -6px; cursor: nwse-resize; }
-.dg-transform__handle--ne { inset-block-start: -6px; inset-inline-end: -6px; cursor: nesw-resize; }
-.dg-transform__handle--sw { inset-block-end: -6px; inset-inline-start: -6px; cursor: nesw-resize; }
-.dg-transform__handle--se { inset-block-end: -6px; inset-inline-end: -6px; cursor: nwse-resize; }
+.lz-transform__handle--nw { inset-block-start: -6px; inset-inline-start: -6px; cursor: nwse-resize; }
+.lz-transform__handle--ne { inset-block-start: -6px; inset-inline-end: -6px; cursor: nesw-resize; }
+.lz-transform__handle--sw { inset-block-end: -6px; inset-inline-start: -6px; cursor: nesw-resize; }
+.lz-transform__handle--se { inset-block-end: -6px; inset-inline-end: -6px; cursor: nwse-resize; }
 
 /* The rotation handle floats above the top edge on a short stem. */
-.dg-transform__stem {
+.lz-transform__stem {
 	position: absolute;
 	inset-block-start: -24px;
 	inset-inline-start: calc( 50% - 1px );
@@ -1046,7 +1046,7 @@ input.dg-field__control {
 	pointer-events: none;
 }
 
-.dg-transform__handle--rotate {
+.lz-transform__handle--rotate {
 	inset-block-start: -34px;
 	inset-inline-start: calc( 50% - 7px );
 	inline-size: 14px;
@@ -1056,61 +1056,61 @@ input.dg-field__control {
 	background: #78beff;
 }
 
-.dg-transform__handle--rotate:active {
+.lz-transform__handle--rotate:active {
 	cursor: grabbing;
 }
 
 /* -- Canvas size fields ----------------------------------------------------- */
 
-.dg-size {
+.lz-size {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 8px;
 }
 
-.dg-size > * {
+.lz-size > * {
 	min-inline-size: 0;
 }
 
-.dg-transform__handle--n { inset-block-start: -6px; inset-inline-start: calc( 50% - 6px ); cursor: ns-resize; }
-.dg-transform__handle--s { inset-block-end: -6px; inset-inline-start: calc( 50% - 6px ); cursor: ns-resize; }
-.dg-transform__handle--w { inset-inline-start: -6px; inset-block-start: calc( 50% - 6px ); cursor: ew-resize; }
-.dg-transform__handle--e { inset-inline-end: -6px; inset-block-start: calc( 50% - 6px ); cursor: ew-resize; }
+.lz-transform__handle--n { inset-block-start: -6px; inset-inline-start: calc( 50% - 6px ); cursor: ns-resize; }
+.lz-transform__handle--s { inset-block-end: -6px; inset-inline-start: calc( 50% - 6px ); cursor: ns-resize; }
+.lz-transform__handle--w { inset-inline-start: -6px; inset-block-start: calc( 50% - 6px ); cursor: ew-resize; }
+.lz-transform__handle--e { inset-inline-end: -6px; inset-block-start: calc( 50% - 6px ); cursor: ew-resize; }
 
 /* -- Hiding the sidebar ----------------------------------------------------- */
 
-.dg-sidebar__actions {
+.lz-sidebar__actions {
 	display: flex;
 	align-items: center;
 	gap: 2px;
 }
 
-.dg-sidebar__hide {
+.lz-sidebar__hide {
 	appearance: none;
 	border: 1px solid transparent;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 13px;
 	line-height: 1;
 	padding: 3px 7px;
 	cursor: pointer;
 }
 
-.dg-sidebar__hide:hover {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-sidebar__hide:hover {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-sidebar__hide:focus-visible,
-.dg-sidebar-tab:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-sidebar__hide:focus-visible,
+.lz-sidebar-tab:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
 /* Removed from the layout entirely rather than narrowed — the point of hiding it
    is to give the picture the whole window. */
-.dg-editor.is-sidebar-hidden .dg-sidebar {
+.lz-editor.is-sidebar-hidden .lz-sidebar {
 	display: none;
 }
 
@@ -1118,7 +1118,7 @@ input.dg-field__control {
  * The tab that brings it back: a vertical strip on the trailing edge, always in
  * reach. Absolutely positioned so it costs the stage no width.
  */
-.dg-sidebar-tab {
+.lz-sidebar-tab {
 	position: absolute;
 	inset-inline-end: 0;
 	inset-block-start: 50%;
@@ -1126,12 +1126,12 @@ input.dg-field__control {
 	z-index: 5;
 
 	appearance: none;
-	border: 1px solid var( --dg-border );
+	border: 1px solid var( --lz-border );
 	border-inline-end: none;
-	border-start-start-radius: var( --dg-radius );
-	border-end-start-radius: var( --dg-radius );
-	background: var( --dg-surface );
-	color: var( --dg-fg-muted );
+	border-start-start-radius: var( --lz-radius );
+	border-end-start-radius: var( --lz-radius );
+	background: var( --lz-surface );
+	color: var( --lz-fg-muted );
 	cursor: pointer;
 
 	padding: 14px 6px;
@@ -1147,42 +1147,42 @@ input.dg-field__control {
  * itself makes `inset-block-start` mean "from the right", which put the tab in the
  * wrong corner entirely.
  */
-.dg-sidebar-tab__label {
+.lz-sidebar-tab__label {
 	writing-mode: vertical-rl;
 	text-orientation: mixed;
 }
 
-.dg-sidebar-tab:hover {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-sidebar-tab:hover {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-body {
+.lz-body {
 	position: relative;
 }
 
 /* -- Linked-axis checkbox --------------------------------------------------- */
 
-.dg-check {
+.lz-check {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	font-size: 12px;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	cursor: pointer;
 }
 
 /* -- Tool rail -------------------------------------------------------------- */
 
-.dg-rail {
+.lz-rail {
 	flex: 0 0 auto;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 8px;
 	padding: 6px 5px;
-	background: var( --dg-surface );
-	border-inline-end: 1px solid var( --dg-border );
+	background: var( --lz-surface );
+	border-inline-end: 1px solid var( --lz-border );
 	overflow-y: auto;
 }
 
@@ -1190,24 +1190,24 @@ input.dg-field__control {
  * Two columns: sixteen tools in one column is taller than most browser windows, and
  * a tool you have to scroll to is a tool you stop using.
  */
-.dg-rail__grid {
+.lz-rail__grid {
 	display: grid;
 	grid-template-columns: repeat( 2, auto );
 	gap: 2px;
 }
 
 /* Keeps a group with an odd number of tools from shifting the next one sideways. */
-.dg-rail__spacer {
+.lz-rail__spacer {
 	inline-size: 30px;
 	block-size: 30px;
 }
 
 /* A separator spans both columns, so groups read as bands rather than as gaps. */
-.dg-rail__rule {
+.lz-rail__rule {
 	grid-column: 1 / -1;
 	block-size: 1px;
 	margin: 4px 2px;
-	background: var( --dg-border );
+	background: var( --lz-border );
 }
 
 /*
@@ -1215,7 +1215,7 @@ input.dg-field__control {
  * whose own single-class rule is declared later in this file and would otherwise win on
  * source order and shrink the whole rail.
  */
-.dg-rail .dg-rail__button {
+.lz-rail .lz-rail__button {
 	appearance: none;
 	inline-size: 30px;
 	block-size: 30px;
@@ -1223,56 +1223,56 @@ input.dg-field__control {
 	align-items: center;
 	justify-content: center;
 	border: 1px solid transparent;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 15px;
 	line-height: 1;
 	cursor: pointer;
 }
 
-.dg-rail .dg-rail__button:hover {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-rail .lz-rail__button:hover {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-rail .dg-rail__button.is-active {
-	background: var( --dg-accent );
+.lz-rail .lz-rail__button.is-active {
+	background: var( --lz-accent );
 	color: #fff;
 }
 
-.dg-rail .dg-rail__button:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-rail .lz-rail__button:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
 /* The cursor is the clearest signal of which tool has the stage. */
-.dg-stage[ data-tool='select' ],
-.dg-stage[ data-tool='gradient' ],
-.dg-stage[ data-tool='shape' ],
-.dg-stage[ data-tool='path' ] { cursor: crosshair; }
+.lz-stage[ data-tool='select' ],
+.lz-stage[ data-tool='gradient' ],
+.lz-stage[ data-tool='shape' ],
+.lz-stage[ data-tool='path' ] { cursor: crosshair; }
 
 /*
  * The sized tools get a ring instead. `none` rather than `crosshair`, because two
  * pointers on screen at once is worse than one -- the ring already marks the centre.
  */
-.dg-stage[ data-tool='brush' ],
-.dg-stage[ data-tool='eraser' ],
-.dg-stage[ data-tool='retouch' ],
-.dg-stage[ data-tool='tone' ],
-.dg-stage[ data-tool='clone' ],
-.dg-stage[ data-tool='history' ] { cursor: none; }
-.dg-stage[ data-tool='fill' ],
-.dg-stage[ data-tool='wand' ] { cursor: cell; }
-.dg-stage[ data-tool='eyedropper' ] { cursor: copy; }
-.dg-stage[ data-tool='text' ] { cursor: text; }
-.dg-stage[ data-tool='zoom' ] { cursor: zoom-in; }
-.dg-stage[ data-tool='hand' ] { cursor: grab; }
-.dg-stage[ data-tool='hand' ]:active { cursor: grabbing; }
+.lz-stage[ data-tool='brush' ],
+.lz-stage[ data-tool='eraser' ],
+.lz-stage[ data-tool='retouch' ],
+.lz-stage[ data-tool='tone' ],
+.lz-stage[ data-tool='clone' ],
+.lz-stage[ data-tool='history' ] { cursor: none; }
+.lz-stage[ data-tool='fill' ],
+.lz-stage[ data-tool='wand' ] { cursor: cell; }
+.lz-stage[ data-tool='eyedropper' ] { cursor: copy; }
+.lz-stage[ data-tool='text' ] { cursor: text; }
+.lz-stage[ data-tool='zoom' ] { cursor: zoom-in; }
+.lz-stage[ data-tool='hand' ] { cursor: grab; }
+.lz-stage[ data-tool='hand' ]:active { cursor: grabbing; }
 
 /* -- Colour swatches -------------------------------------------------------- */
 
-.dg-swatches {
+.lz-swatches {
 	position: relative;
 	display: grid;
 	grid-template-columns: auto auto;
@@ -1280,14 +1280,14 @@ input.dg-field__control {
 	justify-items: center;
 	gap: 2px;
 	padding-block-start: 4px;
-	border-block-start: 1px solid var( --dg-border );
+	border-block-start: 1px solid var( --lz-border );
 }
 
 /*
  * The two chips overlap, which is the arrangement every editor uses: it shows at a
  * glance which colour is in front without needing labels.
  */
-.dg-swatches__stack {
+.lz-swatches__stack {
 	position: relative;
 	grid-column: 1 / -1;
 	inline-size: 44px;
@@ -1295,35 +1295,35 @@ input.dg-field__control {
 	margin-block-end: 2px;
 }
 
-.dg-swatches__chip {
+.lz-swatches__chip {
 	position: absolute;
 	inline-size: 26px;
 	block-size: 26px;
-	border: 1px solid var( --dg-border-strong, rgba( 0, 0, 0, 0.5 ) );
+	border: 1px solid var( --lz-border-strong, rgba( 0, 0, 0, 0.5 ) );
 	border-radius: 2px;
 	box-shadow: 0 1px 3px rgba( 0, 0, 0, 0.4 );
 	cursor: pointer;
 	padding: 0;
 }
 
-.dg-swatches__chip--colour {
+.lz-swatches__chip--colour {
 	inset-block-start: 0;
 	inset-inline-start: 0;
 	z-index: 2;
 }
 
-.dg-swatches__chip--background {
+.lz-swatches__chip--background {
 	inset-block-end: 0;
 	inset-inline-end: 0;
 	z-index: 1;
 }
 
-.dg-swatches__chip:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-swatches__chip:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
-.dg-swatches__action {
+.lz-swatches__action {
 	appearance: none;
 	inline-size: 20px;
 	block-size: 20px;
@@ -1331,18 +1331,18 @@ input.dg-field__control {
 	border: 0;
 	border-radius: 3px;
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 12px;
 	line-height: 1;
 	cursor: pointer;
 }
 
-.dg-swatches__action:hover {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-swatches__action:hover {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-swatch-popover {
+.lz-swatch-popover {
 	/* Placed by positionFloating(); z-index has to clear a Desktop Mode window. */
 	z-index: 100001;
 	inline-size: 208px;
@@ -1350,28 +1350,28 @@ input.dg-field__control {
 	flex-direction: column;
 	gap: 8px;
 	padding: 10px;
-	background: var( --dg-surface-raised );
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+	background: var( --lz-surface-raised );
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 	box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.45 );
 }
 
-.dg-swatch-popover__palette {
+.lz-swatch-popover__palette {
 	display: grid;
 	grid-template-columns: repeat( 6, 1fr );
 	gap: 4px;
 }
 
-.dg-swatch-popover__chip {
+.lz-swatch-popover__chip {
 	appearance: none;
 	block-size: 22px;
 	padding: 0;
-	border: 1px solid var( --dg-border );
+	border: 1px solid var( --lz-border );
 	border-radius: 3px;
 	cursor: pointer;
 }
 
-.dg-swatch-popover__chip:hover {
+.lz-swatch-popover__chip:hover {
 	transform: scale( 1.12 );
 }
 
@@ -1382,7 +1382,7 @@ input.dg-field__control {
  * render: committing a canvas-sized bitmap on every pointer move would allocate and
  * upload megabytes per frame to show something an outline conveys perfectly.
  */
-.dg-drag-preview {
+.lz-drag-preview {
 	position: absolute;
 	inset: 0;
 	z-index: 4;
@@ -1391,7 +1391,7 @@ input.dg-field__control {
 	block-size: 100%;
 }
 
-.dg-drag-preview path {
+.lz-drag-preview path {
 	fill: none;
 	stroke: #fff;
 	stroke-width: 1;
@@ -1406,56 +1406,56 @@ input.dg-field__control {
  * Marching ants: two dashed borders in opposite colours, one animated, so the
  * outline stays visible over both light and dark pixels.
  */
-.dg-selection {
+.lz-selection {
 	position: absolute;
 	z-index: 3;
 	pointer-events: none;
 	outline: 1px dashed rgba( 0, 0, 0, 0.9 );
 	border: 1px dashed rgba( 255, 255, 255, 0.95 );
-	animation: dg-ants 640ms linear infinite;
+	animation: lz-ants 640ms linear infinite;
 }
 
-@keyframes dg-ants {
+@keyframes lz-ants {
 	to {
 		background-position: 8px 0;
 	}
 }
 
 @media ( prefers-reduced-motion: reduce ) {
-	.dg-selection {
+	.lz-selection {
 		animation: none;
 	}
 }
 
 /* -- Layers ----------------------------------------------------------------- */
 
-.dg-layers {
+.lz-layers {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 }
 
-.dg-layer {
+.lz-layer {
 	display: flex;
 	align-items: center;
 	gap: 2px;
 	border: 1px solid transparent;
-	border-radius: var( --dg-radius );
+	border-radius: var( --lz-radius );
 	padding: 2px;
 }
 
-.dg-layer.is-active {
-	border-color: var( --dg-accent );
+.lz-layer.is-active {
+	border-color: var( --lz-accent );
 	background: rgba( 53, 130, 196, 0.12 );
 }
 
-.dg-layer__name {
+.lz-layer__name {
 	flex: 1 1 auto;
 	min-inline-size: 0;
 	appearance: none;
 	border: none;
 	background: transparent;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	font-size: 12px;
 	text-align: start;
 	padding: 4px 6px;
@@ -1465,14 +1465,14 @@ input.dg-field__control {
 	white-space: nowrap;
 }
 
-.dg-layer__eye,
-.dg-layer__move,
-.dg-layer__delete {
+.lz-layer__eye,
+.lz-layer__move,
+.lz-layer__delete {
 	flex: 0 0 auto;
 	appearance: none;
 	border: none;
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 12px;
 	line-height: 1;
 	padding: 4px 5px;
@@ -1480,23 +1480,23 @@ input.dg-field__control {
 	border-radius: 3px;
 }
 
-.dg-layer__eye:hover,
-.dg-layer__move:hover {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-layer__eye:hover,
+.lz-layer__move:hover {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-layer__delete:hover {
+.lz-layer__delete:hover {
 	color: #f86368;
 	background: rgba( 248, 99, 104, 0.12 );
 }
 
-.dg-layer button:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-layer button:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: -1px;
 }
 
-input.dg-colour {
+input.lz-colour {
 	block-size: 28px;
 	padding: 2px;
 	cursor: pointer;
@@ -1504,95 +1504,95 @@ input.dg-colour {
 
 /* -- Rulers ----------------------------------------------------------------- */
 
-.dg-rulers {
+.lz-rulers {
 	position: absolute;
 	inset: 0;
 	z-index: 4;
 	pointer-events: none;
 }
 
-.dg-ruler {
+.lz-ruler {
 	position: absolute;
 	display: block;
 }
 
-.dg-ruler--h {
+.lz-ruler--h {
 	inset-block-start: 0;
 	inset-inline-start: 20px;
 }
 
-.dg-ruler--v {
+.lz-ruler--v {
 	inset-block-start: 20px;
 	inset-inline-start: 0;
 }
 
 /* Fills the square where the two rulers meet. */
-.dg-ruler__corner {
+.lz-ruler__corner {
 	position: absolute;
 	inset-block-start: 0;
 	inset-inline-start: 0;
 	inline-size: 20px;
 	block-size: 20px;
 	background: #1a1f24;
-	border-inline-end: 1px solid var( --dg-border );
-	border-block-end: 1px solid var( --dg-border );
+	border-inline-end: 1px solid var( --lz-border );
+	border-block-end: 1px solid var( --lz-border );
 }
 
 /* Keeps the image clear of the rulers rather than tucked behind them. */
-.dg-stage.has-rulers .dg-canvas-backdrop,
-.dg-stage.has-rulers .dg-transform,
-.dg-stage.has-rulers .dg-crop,
-.dg-stage.has-rulers .dg-selection {
+.lz-stage.has-rulers .lz-canvas-backdrop,
+.lz-stage.has-rulers .lz-transform,
+.lz-stage.has-rulers .lz-crop,
+.lz-stage.has-rulers .lz-selection {
 	/* Positions already account for the viewport, which the renderer insets. */
 	margin: 0;
 }
 
 /* -- Snap guides ------------------------------------------------------------ */
 
-.dg-snap {
+.lz-snap {
 	position: absolute;
 	background: #ff4dd2;
 	pointer-events: none;
 	z-index: 4;
 }
 
-.dg-snap--v {
+.lz-snap--v {
 	inset-block: -2000px;
 	inline-size: 1px;
 }
 
-.dg-snap--h {
+.lz-snap--h {
 	inset-inline: -2000px;
 	block-size: 1px;
 }
 
 /* -- Contextual options bar ------------------------------------------------- */
 
-.dg-options {
+.lz-options {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 	flex-wrap: wrap;
 	min-block-size: 40px;
 	padding: 5px 12px;
-	background: var( --dg-surface );
-	border-block-end: 1px solid var( --dg-border );
+	background: var( --lz-surface );
+	border-block-end: 1px solid var( --lz-border );
 	flex: 0 0 auto;
 	font-size: 12px;
 }
 
-.dg-options__tool {
+.lz-options__tool {
 	font-weight: 600;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	min-inline-size: 124px;
 	letter-spacing: 0.01em;
 }
 
-.dg-options__divider {
+.lz-options__divider {
 	inline-size: 1px;
 	align-self: stretch;
 	margin-block: 4px;
-	background: var( --dg-border );
+	background: var( --lz-border );
 }
 
 /* Compact fields sit on one line rather than stacking label above control. */
@@ -1600,13 +1600,13 @@ input.dg-colour {
  * Every field in the bar lies down: the bar is one row of settings, and a stacked
  * label would double its height and push the canvas down.
  */
-.dg-options .dg-field,
-.dg-options .dg-check,
-.dg-options wpd-number-field,
-.dg-options wpd-color-field,
-.dg-options wpd-text-field,
-.dg-options wpd-select,
-.dg-options wpd-checkbox-label {
+.lz-options .lz-field,
+.lz-options .lz-check,
+.lz-options wpd-number-field,
+.lz-options wpd-color-field,
+.lz-options wpd-text-field,
+.lz-options wpd-select,
+.lz-options wpd-checkbox-label {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
@@ -1614,17 +1614,17 @@ input.dg-colour {
 	margin: 0;
 }
 
-.dg-options .dg-field__label {
-	color: var( --dg-fg-muted );
+.lz-options .lz-field__label {
+	color: var( --lz-fg-muted );
 	white-space: nowrap;
 	font-size: 11px;
 }
 
-.dg-options .dg-field__control {
+.lz-options .lz-field__control {
 	inline-size: auto;
 }
 
-.dg-options input[ type='number' ].dg-field__control {
+.lz-options input[ type='number' ].lz-field__control {
 	inline-size: 64px;
 }
 
@@ -1635,43 +1635,43 @@ input.dg-colour {
  * *consistent* width once the label is outside the component, which is what
  * `compact` does. Left inside, "Hardness" would eat 30px more of the box than "Size".
  */
-.dg-options .dg-field--narrow wpd-text-field,
-.dg-options .dg-field--narrow wpd-number-field {
+.lz-options .lz-field--narrow wpd-text-field,
+.lz-options .lz-field--narrow wpd-number-field {
 	flex: 0 0 auto;
 	inline-size: 92px;
 }
 
-.dg-options input[ type='text' ].dg-field__control {
+.lz-options input[ type='text' ].lz-field__control {
 	inline-size: 150px;
 }
 
 /* Wide enough to read the colour, which is the only thing a swatch has to do. */
-.dg-options input.dg-colour {
+.lz-options input.lz-colour {
 	inline-size: 34px;
 	block-size: 24px;
 }
 
-.dg-options .dg-button {
+.lz-options .lz-button {
 	white-space: nowrap;
 }
 
 /* -- Segmented picker ------------------------------------------------------- */
 
-.dg-segmented {
+.lz-segmented {
 	display: inline-flex;
 	padding: 2px;
 	gap: 2px;
-	border-radius: var( --dg-radius );
-	background: var( --dg-bg );
-	border: 1px solid var( --dg-border );
+	border-radius: var( --lz-radius );
+	background: var( --lz-bg );
+	border: 1px solid var( --lz-border );
 }
 
-.dg-segmented__item {
+.lz-segmented__item {
 	appearance: none;
 	border: none;
-	border-radius: calc( var( --dg-radius ) - 2px );
+	border-radius: calc( var( --lz-radius ) - 2px );
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 11px;
 	line-height: 1;
 	padding: 5px 9px;
@@ -1679,60 +1679,60 @@ input.dg-colour {
 	white-space: nowrap;
 }
 
-.dg-segmented__item:hover {
-	color: var( --dg-fg );
-	background: var( --dg-surface-raised );
+.lz-segmented__item:hover {
+	color: var( --lz-fg );
+	background: var( --lz-surface-raised );
 }
 
-.dg-segmented__item.is-active {
-	background: var( --dg-accent );
+.lz-segmented__item.is-active {
+	background: var( --lz-accent );
 	color: #fff;
 }
 
-.dg-segmented__item:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-segmented__item:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: -2px;
 }
 
-.dg-options__hint {
-	color: var( --dg-fg-muted );
+.lz-options__hint {
+	color: var( --lz-fg-muted );
 	font-size: 11px;
 }
 
 /* -- Selection outline (any shape) ------------------------------------------ */
 
-svg.dg-selection {
+svg.lz-selection {
 	position: absolute;
 	z-index: 3;
 	pointer-events: none;
 	overflow: visible;
 }
 
-.dg-selection__under,
-.dg-selection__over {
+.lz-selection__under,
+.lz-selection__over {
 	fill: none;
 	stroke-width: 1;
 }
 
 /* Solid dark underneath, dashed light on top: visible over any pixels. */
-.dg-selection__under {
+.lz-selection__under {
 	stroke: rgba( 0, 0, 0, 0.85 );
 }
 
-.dg-selection__over {
+.lz-selection__over {
 	stroke: #fff;
 	stroke-dasharray: 4 4;
-	animation: dg-march 640ms linear infinite;
+	animation: lz-march 640ms linear infinite;
 }
 
-@keyframes dg-march {
+@keyframes lz-march {
 	to {
 		stroke-dashoffset: -8;
 	}
 }
 
 @media ( prefers-reduced-motion: reduce ) {
-	.dg-selection__over {
+	.lz-selection__over {
 		animation: none;
 	}
 }
@@ -1744,7 +1744,7 @@ svg.dg-selection {
  * its own styling; this is what stands in when it is absent, which inside a chromeless
  * iframe is always.
  */
-.dg-icon-button {
+.lz-icon-button {
 	appearance: none;
 	display: inline-flex;
 	align-items: center;
@@ -1755,86 +1755,86 @@ svg.dg-selection {
 	border: 1px solid transparent;
 	border-radius: 4px;
 	background: transparent;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 12px;
 	line-height: 1;
 	cursor: pointer;
 }
 
-.dg-icon-button:hover {
-	background: var( --dg-surface-raised );
-	color: var( --dg-fg );
+.lz-icon-button:hover {
+	background: var( --lz-surface-raised );
+	color: var( --lz-fg );
 }
 
-.dg-icon-button.is-active {
-	background: var( --dg-accent );
+.lz-icon-button.is-active {
+	background: var( --lz-accent );
 	color: #fff;
 }
 
-.dg-icon-button:focus-visible {
-	outline: 2px solid var( --dg-accent );
+.lz-icon-button:focus-visible {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
-.dg-icon-button.is-disabled {
+.lz-icon-button.is-disabled {
 	opacity: 0.4;
 	pointer-events: none;
 }
 
 /* -- Palette --------------------------------------------------------------- */
 
-.dg-palette {
+.lz-palette {
 	display: grid;
 	grid-template-columns: repeat( 6, 1fr );
 	gap: 4px;
 }
 
-.dg-palette__chip {
+.lz-palette__chip {
 	appearance: none;
 	block-size: 22px;
 	padding: 0;
-	border: 1px solid var( --dg-border );
+	border: 1px solid var( --lz-border );
 	border-radius: 3px;
 	cursor: pointer;
 }
 
-.dg-palette__chip:hover {
+.lz-palette__chip:hover {
 	transform: scale( 1.12 );
 }
 
-.dg-palette__chip.is-selected {
-	outline: 2px solid var( --dg-accent );
+.lz-palette__chip.is-selected {
+	outline: 2px solid var( --lz-accent );
 	outline-offset: 1px;
 }
 
 /* -- Rail: overflow menu and screen modes ---------------------------------- */
 
-.dg-rail__modes {
+.lz-rail__modes {
 	display: flex;
 	gap: 4px;
 	padding-block-start: 6px;
-	border-block-start: 1px solid var( --dg-border );
+	border-block-start: 1px solid var( --lz-border );
 }
 
-.dg-rail .dg-rail__mode {
+.lz-rail .lz-rail__mode {
 	inline-size: 26px;
 	block-size: 22px;
 }
 
-.dg-rail-menu {
+.lz-rail-menu {
 	/* Placed by positionFloating(); z-index has to clear a Desktop Mode window. */
 	z-index: 100001;
 	display: flex;
 	flex-direction: column;
 	min-inline-size: 210px;
 	padding: 6px;
-	background: var( --dg-surface-raised );
-	border: 1px solid var( --dg-border );
-	border-radius: var( --dg-radius );
+	background: var( --lz-surface-raised );
+	border: 1px solid var( --lz-border );
+	border-radius: var( --lz-radius );
 	box-shadow: 0 8px 24px rgba( 0, 0, 0, 0.45 );
 }
 
-.dg-rail-menu__item {
+.lz-rail-menu__item {
 	appearance: none;
 	display: grid;
 	grid-template-columns: 20px 1fr auto;
@@ -1844,32 +1844,32 @@ svg.dg-selection {
 	border: 0;
 	border-radius: 4px;
 	background: transparent;
-	color: var( --dg-fg );
+	color: var( --lz-fg );
 	font-size: 12px;
 	text-align: start;
 	cursor: pointer;
 }
 
-.dg-rail-menu__item:hover {
+.lz-rail-menu__item:hover {
 	background: rgba( 255, 255, 255, 0.08 );
 }
 
-.dg-rail-menu__glyph {
+.lz-rail-menu__glyph {
 	text-align: center;
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 }
 
-.dg-rail-menu__item kbd {
+.lz-rail-menu__item kbd {
 	padding: 1px 5px;
-	border: 1px solid var( --dg-border );
+	border: 1px solid var( --lz-border );
 	border-radius: 3px;
 	background: rgba( 0, 0, 0, 0.25 );
-	color: var( --dg-fg-muted );
+	color: var( --lz-fg-muted );
 	font-size: 10px;
 }
 
 /* The rail owns the menu's positioning context. */
-.dg-rail {
+.lz-rail {
 	position: relative;
 }
 
@@ -1880,14 +1880,14 @@ svg.dg-selection {
  * outline cannot show at all. The selected region is filled rather than merely
  * outlined, in the red every editor uses for this.
  */
-.dg-stage.is-quick-mask .dg-selection__over {
+.lz-stage.is-quick-mask .lz-selection__over {
 	fill: rgba( 214, 54, 56, 0.4 );
 	stroke: rgba( 214, 54, 56, 0.9 );
 	stroke-dasharray: none;
 	animation: none;
 }
 
-.dg-stage.is-quick-mask .dg-selection__under {
+.lz-stage.is-quick-mask .lz-selection__under {
 	display: none;
 }
 
@@ -1898,7 +1898,7 @@ svg.dg-selection {
  * window the request is often denied, and an editor that silently does nothing when
  * you press F is worse than one that just grows.
  */
-.dg-editor.is-full-screen {
+.lz-editor.is-full-screen {
 	position: fixed;
 	inset: 0;
 	z-index: 100000;
@@ -1916,7 +1916,7 @@ svg.dg-selection {
  * Two rings in opposite colours, like the marching ants, so it stays visible over both
  * a white sky and a black shadow.
  */
-.dg-brush-cursor {
+.lz-brush-cursor {
 	position: absolute;
 	z-index: 5;
 	translate: -50% -50%;
@@ -1928,13 +1928,13 @@ svg.dg-selection {
 }
 
 /* Square brushes get a square ring; anything else reads as a lie about the shape. */
-.dg-brush-cursor[ data-shape='square' ] {
+.lz-brush-cursor[ data-shape='square' ] {
 	border-radius: 2px;
 }
 
 /* A soft brush has a gradient edge, so a solid ring would promise a crispness the
  * stroke does not have. */
-.dg-brush-cursor.is-soft {
+.lz-brush-cursor.is-soft {
 	border-style: dashed;
 }
 
@@ -1946,7 +1946,7 @@ svg.dg-selection {
  * is typed and what is rasterised -- the dashed outline is the only thing added, and it
  * is outside the box.
  */
-.dg-text-editor {
+.lz-text-editor {
 	position: absolute;
 	z-index: 6;
 	margin: 0;
@@ -1964,12 +1964,12 @@ svg.dg-selection {
 	caret-color: currentColor;
 }
 
-.dg-text-editor:focus {
+.lz-text-editor:focus {
 	outline: 1px dashed rgba( 255, 255, 255, 0.95 );
 }
 
 /* The text tool's own cursor, so it is obvious where a click will put the caret. */
-.dg-stage[ data-tool='text' ] { cursor: text; }
+.lz-stage[ data-tool='text' ] { cursor: text; }
 
 /* -- Inside a Desktop Mode window ------------------------------------------- */
 
@@ -1981,7 +1981,7 @@ svg.dg-selection {
  * four times taller than the window: the image ends up scrolled far out of view and the
  * visible area is blank.
  */
-.dg-editor--window {
+.lz-editor--window {
 	block-size: 100%;
 	min-block-size: 0;
 	overflow: hidden;
@@ -1993,20 +1993,20 @@ svg.dg-selection {
  * whole tool rail looked like a column of empty boxes. `::part()` is the component's
  * own supported way in -- reaching past it into the shadow root would not work at all.
  */
-.dg-editor wpd-button {
-	color: var( --dg-fg );
+.lz-editor wpd-button {
+	color: var( --lz-fg );
 }
 
-.dg-editor wpd-button::part( button ) {
+.lz-editor wpd-button::part( button ) {
 	color: inherit;
 	font: inherit;
 }
 
-.dg-editor .dg-icon-button {
-	color: var( --dg-fg-muted );
+.lz-editor .lz-icon-button {
+	color: var( --lz-fg-muted );
 }
 
-.dg-editor .dg-icon-button.is-active {
+.lz-editor .lz-icon-button.is-active {
 	color: #fff;
 }
 
@@ -2018,12 +2018,12 @@ svg.dg-selection {
  * short at the top of the panel. Inheriting the radius makes the ring follow the
  * shape it is drawn inside.
  */
-.dg-panel__header {
+.lz-panel__header {
 	border-radius: inherit;
 }
 
 /* Transparent, so the host's own background and active state show through. */
-.dg-editor .dg-icon-button::part( button ) {
+.lz-editor .lz-icon-button::part( button ) {
 	background: transparent;
 	border-color: transparent;
 	padding: 0;
@@ -2038,7 +2038,7 @@ svg.dg-selection {
  * a fixed shape and a letterboxed thumbnail in it reads as a broken image, where a
  * cropped one reads as a preview.
  */
-.dg-peek-thumb {
+.lz-peek-thumb {
 	display: block;
 	inline-size: 100%;
 	block-size: 100%;
@@ -2054,17 +2054,17 @@ svg.dg-selection {
  * draws its own affordance for drags that start on the desktop; this one covers files
  * coming from Finder or Explorer, which the shell's drag manager never sees.
  */
-.dg-editor.is-drop-target::after {
+.lz-editor.is-drop-target::after {
 	content: '';
 	position: absolute;
 	inset: 0;
 	z-index: 8;
 	pointer-events: none;
-	border: 2px dashed var( --dg-accent );
-	border-radius: var( --dg-radius );
+	border: 2px dashed var( --lz-accent );
+	border-radius: var( --lz-radius );
 	background: rgba( 255, 255, 255, 0.06 );
 }
 
-.dg-editor {
+.lz-editor {
 	position: relative;
 }

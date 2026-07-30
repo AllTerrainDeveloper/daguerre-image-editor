@@ -3,7 +3,7 @@
  *
  * The manual-QA site at http://localhost:8889 is the `wordpress-alcazaba`
  * docker-compose project. It bind-mounts its own checkout at /var/www, so anything
- * written into `<checkout>/src/wp-content/plugins/daguerre` is live in the container
+ * written into `<checkout>/src/wp-content/plugins/lienzo` is live in the container
  * immediately -- no container restart, no WordPress upload screen.
  *
  * This runs as part of `npm run build`, so every change reaches the site without a
@@ -11,8 +11,8 @@
  * different machine) it prints a note and exits successfully rather than failing the
  * build -- deploying is a convenience, not a build requirement.
  *
- * Override the destination with DAGUERRE_DEPLOY_TARGET, or skip entirely with
- * DAGUERRE_SKIP_DEPLOY=1.
+ * Override the destination with LIENZO_DEPLOY_TARGET, or skip entirely with
+ * LIENZO_SKIP_DEPLOY=1.
  */
 
 import {
@@ -50,21 +50,21 @@ const EXCLUDED = new Set( [
 ] );
 
 /**
- * Marker proving a directory is a Daguerre install rather than something else.
+ * Marker proving a directory is a Lienzo install rather than something else.
  *
  * The sync deletes files the source no longer has, so it must never be pointed at a
  * directory it does not own. Refusing unless this file is present is the guard.
  */
-const OWNERSHIP_MARKER = 'daguerre.php';
+const OWNERSHIP_MARKER = 'lienzo.php';
 
 /** Resolves the plugin directory to write to, or null when there is nothing to do. */
 function resolveTarget() {
-	if ( process.env.DAGUERRE_SKIP_DEPLOY === '1' ) {
+	if ( process.env.LIENZO_SKIP_DEPLOY === '1' ) {
 		return null;
 	}
 
-	if ( process.env.DAGUERRE_DEPLOY_TARGET ) {
-		return resolve( process.env.DAGUERRE_DEPLOY_TARGET );
+	if ( process.env.LIENZO_DEPLOY_TARGET ) {
+		return resolve( process.env.LIENZO_DEPLOY_TARGET );
 	}
 
 	// The sibling WordPress checkout that docker-compose mounts at /var/www.
@@ -75,7 +75,7 @@ function resolveTarget() {
 
 	for ( const plugins of candidates ) {
 		if ( existsSync( plugins ) ) {
-			return join( plugins, 'daguerre' );
+			return join( plugins, 'lienzo' );
 		}
 	}
 
@@ -144,23 +144,23 @@ const target = resolveTarget();
 
 if ( ! target ) {
 	console.log(
-		'[daguerre] No local WordPress checkout found — skipping deploy. ' +
-			'Set DAGUERRE_DEPLOY_TARGET to override.'
+		'[lienzo] No local WordPress checkout found — skipping deploy. ' +
+			'Set LIENZO_DEPLOY_TARGET to override.'
 	);
 	process.exit( 0 );
 }
 
 if ( existsSync( target ) && ! existsSync( join( target, OWNERSHIP_MARKER ) ) ) {
 	console.error(
-		`[daguerre] Refusing to sync into ${ target }: it exists but has no ${ OWNERSHIP_MARKER }.\n` +
-			'That directory does not look like a Daguerre install, and syncing removes files.'
+		`[lienzo] Refusing to sync into ${ target }: it exists but has no ${ OWNERSHIP_MARKER }.\n` +
+			'That directory does not look like a Lienzo install, and syncing removes files.'
 	);
 	process.exit( 1 );
 }
 
-if ( ! existsSync( join( root, 'assets/js/daguerre.min.js' ) ) ) {
+if ( ! existsSync( join( root, 'assets/js/lienzo.min.js' ) ) ) {
 	console.error(
-		'[daguerre] assets/js/daguerre.min.js is missing. Run `npm run build` rather than deploying alone.'
+		'[lienzo] assets/js/lienzo.min.js is missing. Run `npm run build` rather than deploying alone.'
 	);
 	process.exit( 1 );
 }
@@ -168,6 +168,6 @@ if ( ! existsSync( join( root, 'assets/js/daguerre.min.js' ) ) ) {
 const { written, removed } = mirror( root, target, true );
 
 console.log(
-	`[daguerre] Deployed to ${ target } (${ written } file${ written === 1 ? '' : 's' } updated` +
+	`[lienzo] Deployed to ${ target } (${ written } file${ written === 1 ? '' : 's' } updated` +
 		`${ removed ? `, ${ removed } removed` : '' }).`
 );

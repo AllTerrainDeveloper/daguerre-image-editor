@@ -136,7 +136,7 @@ describe( 'PanelHost', () => {
 		const root = document.createElement( 'div' );
 		const host = new PanelHost( root, context() );
 
-		const bodies = root.querySelectorAll< HTMLElement >( '.dg-panel__body' );
+		const bodies = root.querySelectorAll< HTMLElement >( '.lz-panel__body' );
 
 		expect( bodies ).toHaveLength( 2 );
 		expect( bodies[ 0 ].hidden ).toBe( false );
@@ -153,8 +153,8 @@ describe( 'PanelHost', () => {
 		const root = document.createElement( 'div' );
 		const host = new PanelHost( root, context() );
 
-		const header = root.querySelector< HTMLElement >( '.dg-panel__header' )!;
-		const body = root.querySelector< HTMLElement >( '.dg-panel__body' )!;
+		const header = root.querySelector< HTMLElement >( '.lz-panel__header' )!;
+		const body = root.querySelector< HTMLElement >( '.lz-panel__body' )!;
 
 		expect( header.getAttribute( 'aria-expanded' ) ).toBe( 'true' );
 
@@ -162,7 +162,7 @@ describe( 'PanelHost', () => {
 
 		expect( body.hidden ).toBe( true );
 		expect( header.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
-		expect( window.localStorage.getItem( 'daguerre.panels.v1' ) ).toContain(
+		expect( window.localStorage.getItem( 'lienzo.panels.v1' ) ).toContain(
 			'"collapsed":true'
 		);
 
@@ -171,7 +171,7 @@ describe( 'PanelHost', () => {
 
 	it( 'restores collapsed state from a previous session', () => {
 		window.localStorage.setItem(
-			'daguerre.panels.v1',
+			'lienzo.panels.v1',
 			JSON.stringify( { a: { collapsed: true } } )
 		);
 
@@ -180,14 +180,14 @@ describe( 'PanelHost', () => {
 		const root = document.createElement( 'div' );
 		const host = new PanelHost( root, context() );
 
-		expect( root.querySelector< HTMLElement >( '.dg-panel__body' )!.hidden ).toBe( true );
+		expect( root.querySelector< HTMLElement >( '.lz-panel__body' )!.hidden ).toBe( true );
 
 		host.destroy();
 	} );
 
 	it( 'hides a panel the user switched off', () => {
 		window.localStorage.setItem(
-			'daguerre.panels.v1',
+			'lienzo.panels.v1',
 			JSON.stringify( { a: { hidden: true } } )
 		);
 
@@ -197,9 +197,9 @@ describe( 'PanelHost', () => {
 		const root = document.createElement( 'div' );
 		const host = new PanelHost( root, context() );
 
-		expect( root.querySelectorAll( '.dg-panel' ) ).toHaveLength( 1 );
+		expect( root.querySelectorAll( '.lz-panel' ) ).toHaveLength( 1 );
 		expect(
-			root.querySelector< HTMLElement >( '.dg-panel' )!.dataset.panel
+			root.querySelector< HTMLElement >( '.lz-panel' )!.dataset.panel
 		).toBe( 'b' );
 
 		host.destroy();
@@ -209,11 +209,11 @@ describe( 'PanelHost', () => {
 		const root = document.createElement( 'div' );
 		const host = new PanelHost( root, context() );
 
-		expect( root.querySelectorAll( '.dg-panel' ) ).toHaveLength( 0 );
+		expect( root.querySelectorAll( '.lz-panel' ) ).toHaveLength( 0 );
 
 		registerPanel( { id: 'late', title: 'Late', render: () => {} } );
 
-		expect( root.querySelectorAll( '.dg-panel' ) ).toHaveLength( 1 );
+		expect( root.querySelectorAll( '.lz-panel' ) ).toHaveLength( 1 );
 
 		host.destroy();
 	} );

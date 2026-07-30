@@ -1,4 +1,4 @@
-var daguerre = function(exports) {
+var lienzo = function(exports) {
   "use strict";
   const IDENTITY_TRANSFORM = {
     x: 0.5,
@@ -974,7 +974,7 @@ var daguerre = function(exports) {
     const desktop2 = shell();
     if (!desktop2?.loadModules) {
       throw new Error(
-        "Daguerre needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page."
+        "Lienzo needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page."
       );
     }
     await desktop2.loadModules([MODULE_ID]);
@@ -1235,7 +1235,7 @@ void main( void )
         autoDensity: true,
         resolution: window.devicePixelRatio || 1
       });
-      app.canvas.classList.add("dg-canvas");
+      app.canvas.classList.add("lz-canvas");
       options.host.appendChild(app.canvas);
       const renderer = new EditorRenderer(pixi, app, options);
       renderer.syncSurface();
@@ -1321,7 +1321,7 @@ void main( void )
         glProgram: this.pixi.GlProgram.from({
           vertex: ADJUST_VERT,
           fragment: ADJUST_FRAG,
-          name: "daguerre-adjust"
+          name: "lienzo-adjust"
         }),
         resources: {
           adjustUniforms: uniforms,
@@ -2428,7 +2428,7 @@ void main( void )
     });
   }
   function __(text) {
-    return window.wp?.i18n?.__?.(text, "daguerre") ?? text;
+    return window.wp?.i18n?.__?.(text, "lienzo") ?? text;
   }
   function sprintf(text, ...args) {
     const translated = __(text);
@@ -3552,7 +3552,7 @@ void main( void )
     return desktop$1() !== void 0;
   }
   function isDesktopModeEnabled() {
-    const config = window.daguerreConfig;
+    const config = window.lienzoConfig;
     const flag = config?.desktopMode;
     return flag === true || flag === "1" || flag === 1 || isDesktopMode();
   }
@@ -3586,13 +3586,13 @@ void main( void )
   function fallbackToast(message, type) {
     if (!toastHost || !toastHost.isConnected) {
       toastHost = document.createElement("div");
-      toastHost.className = "dg-toasts";
+      toastHost.className = "lz-toasts";
       toastHost.setAttribute("role", "status");
       toastHost.setAttribute("aria-live", "polite");
       document.body.appendChild(toastHost);
     }
     const node = document.createElement("div");
-    node.className = `dg-toast dg-toast--${type}`;
+    node.className = `lz-toast lz-toast--${type}`;
     node.textContent = message;
     toastHost.appendChild(node);
     window.setTimeout(() => {
@@ -3602,7 +3602,7 @@ void main( void )
   }
   let idCounter = 1;
   function fieldId(kind) {
-    return `dg-${kind}-${(idCounter++).toString(36)}`;
+    return `lz-${kind}-${(idCounter++).toString(36)}`;
   }
   function nameControl(input, label, kind) {
     const id = fieldId(kind);
@@ -3614,7 +3614,7 @@ void main( void )
   }
   function createSlider(options) {
     const row = document.createElement("div");
-    row.className = "dg-adjust";
+    row.className = "lz-adjust";
     const handle = hasComponent("wpd-range-field") ? createWpdSlider(options) : createNativeSlider(options);
     row.appendChild(handle.el);
     const reset = createButton({
@@ -3627,7 +3627,7 @@ void main( void )
         options.onCommit?.();
       }
     });
-    reset.el.classList.add("dg-adjust__reset");
+    reset.el.classList.add("lz-adjust__reset");
     row.appendChild(reset.el);
     return {
       el: row,
@@ -3670,20 +3670,20 @@ void main( void )
   }
   function createNativeSlider(options) {
     const wrap = document.createElement("div");
-    wrap.className = "dg-slider";
+    wrap.className = "lz-slider";
     const id = fieldId("slider");
     const label = document.createElement("label");
-    label.className = "dg-slider__label";
+    label.className = "lz-slider__label";
     label.htmlFor = id;
     label.textContent = options.label;
     const readout = document.createElement("output");
-    readout.className = "dg-slider__value";
+    readout.className = "lz-slider__value";
     readout.htmlFor = id;
     const input = document.createElement("input");
     input.type = "range";
     input.id = id;
     input.name = id;
-    input.className = "dg-slider__input";
+    input.className = "lz-slider__input";
     input.min = String(options.min);
     input.max = String(options.max);
     input.step = String(options.step);
@@ -3691,7 +3691,7 @@ void main( void )
     const paint = (value) => {
       readout.textContent = `${value}${options.suffix ?? ""}`;
       const ratio = (value - options.min) / (options.max - options.min || 1);
-      wrap.style.setProperty("--dg-slider-fill", String(ratio));
+      wrap.style.setProperty("--lz-slider-fill", String(ratio));
       wrap.classList.toggle("is-modified", value !== options.resetTo);
     };
     paint(options.value);
@@ -3704,7 +3704,7 @@ void main( void )
     input.addEventListener("input", onInput);
     input.addEventListener("change", onChange);
     const head = document.createElement("div");
-    head.className = "dg-slider__head";
+    head.className = "lz-slider__head";
     head.append(label, readout);
     wrap.append(head, input);
     return {
@@ -3722,7 +3722,7 @@ void main( void )
   function createButton(options) {
     const useWpd = hasComponent("wpd-button");
     const el = document.createElement(useWpd ? "wpd-button" : "button");
-    el.classList.add("dg-button");
+    el.classList.add("lz-button");
     el.textContent = options.label;
     if (options.title) {
       el.setAttribute("title", options.title);
@@ -3732,7 +3732,7 @@ void main( void )
       el.setAttribute("variant", options.variant ?? "ghost");
     } else {
       el.type = "button";
-      el.classList.add(`dg-button--${options.variant ?? "ghost"}`);
+      el.classList.add(`lz-button--${options.variant ?? "ghost"}`);
     }
     el.addEventListener("click", options.onClick);
     return {
@@ -3754,12 +3754,12 @@ void main( void )
   function createSelect(options) {
     const useWpd = hasComponent("wpd-select");
     const wrap = document.createElement("div");
-    wrap.className = "dg-field";
+    wrap.className = "lz-field";
     const label = document.createElement("label");
-    label.className = "dg-field__label";
+    label.className = "lz-field__label";
     label.textContent = options.label;
     const select = document.createElement(useWpd ? "wpd-select" : "select");
-    select.className = "dg-field__control";
+    select.className = "lz-field__control";
     if (useWpd) {
       const id = fieldId("select");
       select.id = id;
@@ -3803,7 +3803,7 @@ void main( void )
         field.setAttribute("aria-label", options.label);
       }
       field.setAttribute("value", String(Math.round(options.value)));
-      field.classList.add("dg-field--compact");
+      field.classList.add("lz-field--compact");
       if (numeric) {
         field.setAttribute("min", String(options.min));
         field.setAttribute("max", String(options.max));
@@ -3842,23 +3842,23 @@ void main( void )
       }
       const row = document.createElement("div");
       const text2 = document.createElement("span");
-      row.className = "dg-field dg-field--compact dg-field--narrow";
-      text2.className = "dg-field__label";
+      row.className = "lz-field lz-field--compact lz-field--narrow";
+      text2.className = "lz-field__label";
       text2.textContent = options.label;
       row.append(text2, field);
       return { ...handle, el: row };
     }
     const wrap = document.createElement("label");
-    wrap.className = "dg-field dg-field--compact";
+    wrap.className = "lz-field lz-field--compact";
     if (options.compact) {
-      wrap.classList.add("dg-field--narrow");
+      wrap.classList.add("lz-field--narrow");
     }
     const text = document.createElement("span");
-    text.className = "dg-field__label";
+    text.className = "lz-field__label";
     text.textContent = options.label;
     const input = document.createElement("input");
     input.type = "number";
-    input.className = "dg-field__control";
+    input.className = "lz-field__control";
     nameControl(input, null, "number");
     input.value = String(Math.round(options.value));
     input.min = String(options.min);
@@ -3899,13 +3899,13 @@ void main( void )
       };
     }
     const wrap = document.createElement("label");
-    wrap.className = "dg-field dg-field--compact";
+    wrap.className = "lz-field lz-field--compact";
     const text = document.createElement("span");
-    text.className = "dg-field__label";
+    text.className = "lz-field__label";
     text.textContent = options.label;
     const input = document.createElement("input");
     input.type = "color";
-    input.className = "dg-field__control dg-colour";
+    input.className = "lz-field__control lz-colour";
     nameControl(input, null, "colour");
     input.value = options.value;
     const onInput = () => options.onChange(input.value);
@@ -3921,9 +3921,9 @@ void main( void )
   }
   function createSegmented(options) {
     const wrap = document.createElement("div");
-    wrap.className = "dg-field dg-field--compact";
+    wrap.className = "lz-field lz-field--compact";
     const text = document.createElement("span");
-    text.className = "dg-field__label";
+    text.className = "lz-field__label";
     text.textContent = options.label;
     if (hasComponent("wpd-segmented")) {
       const group2 = document.createElement("wpd-segmented");
@@ -3950,7 +3950,7 @@ void main( void )
       };
     }
     const group = document.createElement("div");
-    group.className = "dg-segmented";
+    group.className = "lz-segmented";
     group.setAttribute("role", "radiogroup");
     group.setAttribute("aria-label", options.label);
     const buttons = [];
@@ -3965,7 +3965,7 @@ void main( void )
     for (const option of options.options) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "dg-segmented__item";
+      button.className = "lz-segmented__item";
       button.dataset.value = option.value;
       button.textContent = option.label;
       button.setAttribute("role", "radio");
@@ -4014,13 +4014,13 @@ void main( void )
       };
     }
     const wrap = document.createElement("label");
-    wrap.className = "dg-field";
+    wrap.className = "lz-field";
     const text = document.createElement("span");
-    text.className = "dg-field__label";
+    text.className = "lz-field__label";
     text.textContent = options.label;
     const input = document.createElement("input");
     input.type = "text";
-    input.className = "dg-field__control";
+    input.className = "lz-field__control";
     nameControl(input, null, "text");
     input.value = options.value;
     if (options.placeholder) {
@@ -4067,7 +4067,7 @@ void main( void )
       };
     }
     const wrap = document.createElement("label");
-    wrap.className = "dg-check";
+    wrap.className = "lz-check";
     if (options.title) {
       wrap.title = options.title;
     }
@@ -4091,13 +4091,13 @@ void main( void )
       const section2 = document.createElement("wpd-section");
       section2.setAttribute("heading", heading);
       section2.setAttribute("stack", "");
-      section2.classList.add("dg-section");
+      section2.classList.add("lz-section");
       return section2;
     }
     const section = document.createElement("section");
-    section.className = "dg-section";
+    section.className = "lz-section";
     const title = document.createElement("h3");
-    title.className = "dg-section__heading";
+    title.className = "lz-section__heading";
     title.textContent = heading;
     section.appendChild(title);
     return section;
@@ -4105,7 +4105,7 @@ void main( void )
   function createIconButton(options) {
     const useWpd = hasComponent("wpd-button");
     const el = document.createElement(useWpd ? "wpd-button" : "button");
-    el.classList.add("dg-icon-button");
+    el.classList.add("lz-icon-button");
     if (options.className) {
       el.classList.add(options.className);
     }
@@ -4117,7 +4117,7 @@ void main( void )
       el.setAttribute("icon-only", "");
     } else {
       el.type = "button";
-      el.classList.add(`dg-button--${options.variant ?? "ghost"}`);
+      el.classList.add(`lz-button--${options.variant ?? "ghost"}`);
     }
     el.addEventListener("click", options.onClick);
     return {
@@ -4143,7 +4143,7 @@ void main( void )
     const useWpd = hasComponent("wpd-swatch-grid") && hasComponent("wpd-swatch");
     const el = document.createElement(useWpd ? "wpd-swatch-grid" : "div");
     const listeners2 = [];
-    el.classList.add("dg-palette");
+    el.classList.add("lz-palette");
     el.setAttribute("aria-label", options.label);
     if (!useWpd) {
       el.setAttribute("role", "group");
@@ -4151,7 +4151,7 @@ void main( void )
     const chips = /* @__PURE__ */ new Map();
     for (const colour of options.colours) {
       const chip = document.createElement(useWpd ? "wpd-swatch" : "button");
-      chip.classList.add("dg-palette__chip");
+      chip.classList.add("lz-palette__chip");
       chip.setAttribute("title", colour);
       chip.setAttribute("aria-label", colour);
       if (useWpd) {
@@ -4190,7 +4190,7 @@ void main( void )
     };
   }
   function floatingHost(anchor) {
-    return anchor.closest(".dg-editor") ?? document.body;
+    return anchor.closest(".lz-editor") ?? document.body;
   }
   function positionFloating(el, anchor, placement = "inline-end") {
     const from = anchor.getBoundingClientRect();
@@ -4219,7 +4219,7 @@ void main( void )
         this.syncers = [];
         this.el.replaceChildren();
         const name = document.createElement("span");
-        name.className = "dg-options__tool";
+        name.className = "lz-options__tool";
         name.textContent = TOOL_NAMES[tool] ? __(TOOL_NAMES[tool]) : "";
         this.el.appendChild(name);
         switch (tool) {
@@ -4271,7 +4271,7 @@ void main( void )
       };
       this.options = options;
       this.el = document.createElement("div");
-      this.el.className = "dg-options";
+      this.el.className = "lz-options";
       this.el.setAttribute("role", "toolbar");
       this.el.setAttribute("aria-label", __("Tool options"));
       this.offBrush = options.ctx.onBrushChange(() => this.sync());
@@ -4676,7 +4676,7 @@ void main( void )
         return;
       }
       const hint = document.createElement("span");
-      hint.className = "dg-options__hint";
+      hint.className = "lz-options__hint";
       hint.textContent = text;
       this.el.appendChild(hint);
     }
@@ -4698,7 +4698,7 @@ void main( void )
      */
     divider() {
       const rule = document.createElement("span");
-      rule.className = "dg-options__divider";
+      rule.className = "lz-options__divider";
       rule.setAttribute("aria-hidden", "true");
       this.el.appendChild(rule);
     }
@@ -4801,7 +4801,7 @@ void main( void )
   }
   async function toError(response) {
     let message = `Request failed with status ${response.status}.`;
-    let code = "daguerre_http_error";
+    let code = "lienzo_http_error";
     try {
       const body = await response.json();
       if (body && typeof body === "object") {
@@ -4818,7 +4818,7 @@ void main( void )
   }
   class RestClient {
     /**
-     * @param config Runtime configuration from `window.daguerreConfig`.
+     * @param config Runtime configuration from `window.lienzoConfig`.
      */
     constructor(config) {
       this.config = config;
@@ -5000,23 +5000,23 @@ void main( void )
       };
       this.options = options;
       this.root = document.createElement("div");
-      this.root.className = "dg-crop";
+      this.root.className = "lz-crop";
       this.root.setAttribute("aria-hidden", "true");
       const clip = document.createElement("div");
-      clip.className = "dg-crop__clip";
+      clip.className = "lz-crop__clip";
       this.dim = document.createElement("div");
-      this.dim.className = "dg-crop__dim";
+      this.dim.className = "lz-crop__dim";
       clip.appendChild(this.dim);
       this.box = document.createElement("div");
-      this.box.className = "dg-crop__box";
+      this.box.className = "lz-crop__box";
       for (const line of ["v1", "v2", "h1", "h2"]) {
         const guide = document.createElement("span");
-        guide.className = `dg-crop__guide dg-crop__guide--${line}`;
+        guide.className = `lz-crop__guide lz-crop__guide--${line}`;
         this.box.appendChild(guide);
       }
       for (const handle of ["nw", "ne", "sw", "se", "n", "s", "w", "e"]) {
         const grip = document.createElement("span");
-        grip.className = `dg-crop__handle dg-crop__handle--${handle}`;
+        grip.className = `lz-crop__handle lz-crop__handle--${handle}`;
         grip.dataset.handle = handle;
         this.box.appendChild(grip);
       }
@@ -5190,9 +5190,9 @@ void main( void )
       };
       this.options = options;
       this.el = document.createElement("div");
-      this.el.className = "dg-curve";
+      this.el.className = "lz-curve";
       this.canvas = document.createElement("canvas");
-      this.canvas.className = "dg-curve__canvas";
+      this.canvas.className = "lz-curve__canvas";
       this.canvas.setAttribute("role", "img");
       this.canvas.setAttribute(
         "aria-label",
@@ -5445,9 +5445,9 @@ void main( void )
       };
       this.options = options;
       this.root = document.createElement("div");
-      this.root.className = "dg-transform";
+      this.root.className = "lz-transform";
       this.box = document.createElement("div");
-      this.box.className = "dg-transform__box";
+      this.box.className = "lz-transform__box";
       this.box.dataset.handle = "move";
       this.box.title = __(
         "Drag to move. Corners scale both axes, edges scale one, the top handle rotates. Hold Shift on a corner to scale freely."
@@ -5463,21 +5463,21 @@ void main( void )
         "e"
       ]) {
         const grip = document.createElement("span");
-        grip.className = `dg-transform__handle dg-transform__handle--${handle}`;
+        grip.className = `lz-transform__handle lz-transform__handle--${handle}`;
         grip.dataset.handle = handle;
         this.box.appendChild(grip);
       }
       this.guideX = document.createElement("span");
-      this.guideX.className = "dg-snap dg-snap--v";
+      this.guideX.className = "lz-snap lz-snap--v";
       this.guideX.hidden = true;
       this.guideY = document.createElement("span");
-      this.guideY.className = "dg-snap dg-snap--h";
+      this.guideY.className = "lz-snap lz-snap--h";
       this.guideY.hidden = true;
       const stem = document.createElement("span");
-      stem.className = "dg-transform__stem";
+      stem.className = "lz-transform__stem";
       this.box.appendChild(stem);
       const rotate = document.createElement("span");
-      rotate.className = "dg-transform__handle dg-transform__handle--rotate";
+      rotate.className = "lz-transform__handle lz-transform__handle--rotate";
       rotate.dataset.handle = "rotate";
       rotate.title = __("Rotate. Hold Shift to snap.");
       this.box.appendChild(rotate);
@@ -5563,11 +5563,11 @@ void main( void )
       this.last = null;
       this.resizeObserver = null;
       this.el = document.createElement("div");
-      this.el.className = "dg-histogram";
+      this.el.className = "lz-histogram";
       this.el.setAttribute("role", "img");
       this.el.setAttribute("aria-label", "Tone distribution of the edited image");
       this.canvas = document.createElement("canvas");
-      this.canvas.className = "dg-histogram__canvas";
+      this.canvas.className = "lz-histogram__canvas";
       this.el.appendChild(this.canvas);
       this.ctx = this.canvas.getContext("2d");
       if (typeof ResizeObserver !== "undefined") {
@@ -5654,7 +5654,7 @@ void main( void )
       this.resizeObserver = null;
     }
   }
-  const STORAGE_KEY = "daguerre.panels.v1";
+  const STORAGE_KEY = "lienzo.panels.v1";
   const registry = /* @__PURE__ */ new Map();
   const listeners = /* @__PURE__ */ new Set();
   function registerPanel(def) {
@@ -5716,25 +5716,25 @@ void main( void )
     buildChrome() {
       this.root.replaceChildren();
       const header = document.createElement("div");
-      header.className = "dg-sidebar__header";
+      header.className = "lz-sidebar__header";
       const label = document.createElement("span");
-      label.className = "dg-sidebar__title";
+      label.className = "lz-sidebar__title";
       label.textContent = __("Tools");
       const toggle = document.createElement("button");
       toggle.type = "button";
-      toggle.className = "dg-sidebar__picker-toggle";
+      toggle.className = "lz-sidebar__picker-toggle";
       toggle.textContent = "⋯";
       toggle.title = __("Choose which tools are shown");
       toggle.setAttribute("aria-label", __("Choose which tools are shown"));
       toggle.setAttribute("aria-expanded", "false");
       toggle.addEventListener("click", () => this.togglePicker(toggle));
       const actions = document.createElement("div");
-      actions.className = "dg-sidebar__actions";
+      actions.className = "lz-sidebar__actions";
       actions.appendChild(toggle);
       if (this.onHide) {
         const hide = document.createElement("button");
         hide.type = "button";
-        hide.className = "dg-sidebar__hide";
+        hide.className = "lz-sidebar__hide";
         hide.textContent = "⟩";
         hide.title = __("Hide the tools");
         hide.setAttribute("aria-label", __("Hide the tools"));
@@ -5743,7 +5743,7 @@ void main( void )
       }
       header.append(label, actions);
       this.stack = document.createElement("div");
-      this.stack.className = "dg-panels";
+      this.stack.className = "lz-panels";
       this.root.append(header, this.stack);
     }
     /**
@@ -5759,7 +5759,7 @@ void main( void )
         return;
       }
       const menu = document.createElement("div");
-      menu.className = "dg-picker-menu";
+      menu.className = "lz-picker-menu";
       menu.setAttribute("role", "group");
       menu.setAttribute("aria-label", __("Tools"));
       for (const def of listPanels()) {
@@ -5771,7 +5771,7 @@ void main( void )
             this.render();
           }
         });
-        row.el.classList.add("dg-picker-menu__item");
+        row.el.classList.add("lz-picker-menu__item");
         menu.appendChild(row.el);
       }
       toggle.setAttribute("aria-expanded", "true");
@@ -5833,25 +5833,25 @@ void main( void )
     renderPanel(def) {
       const collapsed = this.isCollapsed(def);
       const section = document.createElement("section");
-      section.className = "dg-panel";
+      section.className = "lz-panel";
       section.dataset.panel = def.id;
       section.classList.toggle("is-collapsed", collapsed);
-      const bodyId = `dg-panel-body-${def.id}`;
+      const bodyId = `lz-panel-body-${def.id}`;
       const header = document.createElement("button");
       header.type = "button";
-      header.className = "dg-panel__header";
+      header.className = "lz-panel__header";
       header.setAttribute("aria-expanded", String(!collapsed));
       header.setAttribute("aria-controls", bodyId);
       const chevron = document.createElement("span");
-      chevron.className = "dg-panel__chevron";
+      chevron.className = "lz-panel__chevron";
       chevron.setAttribute("aria-hidden", "true");
       chevron.textContent = "▸";
       const title = document.createElement("span");
-      title.className = "dg-panel__title";
+      title.className = "lz-panel__title";
       title.textContent = def.title;
       header.append(chevron, title);
       const body = document.createElement("div");
-      body.className = "dg-panel__body";
+      body.className = "lz-panel__body";
       body.id = bodyId;
       body.hidden = collapsed;
       body.dataset.collapsed = String(collapsed);
@@ -5863,7 +5863,7 @@ void main( void )
         header.setAttribute("aria-expanded", String(!next));
         this.setPanelState(def.id, { collapsed: next });
         body.dispatchEvent(
-          new CustomEvent("dg-panel-toggle", {
+          new CustomEvent("lz-panel-toggle", {
             detail: { collapsed: next },
             bubbles: false
           })
@@ -6000,7 +6000,7 @@ void main( void )
       order: 5,
       render: (host, ctx) => {
         const list = document.createElement("div");
-        list.className = "dg-layers";
+        list.className = "lz-layers";
         let rowHandles = [];
         const draw = () => {
           list.replaceChildren();
@@ -6010,12 +6010,12 @@ void main( void )
           rowHandles = [];
           for (const layer of [...ctx.getLayers()].reverse()) {
             const row = document.createElement("div");
-            row.className = "dg-layer";
+            row.className = "lz-layer";
             row.classList.toggle("is-active", layer.id === ctx.getActiveLayerId());
             const eye = createIconButton({
               glyph: layer.visible ? "●" : "○",
               label: layer.visible ? __("Hide layer") : __("Show layer"),
-              className: "dg-layer__eye",
+              className: "lz-layer__eye",
               onClick: () => ctx.setLayers(
                 updateLayer(ctx.getLayers(), layer.id, {
                   visible: !layer.visible
@@ -6024,7 +6024,7 @@ void main( void )
             });
             const name = document.createElement("button");
             name.type = "button";
-            name.className = "dg-layer__name";
+            name.className = "lz-layer__name";
             name.textContent = layer.name;
             name.addEventListener(
               "click",
@@ -6033,7 +6033,7 @@ void main( void )
             const up = createIconButton({
               glyph: "↑",
               label: __("Bring forward"),
-              className: "dg-layer__move",
+              className: "lz-layer__move",
               onClick: () => ctx.setLayers(
                 reorderLayer(ctx.getLayers(), layer.id, 1),
                 layer.id
@@ -6042,7 +6042,7 @@ void main( void )
             const down = createIconButton({
               glyph: "↓",
               label: __("Send backward"),
-              className: "dg-layer__move",
+              className: "lz-layer__move",
               onClick: () => ctx.setLayers(
                 reorderLayer(ctx.getLayers(), layer.id, -1),
                 layer.id
@@ -6054,7 +6054,7 @@ void main( void )
               const remove = createIconButton({
                 glyph: "×",
                 label: __("Delete layer"),
-                className: "dg-layer__delete",
+                className: "lz-layer__delete",
                 onClick: () => ctx.setLayers(
                   ctx.getLayers().filter(
                     (entry) => entry.id !== layer.id
@@ -6073,7 +6073,7 @@ void main( void )
           onClick: () => ctx.addLayer()
         });
         const hint = document.createElement("p");
-        hint.className = "dg-hint";
+        hint.className = "lz-hint";
         hint.textContent = __(
           "Painted and pasted layers are pixels, not settings — save a copy to keep them."
         );
@@ -6245,7 +6245,7 @@ void main( void )
             ctx.setActiveTool("transform");
           }
         };
-        host.addEventListener("dg-panel-toggle", onToggle);
+        host.addEventListener("lz-panel-toggle", onToggle);
         const quarter = (direction) => {
           const layer = activeLayer(ctx.getRecipe()).transform;
           ctx.setLayer({
@@ -6254,7 +6254,7 @@ void main( void )
           });
         };
         const buttons = document.createElement("div");
-        buttons.className = "dg-buttons";
+        buttons.className = "lz-buttons";
         const handles = [
           { label: "⟲", title: __("Rotate left"), run: () => quarter(-1) },
           { label: "⟳", title: __("Rotate right"), run: () => quarter(1) },
@@ -6322,7 +6322,7 @@ void main( void )
           }
         });
         const fitButtons = document.createElement("div");
-        fitButtons.className = "dg-buttons";
+        fitButtons.className = "lz-buttons";
         const fits = [
           {
             label: __("Fit"),
@@ -6374,7 +6374,7 @@ void main( void )
           reset.el
         );
         return () => {
-          host.removeEventListener("dg-panel-toggle", onToggle);
+          host.removeEventListener("lz-panel-toggle", onToggle);
           offViewport();
           offRecipe();
           offSliders();
@@ -6414,7 +6414,7 @@ void main( void )
           overlay.setRect({ x: 0, y: 0, w: 1, h: 1 });
           ctx.setActiveTool("crop");
         };
-        host.addEventListener("dg-panel-toggle", onToggle);
+        host.addEventListener("lz-panel-toggle", onToggle);
         let pendingWidth = ctx.getRecipe().canvas.width;
         let pendingHeight = ctx.getRecipe().canvas.height;
         const applySize = () => {
@@ -6455,7 +6455,7 @@ void main( void )
           heightField.setValue(canvas.height);
         };
         const size = document.createElement("div");
-        size.className = "dg-size";
+        size.className = "lz-size";
         size.append(widthField.el, heightField.el);
         const aspectSelect = createSelect({
           label: __("Crop ratio"),
@@ -6498,7 +6498,7 @@ void main( void )
           }
         });
         const hint = document.createElement("p");
-        hint.className = "dg-hint";
+        hint.className = "lz-hint";
         hint.textContent = __(
           "Cropping resizes the canvas. The image itself is untouched — move or scale it with the Transform tool."
         );
@@ -6506,7 +6506,7 @@ void main( void )
         syncFields();
         host.append(size, aspectSelect.el, applyCropButton.el, trim.el, hint);
         return () => {
-          host.removeEventListener("dg-panel-toggle", onToggle);
+          host.removeEventListener("lz-panel-toggle", onToggle);
           offViewport();
           offRecipe();
           offTool();
@@ -6551,7 +6551,7 @@ void main( void )
           }
         });
         const hint = document.createElement("p");
-        hint.className = "dg-hint";
+        hint.className = "lz-hint";
         hint.textContent = __(
           "Click to add a point, drag it well outside to remove it, double-click to reset."
         );
@@ -6646,11 +6646,11 @@ void main( void )
       defaultCollapsed: true,
       render: (host, ctx) => {
         const list = document.createElement("div");
-        list.className = "dg-presets";
+        list.className = "lz-presets";
         let rowHandles = [];
         let presetName = "";
         const status = document.createElement("p");
-        status.className = "dg-hint";
+        status.className = "lz-hint";
         const refresh = async () => {
           list.replaceChildren();
           for (const handle of rowHandles) {
@@ -6673,17 +6673,17 @@ void main( void )
           status.textContent = "";
           for (const preset of presets) {
             const row = document.createElement("div");
-            row.className = "dg-preset";
+            row.className = "lz-preset";
             const apply = createButton({
               label: preset.name,
               variant: "ghost",
               onClick: () => ctx.applyPreset(preset)
             });
-            apply.el.classList.add("dg-preset__apply");
+            apply.el.classList.add("lz-preset__apply");
             const remove = createIconButton({
               glyph: "×",
               label: sprintf(__("Delete “%s”"), preset.name),
-              className: "dg-preset__delete",
+              className: "lz-preset__delete",
               onClick: async () => {
                 await ctx.deletePreset(preset.id);
                 await refresh();
@@ -6781,7 +6781,7 @@ void main( void )
           rows.push([__("Edited from"), `#${payload.sourceId}`]);
         }
         const list = document.createElement("dl");
-        list.className = "dg-info";
+        list.className = "lz-info";
         for (const [term, value] of rows) {
           const dt = document.createElement("dt");
           dt.textContent = term;
@@ -7199,7 +7199,7 @@ void main( void )
     showPreview(origin, event) {
       if (!this.preview) {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("class", "dg-drag-preview");
+        svg.setAttribute("class", "lz-drag-preview");
         svg.setAttribute("aria-hidden", "true");
         this.previewPath = document.createElementNS(
           "http://www.w3.org/2000/svg",
@@ -7467,7 +7467,7 @@ void main( void )
       this.options.stage.removeEventListener("pointerdown", this.onPointerDown);
     }
   }
-  const ATTACHMENT_TYPE = "application/x-daguerre-attachment";
+  const ATTACHMENT_TYPE = "application/x-lienzo-attachment";
   const CANDIDATES = [
     // Grid mode and the media modal.
     ".attachment[data-id]",
@@ -7527,12 +7527,12 @@ void main( void )
     if (isStale?.()) {
       return;
     }
-    root.classList.add("dg-picker");
+    root.classList.add("lz-picker");
     const heading = document.createElement("h2");
-    heading.className = "dg-picker__heading";
+    heading.className = "lz-picker__heading";
     heading.textContent = __("Choose a photo to edit");
     const status = document.createElement("p");
-    status.className = "dg-picker__status";
+    status.className = "lz-picker__status";
     status.textContent = __("Loading your photos…");
     root.replaceChildren(heading, status);
     let items;
@@ -7552,7 +7552,7 @@ void main( void )
       }
       items = await response.json();
     } catch (error) {
-      status.classList.add("dg-picker__status--error");
+      status.classList.add("lz-picker__status--error");
       status.textContent = error instanceof Error ? error.message : __("Your media library could not be loaded.");
       return;
     }
@@ -7575,7 +7575,7 @@ void main( void )
     }
     status.remove();
     const grid = document.createElement("div");
-    grid.className = "dg-picker__grid";
+    grid.className = "lz-picker__grid";
     grid.setAttribute("role", "list");
     for (const item of editable) {
       grid.appendChild(renderTile(item, onPick));
@@ -7586,16 +7586,16 @@ void main( void )
     const title = item.title?.rendered?.replace(/<[^>]*>/g, "") || __("Untitled image");
     const tile = document.createElement("button");
     tile.type = "button";
-    tile.className = "dg-picker__tile";
+    tile.className = "lz-picker__tile";
     tile.setAttribute("role", "listitem");
     const image = document.createElement("img");
-    image.className = "dg-picker__thumb";
+    image.className = "lz-picker__thumb";
     image.src = thumbnailFor(item);
     image.alt = "";
     image.loading = "lazy";
     image.decoding = "async";
     const caption = document.createElement("span");
-    caption.className = "dg-picker__caption";
+    caption.className = "lz-picker__caption";
     caption.textContent = title;
     const { width, height } = item.media_details ?? {};
     tile.title = width && height ? sprintf("%s — %d × %d", title, width, height) : title;
@@ -7603,7 +7603,7 @@ void main( void )
     tile.append(image, caption);
     return tile;
   }
-  const WINDOW_ID = "daguerre";
+  const WINDOW_ID = "lienzo";
   function desktop() {
     const api = window.wp?.desktop;
     return api?.isActive?.() ? api : void 0;
@@ -7616,7 +7616,7 @@ void main( void )
   }
   function state() {
     const holder = window;
-    holder.__daguerreDesktop ?? (holder.__daguerreDesktop = {
+    holder.__lienzoDesktop ?? (holder.__lienzoDesktop = {
       openers: /* @__PURE__ */ new Set(),
       pending: 0,
       previewUrl: "",
@@ -7624,9 +7624,9 @@ void main( void )
       peekRegistered: false,
       listenerRegistered: false
     });
-    return holder.__daguerreDesktop;
+    return holder.__lienzoDesktop;
   }
-  const OPEN_MESSAGE = "daguerre-open";
+  const OPEN_MESSAGE = "lienzo-open";
   function openInDesktop(attachmentId) {
     const id = Number(attachmentId) || 0;
     if (!id) {
@@ -7639,7 +7639,7 @@ void main( void )
       } else {
         state().pending = id;
       }
-      desktop()?.openWindow?.(WINDOW_ID, { source: "daguerre" });
+      desktop()?.openWindow?.(WINDOW_ID, { source: "lienzo" });
       return true;
     }
     if (window.parent && window.parent !== window) {
@@ -7675,7 +7675,7 @@ void main( void )
     try {
       registerFileOpener();
     } catch (error) {
-      console.warn("[daguerre] file opener unavailable:", error);
+      console.warn("[lienzo] file opener unavailable:", error);
     }
     listenForOpenRequests();
   }
@@ -7687,7 +7687,7 @@ void main( void )
     state().peekRegistered = true;
     hooks.addFilter(
       "desktop-mode.dock.peek-card-content",
-      "daguerre/thumbnail",
+      "lienzo/thumbnail",
       (body, context) => {
         const win = context?.window;
         const shared = state();
@@ -7695,7 +7695,7 @@ void main( void )
           return body;
         }
         const image = document.createElement("img");
-        image.className = "dg-peek-thumb";
+        image.className = "lz-peek-thumb";
         image.src = shared.previewUrl;
         image.alt = shared.previewTitle;
         image.loading = "lazy";
@@ -7709,8 +7709,8 @@ void main( void )
     registry2[WINDOW_ID] = (body, ctx) => renderWindow(body, ctx);
   }
   function renderWindow(body, ctx) {
-    const root = body.querySelector("[data-daguerre-root]") ?? body;
-    const config = window.daguerreConfig;
+    const root = body.querySelector("[data-lienzo-root]") ?? body;
+    const config = window.lienzoConfig;
     let editor = null;
     let releaseDrop = null;
     let session = 0;
@@ -7756,7 +7756,7 @@ void main( void )
     try {
       releaseDrop = registerDropTarget(root, drop);
     } catch (error) {
-      console.warn("[daguerre] drag-and-drop unavailable:", error);
+      console.warn("[lienzo] drag-and-drop unavailable:", error);
     }
     const releaseFiles = attachFileDrop(root, drop);
     return () => {
@@ -7778,13 +7778,13 @@ void main( void )
       if (bridge?.kind !== "attachment") {
         return 0;
       }
-      if (bridge.mime && !window.daguerreConfig?.supportedMimes.includes(bridge.mime)) {
+      if (bridge.mime && !window.lienzoConfig?.supportedMimes.includes(bridge.mime)) {
         return 0;
       }
       return Number(bridge.id ?? 0);
     };
     return manager.registerDropTarget({
-      id: "daguerre-window",
+      id: "lienzo-window",
       element,
       accept: (payload) => attachmentOf(payload) > 0,
       acceptLabel: __("Add as a layer"),
@@ -7888,7 +7888,7 @@ void main( void )
       if (!dropped) {
         toast(
           sprintf(
-            __("That drag carried no image Daguerre could read (%s)."),
+            __("That drag carried no image Lienzo could read (%s)."),
             Array.from(event.dataTransfer?.types ?? []).join(", ") || __("no data")
           ),
           "info"
@@ -7911,7 +7911,7 @@ void main( void )
     if (!bridge?.start) {
       return;
     }
-    const banner = root.querySelector(".dg-saved a");
+    const banner = root.querySelector(".lz-saved a");
     if (!banner) {
       return;
     }
@@ -7936,8 +7936,8 @@ void main( void )
       return;
     }
     files.registerOpener({
-      id: "daguerre",
-      label: __("Edit in Daguerre"),
+      id: "lienzo",
+      label: __("Edit in Lienzo"),
       types: ["attachment"],
       isDefault: false,
       sort: 15,
@@ -7990,7 +7990,7 @@ void main( void )
       };
       this.options = options;
       this.el = document.createElement("div");
-      this.el.className = "dg-brush-cursor";
+      this.el.className = "lz-brush-cursor";
       this.el.setAttribute("aria-hidden", "true");
       this.el.style.display = "none";
       options.stage.appendChild(this.el);
@@ -8062,7 +8062,7 @@ void main( void )
     open(point) {
       this.commit();
       const field = document.createElement("textarea");
-      field.className = "dg-text-editor";
+      field.className = "lz-text-editor";
       field.rows = 1;
       field.spellcheck = false;
       field.setAttribute("aria-label", "Text");
@@ -8165,14 +8165,14 @@ void main( void )
       };
       this.options = options;
       this.root = document.createElement("div");
-      this.root.className = "dg-rulers";
+      this.root.className = "lz-rulers";
       this.root.setAttribute("aria-hidden", "true");
       this.horizontal = document.createElement("canvas");
-      this.horizontal.className = "dg-ruler dg-ruler--h";
+      this.horizontal.className = "lz-ruler lz-ruler--h";
       this.vertical = document.createElement("canvas");
-      this.vertical.className = "dg-ruler dg-ruler--v";
+      this.vertical.className = "lz-ruler lz-ruler--v";
       const corner = document.createElement("div");
-      corner.className = "dg-ruler__corner";
+      corner.className = "lz-ruler__corner";
       this.root.append(corner, this.horizontal, this.vertical);
       options.stage.appendChild(this.root);
       options.stage.addEventListener("pointermove", this.onPointerMove);
@@ -8301,23 +8301,23 @@ void main( void )
       this.release = [];
       this.options = options;
       this.el = document.createElement("div");
-      this.el.className = "dg-swatches";
+      this.el.className = "lz-swatches";
       this.foreground = this.makeSwatch("colour", __("Foreground colour"));
       this.background = this.makeSwatch("background", __("Background colour"));
       this.swapButton = createIconButton({
         glyph: "⇄",
         label: __("Swap colours (X)"),
-        className: "dg-swatches__action",
+        className: "lz-swatches__action",
         onClick: () => this.swap()
       });
       this.resetButton = createIconButton({
         glyph: "◨",
         label: __("Reset to black and white (D)"),
-        className: "dg-swatches__action",
+        className: "lz-swatches__action",
         onClick: () => this.reset()
       });
       const stack = document.createElement("div");
-      stack.className = "dg-swatches__stack";
+      stack.className = "lz-swatches__stack";
       stack.append(this.foreground, this.background);
       this.el.append(stack, this.swapButton.el, this.resetButton.el);
       this.off = options.onColoursChange(() => this.sync());
@@ -8332,7 +8332,7 @@ void main( void )
     makeSwatch(which, label) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `dg-swatches__chip dg-swatches__chip--${which}`;
+      button.className = `lz-swatches__chip lz-swatches__chip--${which}`;
       button.title = label;
       button.setAttribute("aria-label", label);
       button.setAttribute("aria-haspopup", "dialog");
@@ -8356,7 +8356,7 @@ void main( void )
         return;
       }
       const popover = document.createElement("div");
-      popover.className = "dg-swatch-popover";
+      popover.className = "lz-swatch-popover";
       popover.dataset.which = which;
       popover.setAttribute("role", "dialog");
       popover.setAttribute("aria-label", label);
@@ -8473,9 +8473,9 @@ void main( void )
       this.closeAway = null;
       this.options = options;
       this.el = document.createElement("div");
-      this.el.className = "dg-rail";
+      this.el.className = "lz-rail";
       const grid = document.createElement("div");
-      grid.className = "dg-rail__grid";
+      grid.className = "lz-rail__grid";
       grid.setAttribute("role", "toolbar");
       grid.setAttribute("aria-orientation", "vertical");
       grid.setAttribute("aria-label", __("Tools"));
@@ -8485,12 +8485,12 @@ void main( void )
         if (tool.group !== group) {
           if (inGroup % 2 === 1) {
             const spacer = document.createElement("span");
-            spacer.className = "dg-rail__spacer";
+            spacer.className = "lz-rail__spacer";
             spacer.setAttribute("aria-hidden", "true");
             grid.appendChild(spacer);
           }
           const rule = document.createElement("span");
-          rule.className = "dg-rail__rule";
+          rule.className = "lz-rail__rule";
           rule.setAttribute("aria-hidden", "true");
           grid.appendChild(rule);
           group = tool.group;
@@ -8500,7 +8500,7 @@ void main( void )
         const button = createIconButton({
           glyph: tool.glyph,
           label: `${__(tool.label)} (${tool.key.toUpperCase()})`,
-          className: "dg-rail__button",
+          className: "lz-rail__button",
           onClick: () => options.onSelect(tool.id)
         });
         button.el.setAttribute("aria-pressed", "false");
@@ -8510,7 +8510,7 @@ void main( void )
       this.overflow = createIconButton({
         glyph: "⋯",
         label: __("All tools"),
-        className: "dg-rail__button",
+        className: "lz-rail__button",
         onClick: () => this.toggleMenu()
       });
       grid.appendChild(this.overflow.el);
@@ -8518,7 +8518,7 @@ void main( void )
       this.quickMask = createIconButton({
         glyph: "◍",
         label: __("Quick mask: show the selection as a red overlay (Q)"),
-        className: "dg-rail__mode",
+        className: "lz-rail__mode",
         onClick: () => {
           options.setQuickMask(!options.getQuickMask());
           this.syncModes();
@@ -8527,14 +8527,14 @@ void main( void )
       this.fullScreen = createIconButton({
         glyph: "⛶",
         label: __("Full screen (F)"),
-        className: "dg-rail__mode",
+        className: "lz-rail__mode",
         onClick: () => {
           options.setFullScreen(!options.getFullScreen());
           this.syncModes();
         }
       });
       const modes = document.createElement("div");
-      modes.className = "dg-rail__modes";
+      modes.className = "lz-rail__modes";
       modes.setAttribute("role", "group");
       modes.setAttribute("aria-label", __("Screen modes"));
       modes.append(this.quickMask.el, this.fullScreen.el);
@@ -8606,18 +8606,18 @@ void main( void )
         return;
       }
       const menu = document.createElement("div");
-      menu.className = "dg-rail-menu";
+      menu.className = "lz-rail-menu";
       menu.setAttribute("role", "menu");
       menu.setAttribute("aria-label", __("All tools"));
       const handles = [];
       for (const tool of TOOLS) {
         const item = document.createElement("button");
         item.type = "button";
-        item.className = "dg-rail-menu__item";
+        item.className = "lz-rail-menu__item";
         item.setAttribute("role", "menuitem");
         item.innerHTML = "";
         const glyph = document.createElement("span");
-        glyph.className = "dg-rail-menu__glyph";
+        glyph.className = "lz-rail-menu__glyph";
         glyph.textContent = tool.glyph;
         const name = document.createElement("span");
         name.textContent = __(tool.label);
@@ -8714,10 +8714,10 @@ void main( void )
     return first.length > 24 ? `${first.slice(0, 23)}…` : first;
   }
   function readConfig() {
-    const config = window.daguerreConfig;
+    const config = window.lienzoConfig;
     if (!config) {
       throw new Error(
-        "Daguerre configuration is missing. The editor script was loaded without daguerre_enqueue_editor()."
+        "Lienzo configuration is missing. The editor script was loaded without lienzo_enqueue_editor()."
       );
     }
     return config;
@@ -8794,18 +8794,18 @@ void main( void )
     /** Builds the static layout and the loading state. */
     buildShell() {
       this.root.replaceChildren();
-      this.root.classList.add("dg-editor");
-      this.root.classList.add(`dg-editor--${this.options.host ?? "page"}`);
+      this.root.classList.add("lz-editor");
+      this.root.classList.add(`lz-editor--${this.options.host ?? "page"}`);
       this.root.classList.toggle("is-desktop-mode", isDesktopModeEnabled());
       const topbar = document.createElement("div");
-      topbar.className = "dg-topbar";
+      topbar.className = "lz-topbar";
       topbar.setAttribute("role", "toolbar");
       topbar.setAttribute("aria-label", __("Editor actions"));
       const title = document.createElement("h1");
-      title.className = "dg-topbar__title";
+      title.className = "lz-topbar__title";
       title.textContent = __("Loading image…");
       const actions = document.createElement("div");
-      actions.className = "dg-topbar__actions";
+      actions.className = "lz-topbar__actions";
       this.undoButton = createButton({
         label: __("Undo"),
         title: __("Undo (Ctrl+Z)"),
@@ -8881,29 +8881,29 @@ void main( void )
       }
       topbar.append(title, actions);
       const body = document.createElement("div");
-      body.className = "dg-body";
+      body.className = "lz-body";
       this.stage = document.createElement("div");
-      this.stage.className = "dg-stage";
+      this.stage.className = "lz-stage";
       this.backdrop = document.createElement("div");
-      this.backdrop.className = "dg-canvas-backdrop";
+      this.backdrop.className = "lz-canvas-backdrop";
       this.backdrop.setAttribute("aria-hidden", "true");
       this.stage.appendChild(this.backdrop);
       this.status = document.createElement("p");
-      this.status.className = "dg-status";
+      this.status.className = "lz-status";
       this.status.textContent = __("Loading image…");
       this.stage.appendChild(this.status);
       this.sidebar = document.createElement("aside");
-      this.sidebar.className = "dg-sidebar";
-      this.sidebar.id = "dg-sidebar";
+      this.sidebar.className = "lz-sidebar";
+      this.sidebar.id = "lz-sidebar";
       this.sidebar.setAttribute("aria-label", __("Tools"));
       this.sidebarTab = document.createElement("button");
       this.sidebarTab.type = "button";
-      this.sidebarTab.className = "dg-sidebar-tab";
+      this.sidebarTab.className = "lz-sidebar-tab";
       const tabLabel = document.createElement("span");
-      tabLabel.className = "dg-sidebar-tab__label";
+      tabLabel.className = "lz-sidebar-tab__label";
       tabLabel.textContent = __("Tools");
       this.sidebarTab.appendChild(tabLabel);
-      this.sidebarTab.setAttribute("aria-controls", "dg-sidebar");
+      this.sidebarTab.setAttribute("aria-controls", "lz-sidebar");
       this.sidebarTab.addEventListener("click", () => this.setSidebarOpen(true));
       body.append(this.stage, this.sidebar, this.sidebarTab);
       this.root.append(topbar, body);
@@ -9015,13 +9015,13 @@ void main( void )
      */
     fail(error) {
       const message = error instanceof Error ? error.message : __("The image could not be opened.");
-      this.status.classList.add("dg-status--error");
+      this.status.classList.add("lz-status--error");
       this.setStatus(message);
       toast(message, "error");
     }
     /** Puts the image title in the toolbar. */
     setTitle() {
-      const title = this.root.querySelector(".dg-topbar__title");
+      const title = this.root.querySelector(".lz-topbar__title");
       if (title && this.payload) {
         title.textContent = this.payload.title || __("Untitled image");
       }
@@ -9187,7 +9187,7 @@ void main( void )
         getFullScreen: () => this.fullScreen,
         setFullScreen: (on) => this.setFullScreen(on)
       });
-      this.root.querySelector(".dg-body")?.prepend(this.toolRail.el);
+      this.root.querySelector(".lz-body")?.prepend(this.toolRail.el);
       this.stage.dataset.tool = this.activeTool;
       this.rulers = new Rulers({
         stage: this.stage,
@@ -9198,9 +9198,9 @@ void main( void )
       this.stage.classList.toggle("has-rulers", this.view.rulers);
       this.detachKeys.push(renderer.onViewportChange(this.rulers.draw));
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("class", "dg-selection");
+      svg.setAttribute("class", "lz-selection");
       svg.setAttribute("aria-hidden", "true");
-      for (const cls of ["dg-selection__under", "dg-selection__over"]) {
+      for (const cls of ["lz-selection__under", "lz-selection__over"]) {
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("class", cls);
         svg.appendChild(path);
@@ -9240,7 +9240,7 @@ void main( void )
           }
         }
       });
-      this.root.querySelector(".dg-topbar")?.after(this.optionsBar.el);
+      this.root.querySelector(".lz-topbar")?.after(this.optionsBar.el);
       this.stageTools = new StageTools({
         stage: this.stage,
         getViewport: () => renderer.getViewport(),
@@ -10101,10 +10101,10 @@ void main( void )
      * @param result Save response.
      */
     announceSave(result) {
-      const existing = this.root.querySelector(".dg-saved");
+      const existing = this.root.querySelector(".lz-saved");
       existing?.remove();
       const banner = document.createElement("p");
-      banner.className = "dg-saved";
+      banner.className = "lz-saved";
       const open = createButton({
         label: __("Open the saved copy"),
         variant: "secondary",
@@ -10248,10 +10248,10 @@ void main( void )
       this.loaded?.release();
       this.loaded = null;
       this.root.replaceChildren();
-      this.root.classList.remove("dg-editor");
+      this.root.classList.remove("lz-editor");
     }
   }
-  const VIEW_KEY = "daguerre.view.v1";
+  const VIEW_KEY = "lienzo.view.v1";
   function readViewPrefs() {
     try {
       const raw = window.localStorage.getItem(VIEW_KEY);
@@ -10273,7 +10273,7 @@ void main( void )
     } catch {
     }
   }
-  const SIDEBAR_KEY = "daguerre.sidebar.v1";
+  const SIDEBAR_KEY = "lienzo.sidebar.v1";
   function readSidebarOpen() {
     try {
       return window.localStorage.getItem(SIDEBAR_KEY) !== "closed";
@@ -10306,8 +10306,8 @@ void main( void )
     const { ToolbarGroup, ToolbarButton } = components;
     hooks.addFilter(
       "editor.BlockEdit",
-      "daguerre/image-toolbar",
-      (BlockEdit) => function DaguerreImageToolbar(props) {
+      "lienzo/image-toolbar",
+      (BlockEdit) => function LienzoImageToolbar(props) {
         const original = createElement(BlockEdit, props);
         if (props.name !== "core/image" || !props.isSelected) {
           return original;
@@ -10325,10 +10325,10 @@ void main( void )
             createElement(
               ToolbarButton,
               {
-                label: __("Edit with Daguerre"),
+                label: __("Edit with Lienzo"),
                 onClick: () => openInDesktop(id)
               },
-              __("Daguerre")
+              __("Lienzo")
             )
           )
         );
@@ -10369,7 +10369,7 @@ void main( void )
     }
     const id = Number(model.get("id"));
     const mime = String(model.get("mime") ?? "");
-    const config = window.daguerreConfig;
+    const config = window.lienzoConfig;
     if (!id || !config || !config.supportedMimes.includes(mime)) {
       return;
     }
@@ -10377,14 +10377,14 @@ void main( void )
     if (can && can.save === false) {
       return;
     }
-    if (el.querySelector(".dg-modal-button")) {
+    if (el.querySelector(".lz-modal-button")) {
       return;
     }
     const host = el.querySelector(".attachment-actions") ?? el.querySelector(".attachment-info") ?? el;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "button dg-modal-button";
-    button.textContent = __("Edit with Daguerre");
+    button.className = "button lz-modal-button";
+    button.textContent = __("Edit with Lienzo");
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -10392,7 +10392,7 @@ void main( void )
     });
     host.appendChild(button);
   }
-  const ATTRIBUTE = "data-daguerre-open";
+  const ATTRIBUTE = "data-lienzo-open";
   function bootOpenButtons() {
     document.addEventListener("click", (event) => {
       const target = event.target;
@@ -10411,7 +10411,7 @@ void main( void )
       openInDesktop(attachmentId);
     });
   }
-  const version = window.daguerreConfig?.version ?? "0.0.0";
+  const version = window.lienzoConfig?.version ?? "0.0.0";
   function boot() {
     bootDesktopMode();
     bootOpenButtons();

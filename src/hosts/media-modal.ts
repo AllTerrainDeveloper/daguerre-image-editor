@@ -1,7 +1,7 @@
 /**
  * The media modal host.
  *
- * Adds an "Edit with Daguerre" button to the attachment details views, in both the
+ * Adds an "Edit with Lienzo" button to the attachment details views, in both the
  * grid modal (`upload.php?mode=grid`) and the insert-media modal.
  *
  * The button is added by extending the view's `render()` rather than by replacing
@@ -85,7 +85,7 @@ function addButton( view: Record< string, unknown > ): void {
 
 	const id = Number( model.get( 'id' ) );
 	const mime = String( model.get( 'mime' ) ?? '' );
-	const config = window.daguerreConfig;
+	const config = window.lienzoConfig;
 
 	if ( ! id || ! config || ! config.supportedMimes.includes( mime ) ) {
 		return;
@@ -100,7 +100,7 @@ function addButton( view: Record< string, unknown > ): void {
 		return;
 	}
 
-	if ( el.querySelector( '.dg-modal-button' ) ) {
+	if ( el.querySelector( '.lz-modal-button' ) ) {
 		return;
 	}
 
@@ -111,8 +111,8 @@ function addButton( view: Record< string, unknown > ): void {
 
 	const button = document.createElement( 'button' );
 	button.type = 'button';
-	button.className = 'button dg-modal-button';
-	button.textContent = __( 'Edit with Daguerre' );
+	button.className = 'button lz-modal-button';
+	button.textContent = __( 'Edit with Lienzo' );
 
 	button.addEventListener( 'click', ( event ) => {
 		event.preventDefault();

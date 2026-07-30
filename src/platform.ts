@@ -1,7 +1,7 @@
 /**
  * Host adapters.
  *
- * Daguerre runs in two worlds: a plain WordPress admin, and inside the Desktop Mode
+ * Lienzo runs in two worlds: a plain WordPress admin, and inside the Desktop Mode
  * shell. Rather than scatter `if ( desktopMode )` through the codebase, every
  * capability that differs between the two is funnelled through this module. The
  * rest of the plugin imports from here and never asks which world it is in.
@@ -42,12 +42,12 @@ export function isDesktopMode(): boolean {
  */
 export function isDesktopModeEnabled(): boolean {
 	const config = (
-		window as unknown as { daguerreConfig?: { desktopMode?: unknown } }
-	).daguerreConfig;
+		window as unknown as { lienzoConfig?: { desktopMode?: unknown } }
+	).lienzoConfig;
 	const flag = config?.desktopMode;
 
 	// Tolerant of `'1'` as well as `true`: the config now travels as JSON, but a site
-	// filtering `daguerre_config` can still put a stringified boolean in there, and a
+	// filtering `lienzo_config` can still put a stringified boolean in there, and a
 	// flag that reads as false when PHP says true is a bug that hides rather than
 	// announces itself.
 	return flag === true || flag === '1' || flag === 1 || isDesktopMode();
@@ -147,14 +147,14 @@ let toastHost: HTMLElement | null = null;
 function fallbackToast( message: string, type: ToastType ): void {
 	if ( ! toastHost || ! toastHost.isConnected ) {
 		toastHost = document.createElement( 'div' );
-		toastHost.className = 'dg-toasts';
+		toastHost.className = 'lz-toasts';
 		toastHost.setAttribute( 'role', 'status' );
 		toastHost.setAttribute( 'aria-live', 'polite' );
 		document.body.appendChild( toastHost );
 	}
 
 	const node = document.createElement( 'div' );
-	node.className = `dg-toast dg-toast--${ type }`;
+	node.className = `lz-toast lz-toast--${ type }`;
 	node.textContent = message;
 	toastHost.appendChild( node );
 

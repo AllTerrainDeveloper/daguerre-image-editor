@@ -2,7 +2,7 @@
  * Shared types for the configuration and REST payloads PHP hands the browser.
  */
 
-/** Bounds and rest position of a single adjustment, mirrored from `daguerre_op_schema()`. */
+/** Bounds and rest position of a single adjustment, mirrored from `lienzo_op_schema()`. */
 export interface OpSpec {
 	min: number;
 	max: number;
@@ -12,8 +12,8 @@ export interface OpSpec {
 /** The adjustment table, keyed by op type. */
 export type OpSchema = Record< string, OpSpec >;
 
-/** `window.daguerreConfig`, localized by `daguerre_get_config()`. */
-export interface DaguerreConfig {
+/** `window.lienzoConfig`, localized by `lienzo_get_config()`. */
+export interface LienzoConfig {
 	version: string;
 	restUrl: string;
 	restNonce: string;
@@ -33,7 +33,7 @@ export interface DaguerreConfig {
 	schema: OpSchema;
 }
 
-/** Response body of `GET daguerre/v1/media/<id>`. */
+/** Response body of `GET lienzo/v1/media/<id>`. */
 export interface MediaPayload {
 	id: number;
 	sourceId: number;
@@ -50,7 +50,7 @@ export interface MediaPayload {
 }
 
 /**
- * Response body of `POST daguerre/v1/media/<id>/render`.
+ * Response body of `POST lienzo/v1/media/<id>/render`.
  *
  * `width` and `height` are what the site actually stored, which is not necessarily
  * what was uploaded: WordPress applies `big_image_size_threshold` to every upload

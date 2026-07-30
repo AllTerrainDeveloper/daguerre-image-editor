@@ -48,7 +48,7 @@ import {
 import type { LoadedImage } from './net/image-loader';
 import { RestClient } from './net/rest';
 import { isDesktopModeEnabled, toast } from './platform';
-import type { DaguerreConfig, MediaPayload, Preset, SaveResult } from './types';
+import type { LienzoConfig, MediaPayload, Preset, SaveResult } from './types';
 import { registerBuiltInPanels } from './ui/built-in-panels';
 import { createButton } from './ui/controls';
 import type { ButtonHandle } from './ui/controls';
@@ -220,13 +220,13 @@ function textLayerName( text: string ): string {
  *
  * @throws {Error} When the bundle was loaded without its configuration.
  */
-function readConfig(): DaguerreConfig {
-	const config = ( window as unknown as { daguerreConfig?: DaguerreConfig } )
-		.daguerreConfig;
+function readConfig(): LienzoConfig {
+	const config = ( window as unknown as { lienzoConfig?: LienzoConfig } )
+		.lienzoConfig;
 
 	if ( ! config ) {
 		throw new Error(
-			'Daguerre configuration is missing. The editor script was loaded without daguerre_enqueue_editor().'
+			'Lienzo configuration is missing. The editor script was loaded without lienzo_enqueue_editor().'
 		);
 	}
 
@@ -241,7 +241,7 @@ class Editor implements EditorInstance {
 
 	private options: MountOptions;
 
-	private config: DaguerreConfig;
+	private config: LienzoConfig;
 
 	private client: RestClient;
 
@@ -404,8 +404,8 @@ class Editor implements EditorInstance {
 	/** Builds the static layout and the loading state. */
 	private buildShell(): void {
 		this.root.replaceChildren();
-		this.root.classList.add( 'dg-editor' );
-		this.root.classList.add( `dg-editor--${ this.options.host ?? 'page' }` );
+		this.root.classList.add( 'lz-editor' );
+		this.root.classList.add( `lz-editor--${ this.options.host ?? 'page' }` );
 
 		// Which house style the *fallback* controls wear. A component the shell has
 		// registered brings its own styling; a native input does not, and inside a
@@ -414,16 +414,16 @@ class Editor implements EditorInstance {
 		this.root.classList.toggle( 'is-desktop-mode', isDesktopModeEnabled() );
 
 		const topbar = document.createElement( 'div' );
-		topbar.className = 'dg-topbar';
+		topbar.className = 'lz-topbar';
 		topbar.setAttribute( 'role', 'toolbar' );
 		topbar.setAttribute( 'aria-label', __( 'Editor actions' ) );
 
 		const title = document.createElement( 'h1' );
-		title.className = 'dg-topbar__title';
+		title.className = 'lz-topbar__title';
 		title.textContent = __( 'Loading image…' );
 
 		const actions = document.createElement( 'div' );
-		actions.className = 'dg-topbar__actions';
+		actions.className = 'lz-topbar__actions';
 
 		this.undoButton = createButton( {
 			label: __( 'Undo' ),
@@ -513,45 +513,45 @@ class Editor implements EditorInstance {
 		topbar.append( title, actions );
 
 		const body = document.createElement( 'div' );
-		body.className = 'dg-body';
+		body.className = 'lz-body';
 
 		this.stage = document.createElement( 'div' );
-		this.stage.className = 'dg-stage';
+		this.stage.className = 'lz-stage';
 
 		// Marks out the canvas itself. The checkerboard belongs here rather than on
 		// the whole stage: inside the canvas it means "transparent pixels", outside
 		// it means nothing at all, and using it for both made the canvas edge
 		// invisible the moment a layer was moved off centre.
 		this.backdrop = document.createElement( 'div' );
-		this.backdrop.className = 'dg-canvas-backdrop';
+		this.backdrop.className = 'lz-canvas-backdrop';
 		this.backdrop.setAttribute( 'aria-hidden', 'true' );
 		this.stage.appendChild( this.backdrop );
 
 		this.status = document.createElement( 'p' );
-		this.status.className = 'dg-status';
+		this.status.className = 'lz-status';
 		this.status.textContent = __( 'Loading image…' );
 		this.stage.appendChild( this.status );
 
 		this.sidebar = document.createElement( 'aside' );
-		this.sidebar.className = 'dg-sidebar';
-		this.sidebar.id = 'dg-sidebar';
+		this.sidebar.className = 'lz-sidebar';
+		this.sidebar.id = 'lz-sidebar';
 		this.sidebar.setAttribute( 'aria-label', __( 'Tools' ) );
 
 		// The tab that brings the sidebar back. A real button rather than a styled
 		// div, so it is reachable by keyboard and announces its state.
 		this.sidebarTab = document.createElement( 'button' );
 		this.sidebarTab.type = 'button';
-		this.sidebarTab.className = 'dg-sidebar-tab';
+		this.sidebarTab.className = 'lz-sidebar-tab';
 
 		// The rotated text lives in a child. Setting `writing-mode` on the button
 		// itself would re-map its own logical properties to the vertical axis, so
 		// `inset-block-start` would mean "from the right" and the tab would land in
 		// the wrong corner.
 		const tabLabel = document.createElement( 'span' );
-		tabLabel.className = 'dg-sidebar-tab__label';
+		tabLabel.className = 'lz-sidebar-tab__label';
 		tabLabel.textContent = __( 'Tools' );
 		this.sidebarTab.appendChild( tabLabel );
-		this.sidebarTab.setAttribute( 'aria-controls', 'dg-sidebar' );
+		this.sidebarTab.setAttribute( 'aria-controls', 'lz-sidebar' );
 		this.sidebarTab.addEventListener( 'click', () => this.setSidebarOpen( true ) );
 
 		body.append( this.stage, this.sidebar, this.sidebarTab );
@@ -697,14 +697,14 @@ class Editor implements EditorInstance {
 		const message =
 			error instanceof Error ? error.message : __( 'The image could not be opened.' );
 
-		this.status.classList.add( 'dg-status--error' );
+		this.status.classList.add( 'lz-status--error' );
 		this.setStatus( message );
 		toast( message, 'error' );
 	}
 
 	/** Puts the image title in the toolbar. */
 	private setTitle(): void {
-		const title = this.root.querySelector( '.dg-topbar__title' );
+		const title = this.root.querySelector( '.lz-topbar__title' );
 
 		if ( title && this.payload ) {
 			title.textContent = this.payload.title || __( 'Untitled image' );
@@ -899,7 +899,7 @@ class Editor implements EditorInstance {
 			setFullScreen: ( on ) => this.setFullScreen( on ),
 		} );
 
-		this.root.querySelector( '.dg-body' )?.prepend( this.toolRail.el );
+		this.root.querySelector( '.lz-body' )?.prepend( this.toolRail.el );
 		this.stage.dataset.tool = this.activeTool;
 
 		this.rulers = new Rulers( {
@@ -915,12 +915,12 @@ class Editor implements EditorInstance {
 		// SVG rather than a positioned box: a lasso is not a rectangle, and once the
 		// outline has to be a path anyway, one element draws every shape.
 		const svg = document.createElementNS( 'http://www.w3.org/2000/svg', 'svg' );
-		svg.setAttribute( 'class', 'dg-selection' );
+		svg.setAttribute( 'class', 'lz-selection' );
 		svg.setAttribute( 'aria-hidden', 'true' );
 
 		// Two paths, opposite colours, one dashed and animated: marching ants that
 		// stay visible over both light and dark pixels.
-		for ( const cls of [ 'dg-selection__under', 'dg-selection__over' ] ) {
+		for ( const cls of [ 'lz-selection__under', 'lz-selection__over' ] ) {
 			const path = document.createElementNS( 'http://www.w3.org/2000/svg', 'path' );
 			path.setAttribute( 'class', cls );
 			svg.appendChild( path );
@@ -964,7 +964,7 @@ class Editor implements EditorInstance {
 			},
 		} );
 
-		this.root.querySelector( '.dg-topbar' )?.after( this.optionsBar.el );
+		this.root.querySelector( '.lz-topbar' )?.after( this.optionsBar.el );
 
 		this.stageTools = new StageTools( {
 			stage: this.stage,
@@ -2064,12 +2064,12 @@ class Editor implements EditorInstance {
 	 * @param result Save response.
 	 */
 	private announceSave( result: SaveResult ): void {
-		const existing = this.root.querySelector( '.dg-saved' );
+		const existing = this.root.querySelector( '.lz-saved' );
 
 		existing?.remove();
 
 		const banner = document.createElement( 'p' );
-		banner.className = 'dg-saved';
+		banner.className = 'lz-saved';
 
 		// A button rather than a link: the saved copy opens in this same window, and
 		// following a URL would navigate the whole desktop shell away.
@@ -2251,12 +2251,12 @@ class Editor implements EditorInstance {
 		this.loaded = null;
 
 		this.root.replaceChildren();
-		this.root.classList.remove( 'dg-editor' );
+		this.root.classList.remove( 'lz-editor' );
 	}
 }
 
 /** Where view preferences are remembered between sessions. */
-const VIEW_KEY = 'daguerre.view.v1';
+const VIEW_KEY = 'lienzo.view.v1';
 
 /** Reads remembered view preferences, defaulting both on. */
 function readViewPrefs(): ViewPrefs {
@@ -2292,7 +2292,7 @@ function writeViewPrefs( prefs: ViewPrefs ): void {
 }
 
 /** Where the sidebar's open state is remembered between sessions. */
-const SIDEBAR_KEY = 'daguerre.sidebar.v1';
+const SIDEBAR_KEY = 'lienzo.sidebar.v1';
 
 /** Reads the remembered sidebar state, defaulting to open. */
 function readSidebarOpen(): boolean {

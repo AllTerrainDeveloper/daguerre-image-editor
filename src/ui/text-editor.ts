@@ -82,7 +82,7 @@ export class TextEditor {
 
 		const field = document.createElement( 'textarea' );
 
-		field.className = 'dg-text-editor';
+		field.className = 'lz-text-editor';
 		field.rows = 1;
 		field.spellcheck = false;
 		field.setAttribute( 'aria-label', 'Text' );

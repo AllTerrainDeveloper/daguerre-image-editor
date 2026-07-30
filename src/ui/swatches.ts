@@ -83,7 +83,7 @@ export class Swatches {
 		this.options = options;
 
 		this.el = document.createElement( 'div' );
-		this.el.className = 'dg-swatches';
+		this.el.className = 'lz-swatches';
 
 		this.foreground = this.makeSwatch( 'colour', __( 'Foreground colour' ) );
 		this.background = this.makeSwatch( 'background', __( 'Background colour' ) );
@@ -91,19 +91,19 @@ export class Swatches {
 		this.swapButton = createIconButton( {
 			glyph: '⇄',
 			label: __( 'Swap colours (X)' ),
-			className: 'dg-swatches__action',
+			className: 'lz-swatches__action',
 			onClick: () => this.swap(),
 		} );
 
 		this.resetButton = createIconButton( {
 			glyph: '◨',
 			label: __( 'Reset to black and white (D)' ),
-			className: 'dg-swatches__action',
+			className: 'lz-swatches__action',
 			onClick: () => this.reset(),
 		} );
 
 		const stack = document.createElement( 'div' );
-		stack.className = 'dg-swatches__stack';
+		stack.className = 'lz-swatches__stack';
 		stack.append( this.foreground, this.background );
 
 		this.el.append( stack, this.swapButton.el, this.resetButton.el );
@@ -125,7 +125,7 @@ export class Swatches {
 		const button = document.createElement( 'button' );
 
 		button.type = 'button';
-		button.className = `dg-swatches__chip dg-swatches__chip--${ which }`;
+		button.className = `lz-swatches__chip lz-swatches__chip--${ which }`;
 		button.title = label;
 		button.setAttribute( 'aria-label', label );
 		button.setAttribute( 'aria-haspopup', 'dialog' );
@@ -158,7 +158,7 @@ export class Swatches {
 		}
 
 		const popover = document.createElement( 'div' );
-		popover.className = 'dg-swatch-popover';
+		popover.className = 'lz-swatch-popover';
 		popover.dataset.which = which;
 		popover.setAttribute( 'role', 'dialog' );
 		popover.setAttribute( 'aria-label', label );
@@ -194,7 +194,7 @@ export class Swatches {
 
 		// On the editor root, in fixed coordinates: the rail scrolls, so a popover
 		// anchored inside it is clipped the moment it reaches past the edge -- but the
-		// body would lose the palette, which lives on `.dg-editor`.
+		// body would lose the palette, which lives on `.lz-editor`.
 		floatingHost( anchor ).appendChild( popover );
 		positionFloating( popover, anchor, 'block-end' );
 

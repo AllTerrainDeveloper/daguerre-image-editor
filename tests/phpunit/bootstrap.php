@@ -2,38 +2,38 @@
 /**
  * PHPUnit bootstrap.
  *
- * Locates a WordPress test library, then loads Daguerre as a must-use plugin so its
+ * Locates a WordPress test library, then loads Lienzo as a must-use plugin so its
  * hooks are registered before the test suite's own `init` runs.
  *
- * Daguerre requires Desktop Mode and refuses to load without it, so the two functions
+ * Lienzo requires Desktop Mode and refuses to load without it, so the two functions
  * that requirement is tested against are stubbed here. Stubbing rather than installing
- * Desktop Mode is deliberate: these tests are about Daguerre's PHP, and the plugin
+ * Desktop Mode is deliberate: these tests are about Lienzo's PHP, and the plugin
  * checks for *capability* -- do the functions I am about to call exist -- rather than
  * for a plugin slug, so satisfying the check honestly means defining them.
  *
  * Point WP_TESTS_DIR (or WP_PHPUNIT__DIR) at a WordPress develop checkout's
  * tests/phpunit directory before running.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
-$daguerre_tests_dir = getenv( 'WP_TESTS_DIR' );
+$lienzo_tests_dir = getenv( 'WP_TESTS_DIR' );
 
-if ( ! $daguerre_tests_dir ) {
-	$daguerre_tests_dir = getenv( 'WP_PHPUNIT__DIR' );
+if ( ! $lienzo_tests_dir ) {
+	$lienzo_tests_dir = getenv( 'WP_PHPUNIT__DIR' );
 }
 
-if ( ! $daguerre_tests_dir ) {
+if ( ! $lienzo_tests_dir ) {
 	// Conventional locations: wp-env's tests container, then the classic install script's.
-	foreach ( array( '/wordpress-phpunit', '/tmp/wordpress-tests-lib' ) as $daguerre_candidate ) {
-		if ( file_exists( $daguerre_candidate . '/includes/functions.php' ) ) {
-			$daguerre_tests_dir = $daguerre_candidate;
+	foreach ( array( '/wordpress-phpunit', '/tmp/wordpress-tests-lib' ) as $lienzo_candidate ) {
+		if ( file_exists( $lienzo_candidate . '/includes/functions.php' ) ) {
+			$lienzo_tests_dir = $lienzo_candidate;
 			break;
 		}
 	}
 }
 
-if ( ! $daguerre_tests_dir || ! file_exists( $daguerre_tests_dir . '/includes/functions.php' ) ) {
+if ( ! $lienzo_tests_dir || ! file_exists( $lienzo_tests_dir . '/includes/functions.php' ) ) {
 	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- WordPress is not loaded yet, so WP_Filesystem does not exist; this is a CLI diagnostic on STDERR.
 	fwrite(
 		STDERR,
@@ -44,10 +44,10 @@ if ( ! $daguerre_tests_dir || ! file_exists( $daguerre_tests_dir . '/includes/fu
 	exit( 1 );
 }
 
-require_once $daguerre_tests_dir . '/includes/functions.php';
+require_once $lienzo_tests_dir . '/includes/functions.php';
 
 /*
- * Stand-ins for the parts of Desktop Mode that Daguerre requires.
+ * Stand-ins for the parts of Desktop Mode that Lienzo requires.
  *
  * Declared at file scope so they exist before the plugin loads, and deliberately
  * unprefixed: they impersonate another plugin's public API, and prefixing them would
@@ -92,10 +92,10 @@ if ( ! function_exists( 'desktop_mode_is_enabled' ) ) {
  *
  * @return void
  */
-function daguerre_manually_load_plugin() {
-	require dirname( __DIR__, 2 ) . '/daguerre.php';
+function lienzo_manually_load_plugin() {
+	require dirname( __DIR__, 2 ) . '/lienzo.php';
 }
 
-tests_add_filter( 'muplugins_loaded', 'daguerre_manually_load_plugin' );
+tests_add_filter( 'muplugins_loaded', 'lienzo_manually_load_plugin' );
 
-require $daguerre_tests_dir . '/includes/bootstrap.php';
+require $lienzo_tests_dir . '/includes/bootstrap.php';

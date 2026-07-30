@@ -706,7 +706,7 @@ export class StageTools {
 	private showPreview( origin: PointerEvent, event: PointerEvent ): void {
 		if ( ! this.preview ) {
 			const svg = document.createElementNS( 'http://www.w3.org/2000/svg', 'svg' );
-			svg.setAttribute( 'class', 'dg-drag-preview' );
+			svg.setAttribute( 'class', 'lz-drag-preview' );
 			svg.setAttribute( 'aria-hidden', 'true' );
 
 			this.previewPath = document.createElementNS(

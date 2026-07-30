@@ -111,10 +111,10 @@ export class ToolRail {
 		this.options = options;
 
 		this.el = document.createElement( 'div' );
-		this.el.className = 'dg-rail';
+		this.el.className = 'lz-rail';
 
 		const grid = document.createElement( 'div' );
-		grid.className = 'dg-rail__grid';
+		grid.className = 'lz-rail__grid';
 		grid.setAttribute( 'role', 'toolbar' );
 		grid.setAttribute( 'aria-orientation', 'vertical' );
 		grid.setAttribute( 'aria-label', __( 'Tools' ) );
@@ -131,14 +131,14 @@ export class ToolRail {
 				if ( inGroup % 2 === 1 ) {
 					const spacer = document.createElement( 'span' );
 
-					spacer.className = 'dg-rail__spacer';
+					spacer.className = 'lz-rail__spacer';
 					spacer.setAttribute( 'aria-hidden', 'true' );
 					grid.appendChild( spacer );
 				}
 
 				const rule = document.createElement( 'span' );
 
-				rule.className = 'dg-rail__rule';
+				rule.className = 'lz-rail__rule';
 				rule.setAttribute( 'aria-hidden', 'true' );
 				grid.appendChild( rule );
 				group = tool.group;
@@ -152,7 +152,7 @@ export class ToolRail {
 			const button = createIconButton( {
 				glyph: tool.glyph,
 				label: `${ __( tool.label ) } (${ tool.key.toUpperCase() })`,
-				className: 'dg-rail__button',
+				className: 'lz-rail__button',
 				onClick: () => options.onSelect( tool.id ),
 			} );
 
@@ -166,7 +166,7 @@ export class ToolRail {
 		this.overflow = createIconButton( {
 			glyph: '⋯',
 			label: __( 'All tools' ),
-			className: 'dg-rail__button',
+			className: 'lz-rail__button',
 			onClick: () => this.toggleMenu(),
 		} );
 
@@ -177,7 +177,7 @@ export class ToolRail {
 		this.quickMask = createIconButton( {
 			glyph: '◍',
 			label: __( 'Quick mask: show the selection as a red overlay (Q)' ),
-			className: 'dg-rail__mode',
+			className: 'lz-rail__mode',
 			onClick: () => {
 				options.setQuickMask( ! options.getQuickMask() );
 				this.syncModes();
@@ -187,7 +187,7 @@ export class ToolRail {
 		this.fullScreen = createIconButton( {
 			glyph: '⛶',
 			label: __( 'Full screen (F)' ),
-			className: 'dg-rail__mode',
+			className: 'lz-rail__mode',
 			onClick: () => {
 				options.setFullScreen( ! options.getFullScreen() );
 				this.syncModes();
@@ -195,7 +195,7 @@ export class ToolRail {
 		} );
 
 		const modes = document.createElement( 'div' );
-		modes.className = 'dg-rail__modes';
+		modes.className = 'lz-rail__modes';
 		modes.setAttribute( 'role', 'group' );
 		modes.setAttribute( 'aria-label', __( 'Screen modes' ) );
 		modes.append( this.quickMask.el, this.fullScreen.el );
@@ -297,7 +297,7 @@ export class ToolRail {
 		}
 
 		const menu = document.createElement( 'div' );
-		menu.className = 'dg-rail-menu';
+		menu.className = 'lz-rail-menu';
 		menu.setAttribute( 'role', 'menu' );
 		menu.setAttribute( 'aria-label', __( 'All tools' ) );
 
@@ -307,12 +307,12 @@ export class ToolRail {
 			const item = document.createElement( 'button' );
 
 			item.type = 'button';
-			item.className = 'dg-rail-menu__item';
+			item.className = 'lz-rail-menu__item';
 			item.setAttribute( 'role', 'menuitem' );
 			item.innerHTML = '';
 
 			const glyph = document.createElement( 'span' );
-			glyph.className = 'dg-rail-menu__glyph';
+			glyph.className = 'lz-rail-menu__glyph';
 			glyph.textContent = tool.glyph;
 
 			const name = document.createElement( 'span' );

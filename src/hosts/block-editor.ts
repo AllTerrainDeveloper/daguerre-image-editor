@@ -1,7 +1,7 @@
 /**
  * The block editor host.
  *
- * Adds an "Edit with Daguerre" item to the toolbar of `core/image` blocks.
+ * Adds an "Edit with Lienzo" item to the toolbar of `core/image` blocks.
  *
  * This *adds* an entry point; it does not replace core's own cropper. Core wires
  * its image-editing save handler through a `Symbol`-keyed private editor setting
@@ -55,9 +55,9 @@ export function bootBlockEditor(): void {
 
 	hooks.addFilter(
 		'editor.BlockEdit',
-		'daguerre/image-toolbar',
+		'lienzo/image-toolbar',
 		( BlockEdit: unknown ) =>
-			function DaguerreImageToolbar( props: {
+			function LienzoImageToolbar( props: {
 				name: string;
 				isSelected: boolean;
 				attributes: ImageAttributes;
@@ -86,10 +86,10 @@ export function bootBlockEditor(): void {
 						createElement(
 							ToolbarButton,
 							{
-								label: __( 'Edit with Daguerre' ),
+								label: __( 'Edit with Lienzo' ),
 								onClick: () => openInDesktop( id ),
 							},
-							__( 'Daguerre' )
+							__( 'Lienzo' )
 						)
 					)
 				);

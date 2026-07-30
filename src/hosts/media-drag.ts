@@ -17,7 +17,7 @@
  */
 
 /** Private drag type carrying an attachment id. */
-export const ATTACHMENT_TYPE = 'application/x-daguerre-attachment';
+export const ATTACHMENT_TYPE = 'application/x-lienzo-attachment';
 
 /** Selectors that identify an attachment, most reliable first. */
 const CANDIDATES = [

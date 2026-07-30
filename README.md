@@ -1,10 +1,10 @@
-# Daguerre
+# Lienzo.
 
 A non-destructive, GPU-accelerated image editor for the WordPress media library.
 
 WordPress has shipped the same image editor since 2008 — rotate, flip, crop, scale — and
 `wp-admin/includes/image-edit.php` renders its toolbar as hardcoded `onclick=` markup with no
-action hooks inside, so it cannot be extended, only replaced. Daguerre replaces it.
+action hooks inside, so it cannot be extended, only replaced. Lienzo replaces it.
 
 ## Status
 
@@ -14,7 +14,7 @@ and saved presets; then a layer stack, four selection shapes, brushes, a magic w
 toning brushes, a clone stamp, gradients, shapes, paths and on-canvas text. Adjustments stay
 non-destructive — always written as a new attachment with the edit stored as a re-openable recipe.
 
-Daguerre runs as a **native window inside [Desktop Mode](../alcazaba-plugin)**, which it requires.
+Lienzo runs as a **native window inside [Desktop Mode](../alcazaba-plugin)**, which it requires.
 Opened from the dock, a desktop icon, a double-clicked image, the Media Library row action, the
 attachment screen, the media modal or the `core/image` block toolbar — every one of those opens the
 same window.
@@ -28,7 +28,7 @@ create an attachment.
 **One editor, one surface.** The editor is a single mountable component:
 
 ```js
-const editor = window.daguerre.mount( element, {
+const editor = window.lienzo.mount( element, {
     attachmentId: 123,
     host: 'page',            // 'page' | 'modal' | 'window' — affects chrome only
     onClose: () => {},
@@ -48,7 +48,7 @@ pixel already is, which is not linear — so it travels as a separate uniform an
 applies it immediately after.
 
 **Non-destructive.** A save writes a *new* attachment and records the edit as a recipe — the list of
-adjustments, not the pixels. Re-opening a Daguerre-produced image loads the *original's* pixels plus
+adjustments, not the pixels. Re-opening a Lienzo-produced image loads the *original's* pixels plus
 the recipe, so every render is first-generation and repeated edits never compound quantisation loss.
 
 **Resolution independence is what makes the preview honest.** The on-screen sprite is scaled to fit
@@ -64,7 +64,7 @@ not markup baked into the editor. Each collapses independently and remembers tha
 chooses which are on screen at all.
 
 ```js
-window.daguerre.registerPanel( {
+window.lienzo.registerPanel( {
     id: 'layers',
     title: 'Layers',
     order: 15,
@@ -185,7 +185,7 @@ invisible at fit zoom and obvious at 100% — that is arithmetic, not a bug.
 
 ## A Desktop Mode application
 
-Daguerre requires the [Desktop Mode](../alcazaba-plugin) plugin and runs as a **native window** in
+Lienzo requires the [Desktop Mode](../alcazaba-plugin) plugin and runs as a **native window** in
 the desktop shell, rendering into the shell's own DOM. That is the whole design, not a preference:
 the shell's `<wpd-*>` components, its drag bridge and its PixiJS all live in the parent frame, and a
 chromeless iframe can reach none of them — no component is registered there at all. There is
@@ -194,7 +194,7 @@ are all ways of asking for it rather than places the editor mounts.
 
 The requirement is checked by **capability, not by plugin slug** — do the functions being called
 exist — so a fork, a rename or a bundled copy all work. It is checked on `plugins_loaded`, and that
-detail is load-bearing: plugins load alphabetically, so `daguerre` runs *before* `desktop-mode` and
+detail is load-bearing: plugins load alphabetically, so `lienzo` runs *before* `desktop-mode` and
 none of its functions exist yet at file scope. Checking there would fail on every site, every time,
 and the plugin would silently never load. `Requires Plugins:` governs activation, not load order.
 
@@ -270,7 +270,7 @@ The editor **defines** Desktop Mode's component palette on its own root, and thi
 polish: nothing in either plugin declares `--wpd-fg`, `--wpd-fg-muted`, `--wpd-border` or the rest, so
 every component was falling back to its light-theme literals and painting `#646970` labels and white
 input backgrounds onto a dark panel. Labels measured about 2:1. One block of variables on
-`.dg-editor` themes every `<wpd-*>` the editor will ever mount, including ones added later, and takes
+`.lz-editor` themes every `<wpd-*>` the editor will ever mount, including ones added later, and takes
 those labels to 5.5:1.
 
 The surround stays dark in every host, deliberately: judging an exposure against a white panel is
@@ -284,17 +284,17 @@ to a hardcoded blue every time.
 ### The bundle is evaluated twice
 
 WordPress enqueues the script, and the shell's lazy-load payload injects the same URL again when a
-native window first opens. Two IIFE evaluations, two module scopes — so `window.daguerre` belongs to
+native window first opens. Two IIFE evaluations, two module scopes — so `window.lienzo` belongs to
 one copy and the live window's loader to the other, and a request to open an image reached a set of
 window loaders the live window had never been added to. It reported success and did nothing.
 
-Mutable desktop state therefore lives on a single `window.__daguerreDesktop` singleton, and the
+Mutable desktop state therefore lives on a single `window.__lienzoDesktop` singleton, and the
 one-time registrations are guarded. **Anything in `src/hosts/desktop-mode.ts` that must be singular
 has to live there**, not in a module-level variable.
 
 ## PixiJS comes from the shell
 
-Daguerre ships no rendering library. Desktop Mode vendors PixiJS v8 (MIT) and registers it in its
+Lienzo ships no rendering library. Desktop Mode vendors PixiJS v8 (MIT) and registers it in its
 module registry, so `src/engine/pixi-loader.ts` asks for it with
 `wp.desktop.loadModules( [ 'pixijs' ] )` and reads `window.PIXI`.
 
@@ -309,11 +309,11 @@ unrelated Pixi apps on the page.
 ## Layout
 
 ```
-daguerre.php               plugin bootstrap, constants
+lienzo.php               plugin bootstrap, constants
 includes/
   helpers.php              capabilities, source resolution, render ceiling
   recipe.php               op schema + validation  (contract twin of src/model/recipe.ts)
-  rest.php                 daguerre/v1 routes
+  rest.php                 lienzo/v1 routes
   assets.php               script/style registration + the config blob
   render.php               blob -> sideload -> attachment -> recipe meta
   presets.php              per-user saved looks
@@ -362,7 +362,7 @@ npm run typecheck      # tsc --noEmit
 npm run test           # vitest — the pure modules
 npm run env:start      # wp-env at http://localhost:8894 (admin / password)
 npm run test:php:install
-npm run test:php       # phpunit, @group daguerre
+npm run test:php       # phpunit, @group lienzo
 ```
 
 ### Two sites, and why builds deploy themselves
@@ -375,24 +375,26 @@ npm run test:php       # phpunit, @group daguerre
 The wp-env site mounts this repo directly, so a change is live the moment it is saved (PHP) or
 rebuilt (JS/CSS). The `:8889` QA site is a separate WordPress checkout that only mounts *its own*
 tree, so `bin/deploy.mjs` mirrors the plugin into
-`../wordpress-alcazaba/src/wp-content/plugins/daguerre` at the end of every build — no zip, no
+`../wordpress-alcazaba/src/wp-content/plugins/lienzo` at the end of every build — no zip, no
 WordPress upload screen, and it is live immediately because that checkout is itself bind-mounted
 into the container.
 
 The mirror copies only what runs in production; `src/`, `tests/`, `bin/`, `node_modules/` and the
 build config are excluded. It deletes files the source no longer has, so a renamed file cannot
 linger and mask a bug — and it therefore refuses to write into any directory that does not already
-contain `daguerre.php`. When no WordPress checkout is present it prints a note and exits zero rather
-than failing the build. Override with `DAGUERRE_DEPLOY_TARGET`, or skip with `DAGUERRE_SKIP_DEPLOY=1`.
+contain `lienzo.php`. When no WordPress checkout is present it prints a note and exits zero rather
+than failing the build. Override with `LIENZO_DEPLOY_TARGET`, or skip with `LIENZO_SKIP_DEPLOY=1`.
 
-`npm run env:start` maps Desktop Mode in from `../alcazaba-plugin` but leaves it **inactive**, so the
-default QA state has it off — which is now a state in which Daguerre does nothing but explain why.
-Activate it to use the editor at all.
+`npm run env:start` maps both plugins in but activates neither: wp-env's `plugins` list mounts a
+directory under its *own basename* as well, which would put a second copy of Lienzo on the site, and
+it treats a failed activation as fatal — which `Requires Plugins: desktop-mode` guarantees when
+Desktop Mode is not active yet. The mappings put both at their correct slugs; activate them from the
+Plugins screen.
 
 Lint PHP with `vendor/bin/phpcs` inside the container:
 
 ```bash
-npx wp-env run tests-cli --env-cwd=wp-content/plugins/daguerre vendor/bin/phpcs
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/lienzo vendor/bin/phpcs
 ```
 
 ## What runs in how many passes
@@ -418,7 +420,7 @@ converted to pixels against whatever is actually being rendered — which is why
 
 Four places, and all four are required or the op silently misbehaves:
 
-1. `daguerre_op_schema()` in `includes/recipe.php` — bounds and rest position.
+1. `lienzo_op_schema()` in `includes/recipe.php` — bounds and rest position.
 2. `OpType` / `PANEL_OP_ORDER` / `MATRIX_OP_ORDER` in `src/model/recipe.ts`.
 3. `matrixForOp()` in `src/engine/color-matrix.ts`, or a new shader uniform if it is not linear.
 4. `OP_DISPLAY` in `src/api.ts` — the user-facing scale and suffix.
@@ -430,12 +432,12 @@ browser implementation gives you a slider that validates and then does nothing.
 
 | Hook | Purpose |
 |---|---|
-| `daguerre_op_schema` | Add or re-bound adjustments |
-| `daguerre_supported_mime_types` | Which images may be opened |
-| `daguerre_max_render_pixels` | Ceiling on a single GPU render |
-| `daguerre_max_upload_bytes` | Ceiling on a saved render |
-| `daguerre_config` | The blob handed to the browser |
-| `daguerre_rest_media_payload` | The open-image response |
+| `lienzo_op_schema` | Add or re-bound adjustments |
+| `lienzo_supported_mime_types` | Which images may be opened |
+| `lienzo_max_render_pixels` | Ceiling on a single GPU render |
+| `lienzo_max_upload_bytes` | Ceiling on a saved render |
+| `lienzo_config` | The blob handed to the browser |
+| `lienzo_rest_media_payload` | The open-image response |
 
 ## Roadmap
 

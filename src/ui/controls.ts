@@ -3,7 +3,7 @@
  *
  * Inside Desktop Mode the shell registers a kit of `<wpd-*>` web components that
  * carry the desktop's theming, spacing and dark-mode handling. Using them makes
- * Daguerre look like it belongs. Outside Desktop Mode they do not exist, so every
+ * Lienzo look like it belongs. Outside Desktop Mode they do not exist, so every
  * factory here builds a plain-DOM equivalent instead.
  *
  * Detection is per tag and happens at build time rather than being inferred from
@@ -31,7 +31,7 @@ let idCounter = 1;
  * @param kind Short prefix describing the control.
  */
 function fieldId( kind: string ): string {
-	return `dg-${ kind }-${ ( idCounter++ ).toString( 36 ) }`;
+	return `lz-${ kind }-${ ( idCounter++ ).toString( 36 ) }`;
 }
 
 /**
@@ -95,7 +95,7 @@ export interface SliderOptions {
  */
 export function createSlider( options: SliderOptions ): SliderHandle {
 	const row = document.createElement( 'div' );
-	row.className = 'dg-adjust';
+	row.className = 'lz-adjust';
 
 	const handle = hasComponent( 'wpd-range-field' )
 		? createWpdSlider( options )
@@ -114,7 +114,7 @@ export function createSlider( options: SliderOptions ): SliderHandle {
 		},
 	} );
 
-	reset.el.classList.add( 'dg-adjust__reset' );
+	reset.el.classList.add( 'lz-adjust__reset' );
 	row.appendChild( reset.el );
 
 	return {
@@ -179,24 +179,24 @@ function createWpdSlider( options: SliderOptions ): SliderHandle {
  */
 function createNativeSlider( options: SliderOptions ): SliderHandle {
 	const wrap = document.createElement( 'div' );
-	wrap.className = 'dg-slider';
+	wrap.className = 'lz-slider';
 
 	const id = fieldId( 'slider' );
 
 	const label = document.createElement( 'label' );
-	label.className = 'dg-slider__label';
+	label.className = 'lz-slider__label';
 	label.htmlFor = id;
 	label.textContent = options.label;
 
 	const readout = document.createElement( 'output' );
-	readout.className = 'dg-slider__value';
+	readout.className = 'lz-slider__value';
 	readout.htmlFor = id;
 
 	const input = document.createElement( 'input' );
 	input.type = 'range';
 	input.id = id;
 	input.name = id;
-	input.className = 'dg-slider__input';
+	input.className = 'lz-slider__input';
 	input.min = String( options.min );
 	input.max = String( options.max );
 	input.step = String( options.step );
@@ -206,7 +206,7 @@ function createNativeSlider( options: SliderOptions ): SliderHandle {
 		readout.textContent = `${ value }${ options.suffix ?? '' }`;
 		// Lets CSS tint the filled portion of the track.
 		const ratio = ( value - options.min ) / ( options.max - options.min || 1 );
-		wrap.style.setProperty( '--dg-slider-fill', String( ratio ) );
+		wrap.style.setProperty( '--lz-slider-fill', String( ratio ) );
 		wrap.classList.toggle( 'is-modified', value !== options.resetTo );
 	};
 
@@ -224,7 +224,7 @@ function createNativeSlider( options: SliderOptions ): SliderHandle {
 	input.addEventListener( 'change', onChange );
 
 	const head = document.createElement( 'div' );
-	head.className = 'dg-slider__head';
+	head.className = 'lz-slider__head';
 	head.append( label, readout );
 	wrap.append( head, input );
 
@@ -265,7 +265,7 @@ export function createButton( options: ButtonOptions ): ButtonHandle {
 	const useWpd = hasComponent( 'wpd-button' );
 	const el = document.createElement( useWpd ? 'wpd-button' : 'button' );
 
-	el.classList.add( 'dg-button' );
+	el.classList.add( 'lz-button' );
 	el.textContent = options.label;
 
 	if ( options.title ) {
@@ -277,7 +277,7 @@ export function createButton( options: ButtonOptions ): ButtonHandle {
 		el.setAttribute( 'variant', options.variant ?? 'ghost' );
 	} else {
 		( el as HTMLButtonElement ).type = 'button';
-		el.classList.add( `dg-button--${ options.variant ?? 'ghost' }` );
+		el.classList.add( `lz-button--${ options.variant ?? 'ghost' }` );
 	}
 
 	el.addEventListener( 'click', options.onClick );
@@ -329,14 +329,14 @@ export function createSelect( options: SelectOptions ): SelectHandle {
 	const useWpd = hasComponent( 'wpd-select' );
 
 	const wrap = document.createElement( 'div' );
-	wrap.className = 'dg-field';
+	wrap.className = 'lz-field';
 
 	const label = document.createElement( 'label' );
-	label.className = 'dg-field__label';
+	label.className = 'lz-field__label';
 	label.textContent = options.label;
 
 	const select = document.createElement( useWpd ? 'wpd-select' : 'select' );
-	select.className = 'dg-field__control';
+	select.className = 'lz-field__control';
 
 	if ( useWpd ) {
 		// A custom element is not a form control, so it needs the id for the label but
@@ -437,7 +437,7 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
 		}
 
 		field.setAttribute( 'value', String( Math.round( options.value ) ) );
-		field.classList.add( 'dg-field--compact' );
+		field.classList.add( 'lz-field--compact' );
 
 		if ( numeric ) {
 			field.setAttribute( 'min', String( options.min ) );
@@ -496,8 +496,8 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
 		const row = document.createElement( 'div' );
 		const text = document.createElement( 'span' );
 
-		row.className = 'dg-field dg-field--compact dg-field--narrow';
-		text.className = 'dg-field__label';
+		row.className = 'lz-field lz-field--compact lz-field--narrow';
+		text.className = 'lz-field__label';
 		text.textContent = options.label;
 		row.append( text, field );
 
@@ -505,19 +505,19 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
 	}
 
 	const wrap = document.createElement( 'label' );
-	wrap.className = 'dg-field dg-field--compact';
+	wrap.className = 'lz-field lz-field--compact';
 
 	if ( options.compact ) {
-		wrap.classList.add( 'dg-field--narrow' );
+		wrap.classList.add( 'lz-field--narrow' );
 	}
 
 	const text = document.createElement( 'span' );
-	text.className = 'dg-field__label';
+	text.className = 'lz-field__label';
 	text.textContent = options.label;
 
 	const input = document.createElement( 'input' );
 	input.type = 'number';
-	input.className = 'dg-field__control';
+	input.className = 'lz-field__control';
 	nameControl( input, null, 'number' );
 	input.value = String( Math.round( options.value ) );
 	input.min = String( options.min );
@@ -580,15 +580,15 @@ export function createColourField( options: ColourFieldOptions ): FieldHandle {
 	}
 
 	const wrap = document.createElement( 'label' );
-	wrap.className = 'dg-field dg-field--compact';
+	wrap.className = 'lz-field lz-field--compact';
 
 	const text = document.createElement( 'span' );
-	text.className = 'dg-field__label';
+	text.className = 'lz-field__label';
 	text.textContent = options.label;
 
 	const input = document.createElement( 'input' );
 	input.type = 'color';
-	input.className = 'dg-field__control dg-colour';
+	input.className = 'lz-field__control lz-colour';
 	nameControl( input, null, 'colour' );
 	input.value = options.value;
 
@@ -623,10 +623,10 @@ export interface SegmentedOptions {
  */
 export function createSegmented( options: SegmentedOptions ): FieldHandle {
 	const wrap = document.createElement( 'div' );
-	wrap.className = 'dg-field dg-field--compact';
+	wrap.className = 'lz-field lz-field--compact';
 
 	const text = document.createElement( 'span' );
-	text.className = 'dg-field__label';
+	text.className = 'lz-field__label';
 	text.textContent = options.label;
 
 	if ( hasComponent( 'wpd-segmented' ) ) {
@@ -662,7 +662,7 @@ export function createSegmented( options: SegmentedOptions ): FieldHandle {
 	}
 
 	const group = document.createElement( 'div' );
-	group.className = 'dg-segmented';
+	group.className = 'lz-segmented';
 	group.setAttribute( 'role', 'radiogroup' );
 	group.setAttribute( 'aria-label', options.label );
 
@@ -682,7 +682,7 @@ export function createSegmented( options: SegmentedOptions ): FieldHandle {
 		const button = document.createElement( 'button' );
 
 		button.type = 'button';
-		button.className = 'dg-segmented__item';
+		button.className = 'lz-segmented__item';
 		button.dataset.value = option.value;
 		button.textContent = option.label;
 		button.setAttribute( 'role', 'radio' );
@@ -756,15 +756,15 @@ export function createTextField( options: TextFieldOptions ): FieldHandle {
 	}
 
 	const wrap = document.createElement( 'label' );
-	wrap.className = 'dg-field';
+	wrap.className = 'lz-field';
 
 	const text = document.createElement( 'span' );
-	text.className = 'dg-field__label';
+	text.className = 'lz-field__label';
 	text.textContent = options.label;
 
 	const input = document.createElement( 'input' );
 	input.type = 'text';
-	input.className = 'dg-field__control';
+	input.className = 'lz-field__control';
 	nameControl( input, null, 'text' );
 	input.value = options.value;
 
@@ -843,7 +843,7 @@ export function createCheckbox( options: CheckboxOptions ): CheckboxHandle {
 	}
 
 	const wrap = document.createElement( 'label' );
-	wrap.className = 'dg-check';
+	wrap.className = 'lz-check';
 
 	if ( options.title ) {
 		wrap.title = options.title;
@@ -878,16 +878,16 @@ export function createSection( heading: string ): HTMLElement {
 		const section = document.createElement( 'wpd-section' );
 		section.setAttribute( 'heading', heading );
 		section.setAttribute( 'stack', '' );
-		section.classList.add( 'dg-section' );
+		section.classList.add( 'lz-section' );
 
 		return section;
 	}
 
 	const section = document.createElement( 'section' );
-	section.className = 'dg-section';
+	section.className = 'lz-section';
 
 	const title = document.createElement( 'h3' );
-	title.className = 'dg-section__heading';
+	title.className = 'lz-section__heading';
 	title.textContent = heading;
 	section.appendChild( title );
 
@@ -925,7 +925,7 @@ export function createIconButton( options: IconButtonOptions ): IconButtonHandle
 	const useWpd = hasComponent( 'wpd-button' );
 	const el = document.createElement( useWpd ? 'wpd-button' : 'button' );
 
-	el.classList.add( 'dg-icon-button' );
+	el.classList.add( 'lz-icon-button' );
 
 	if ( options.className ) {
 		el.classList.add( options.className );
@@ -940,7 +940,7 @@ export function createIconButton( options: IconButtonOptions ): IconButtonHandle
 		el.setAttribute( 'icon-only', '' );
 	} else {
 		( el as HTMLButtonElement ).type = 'button';
-		el.classList.add( `dg-button--${ options.variant ?? 'ghost' }` );
+		el.classList.add( `lz-button--${ options.variant ?? 'ghost' }` );
 	}
 
 	el.addEventListener( 'click', options.onClick );
@@ -998,7 +998,7 @@ export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle
 	const el = document.createElement( useWpd ? 'wpd-swatch-grid' : 'div' );
 	const listeners: Array< () => void > = [];
 
-	el.classList.add( 'dg-palette' );
+	el.classList.add( 'lz-palette' );
 	el.setAttribute( 'aria-label', options.label );
 
 	if ( ! useWpd ) {
@@ -1010,7 +1010,7 @@ export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle
 	for ( const colour of options.colours ) {
 		const chip = document.createElement( useWpd ? 'wpd-swatch' : 'button' );
 
-		chip.classList.add( 'dg-palette__chip' );
+		chip.classList.add( 'lz-palette__chip' );
 		chip.setAttribute( 'title', colour );
 		chip.setAttribute( 'aria-label', colour );
 
@@ -1064,14 +1064,14 @@ export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle
  *
  * The nearest editor root, not the body. The body escapes the clipping but also
  * escapes the palette: every colour in this stylesheet is a custom property declared
- * on `.dg-editor`, so a popover parented to the body inherits none of them and renders
+ * on `.lz-editor`, so a popover parented to the body inherits none of them and renders
  * as transparent text over the canvas. Staying inside the editor keeps the variables
  * and still clears the tool rail's own scroll container.
  *
  * @param anchor Element the popover belongs to.
  */
 export function floatingHost( anchor: HTMLElement ): HTMLElement {
-	return anchor.closest( '.dg-editor' ) ?? document.body;
+	return anchor.closest( '.lz-editor' ) ?? document.body;
 }
 
 /**

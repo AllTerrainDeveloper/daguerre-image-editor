@@ -8,7 +8,7 @@
  * - Each panel collapses independently, and remembers whether it was collapsed.
  * - The user chooses which tools are on screen at all, from a picker.
  * - A new tool is a `registerPanel()` call, not an edit to the editor's shell. The
- *   registry is exposed on `window.daguerre`, so a third party can add one too.
+ *   registry is exposed on `window.lienzo`, so a third party can add one too.
  *
  * Panels are an accordion rather than tabs on purpose: a histogram is something you
  * watch *while* dragging a slider, so hiding it behind a tab switch would break the
@@ -67,7 +67,7 @@ export const PAINTING_TOOLS: ActiveTool[] = [
 ];
 
 /** Where panel open/closed state is remembered between sessions. */
-const STORAGE_KEY = 'daguerre.panels.v1';
+const STORAGE_KEY = 'lienzo.panels.v1';
 
 /** What a panel is given when it renders. */
 export interface PanelContext {
@@ -169,7 +169,7 @@ export interface PanelDef {
 	/**
 	 * Renders the panel body.
 	 *
-	 * The body carries `data-collapsed` and emits a `dg-panel-toggle` CustomEvent
+	 * The body carries `data-collapsed` and emits a `lz-panel-toggle` CustomEvent
 	 * whenever that changes, so a panel owning anything outside its own markup can
 	 * follow along.
 	 *
@@ -314,15 +314,15 @@ export class PanelHost {
 		this.root.replaceChildren();
 
 		const header = document.createElement( 'div' );
-		header.className = 'dg-sidebar__header';
+		header.className = 'lz-sidebar__header';
 
 		const label = document.createElement( 'span' );
-		label.className = 'dg-sidebar__title';
+		label.className = 'lz-sidebar__title';
 		label.textContent = __( 'Tools' );
 
 		const toggle = document.createElement( 'button' );
 		toggle.type = 'button';
-		toggle.className = 'dg-sidebar__picker-toggle';
+		toggle.className = 'lz-sidebar__picker-toggle';
 		toggle.textContent = '⋯';
 		toggle.title = __( 'Choose which tools are shown' );
 		toggle.setAttribute( 'aria-label', __( 'Choose which tools are shown' ) );
@@ -330,13 +330,13 @@ export class PanelHost {
 		toggle.addEventListener( 'click', () => this.togglePicker( toggle ) );
 
 		const actions = document.createElement( 'div' );
-		actions.className = 'dg-sidebar__actions';
+		actions.className = 'lz-sidebar__actions';
 		actions.appendChild( toggle );
 
 		if ( this.onHide ) {
 			const hide = document.createElement( 'button' );
 			hide.type = 'button';
-			hide.className = 'dg-sidebar__hide';
+			hide.className = 'lz-sidebar__hide';
 			hide.textContent = '⟩';
 			hide.title = __( 'Hide the tools' );
 			hide.setAttribute( 'aria-label', __( 'Hide the tools' ) );
@@ -348,7 +348,7 @@ export class PanelHost {
 		header.append( label, actions );
 
 		this.stack = document.createElement( 'div' );
-		this.stack.className = 'dg-panels';
+		this.stack.className = 'lz-panels';
 
 		this.root.append( header, this.stack );
 	}
@@ -367,7 +367,7 @@ export class PanelHost {
 		}
 
 		const menu = document.createElement( 'div' );
-		menu.className = 'dg-picker-menu';
+		menu.className = 'lz-picker-menu';
 		menu.setAttribute( 'role', 'group' );
 		menu.setAttribute( 'aria-label', __( 'Tools' ) );
 
@@ -381,7 +381,7 @@ export class PanelHost {
 				},
 			} );
 
-			row.el.classList.add( 'dg-picker-menu__item' );
+			row.el.classList.add( 'lz-picker-menu__item' );
 			menu.appendChild( row.el );
 		}
 
@@ -455,31 +455,31 @@ export class PanelHost {
 		const collapsed = this.isCollapsed( def );
 
 		const section = document.createElement( 'section' );
-		section.className = 'dg-panel';
+		section.className = 'lz-panel';
 		section.dataset.panel = def.id;
 		section.classList.toggle( 'is-collapsed', collapsed );
 
-		const bodyId = `dg-panel-body-${ def.id }`;
+		const bodyId = `lz-panel-body-${ def.id }`;
 
 		const header = document.createElement( 'button' );
 		header.type = 'button';
-		header.className = 'dg-panel__header';
+		header.className = 'lz-panel__header';
 		header.setAttribute( 'aria-expanded', String( ! collapsed ) );
 		header.setAttribute( 'aria-controls', bodyId );
 
 		const chevron = document.createElement( 'span' );
-		chevron.className = 'dg-panel__chevron';
+		chevron.className = 'lz-panel__chevron';
 		chevron.setAttribute( 'aria-hidden', 'true' );
 		chevron.textContent = '▸';
 
 		const title = document.createElement( 'span' );
-		title.className = 'dg-panel__title';
+		title.className = 'lz-panel__title';
 		title.textContent = def.title;
 
 		header.append( chevron, title );
 
 		const body = document.createElement( 'div' );
-		body.className = 'dg-panel__body';
+		body.className = 'lz-panel__body';
 		body.id = bodyId;
 		body.hidden = collapsed;
 
@@ -497,7 +497,7 @@ export class PanelHost {
 			// Panels that own something outside their own body -- the crop overlay
 			// lives on the stage -- need to know when they are put away.
 			body.dispatchEvent(
-				new CustomEvent( 'dg-panel-toggle', {
+				new CustomEvent( 'lz-panel-toggle', {
 					detail: { collapsed: next },
 					bubbles: false,
 				} )

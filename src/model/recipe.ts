@@ -5,7 +5,7 @@
  * `includes/recipe.php`. The op list and the validation rules must agree exactly:
  * the client builds a recipe, the server validates and stores it, and the client
  * reads it back to restore every slider. When you add an op, add it here, in
- * `daguerre_op_schema()`, and in `src/engine/color-matrix.ts`.
+ * `lienzo_op_schema()`, and in `src/engine/color-matrix.ts`.
  */
 
 import {
@@ -39,7 +39,7 @@ import type { OpSchema } from '../types';
  */
 export const RECIPE_VERSION = 5;
 
-/** Every adjustment Daguerre understands. */
+/** Every adjustment Lienzo understands. */
 export type OpType =
 	| 'exposure'
 	| 'contrast'
@@ -443,7 +443,7 @@ export function migrateRecipe( raw: Record< string, unknown > ): Record< string,
 /**
  * Validates and normalises a recipe received from the server or from storage.
  *
- * Deliberately strict, and deliberately the same rules as `daguerre_validate_recipe()`.
+ * Deliberately strict, and deliberately the same rules as `lienzo_validate_recipe()`.
  * An unknown op is an error rather than something to drop: a recipe that quietly
  * loses an op would restore sliders that do not match the pixels on screen.
  *

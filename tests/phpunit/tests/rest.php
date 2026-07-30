@@ -1,17 +1,17 @@
 <?php
 /**
- * REST routes under daguerre/v1.
+ * REST routes under lienzo/v1.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 /**
  * Tests for includes/rest.php.
  *
- * @group daguerre
- * @group daguerre-rest
+ * @group lienzo
+ * @group lienzo-rest
  */
-class Tests_Daguerre_Rest extends WP_UnitTestCase {
+class Tests_Lienzo_Rest extends WP_UnitTestCase {
 
 	/**
 	 * Administrator user ID.
@@ -55,55 +55,55 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 	/**
 	 * Both routes are registered.
 	 *
-	 * @covers ::daguerre_register_rest_routes
+	 * @covers ::lienzo_register_rest_routes
 	 */
 	public function test_routes_are_registered() {
 		$routes = rest_get_server()->get_routes();
 
-		$this->assertArrayHasKey( '/daguerre/v1/media/(?P<id>[\d]+)', $routes );
-		$this->assertArrayHasKey( '/daguerre/v1/media/(?P<id>[\d]+)/source', $routes );
+		$this->assertArrayHasKey( '/lienzo/v1/media/(?P<id>[\d]+)', $routes );
+		$this->assertArrayHasKey( '/lienzo/v1/media/(?P<id>[\d]+)/source', $routes );
 	}
 
 	/**
 	 * An anonymous request is a 401, distinguishable from a permission failure.
 	 *
-	 * @covers ::daguerre_rest_permission
+	 * @covers ::lienzo_rest_permission
 	 */
 	public function test_anonymous_request_is_unauthorized() {
 		$id = $this->make_image();
 		wp_set_current_user( 0 );
 
-		$response = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $id ) );
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $id ) );
 
 		$this->assertSame( 401, $response->get_status() );
-		$this->assertSame( 'daguerre_not_logged_in', $response->get_data()['code'] );
+		$this->assertSame( 'lienzo_not_logged_in', $response->get_data()['code'] );
 	}
 
 	/**
 	 * A logged-in user without the capability is a 403.
 	 *
-	 * @covers ::daguerre_rest_permission
+	 * @covers ::lienzo_rest_permission
 	 */
 	public function test_subscriber_is_forbidden() {
 		$id = $this->make_image();
 		wp_set_current_user( $this->subscriber );
 
-		$response = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $id ) );
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $id ) );
 
 		$this->assertSame( 403, $response->get_status() );
-		$this->assertSame( 'daguerre_cannot_edit', $response->get_data()['code'] );
+		$this->assertSame( 'lienzo_cannot_edit', $response->get_data()['code'] );
 	}
 
 	/**
 	 * An administrator gets the payload the editor needs to open an image.
 	 *
-	 * @covers ::daguerre_rest_get_media
+	 * @covers ::lienzo_rest_get_media
 	 */
 	public function test_get_media_returns_editor_payload() {
 		$id = $this->make_image();
 		wp_set_current_user( $this->admin );
 
-		$response = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $id ) );
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $id ) );
 		$data     = $response->get_data();
 
 		$this->assertSame( 200, $response->get_status() );
@@ -121,28 +121,28 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 	/**
 	 * With no prior edit the payload carries an empty default recipe.
 	 *
-	 * @covers ::daguerre_rest_get_media
+	 * @covers ::lienzo_rest_get_media
 	 */
 	public function test_get_media_returns_default_recipe() {
 		$id = $this->make_image();
 		wp_set_current_user( $this->admin );
 
-		$data = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $id ) )->get_data();
+		$data = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $id ) )->get_data();
 
-		$this->assertSame( DAGUERRE_RECIPE_VERSION, $data['recipe']['version'] );
+		$this->assertSame( LIENZO_RECIPE_VERSION, $data['recipe']['version'] );
 		$this->assertSame( array(), $data['recipe']['ops'] );
 	}
 
 	/**
 	 * A stored recipe comes back so re-opening restores every slider.
 	 *
-	 * @covers ::daguerre_rest_get_media
+	 * @covers ::lienzo_rest_get_media
 	 */
 	public function test_get_media_returns_stored_recipe() {
 		$id = $this->make_image();
 		update_post_meta(
 			$id,
-			DAGUERRE_RECIPE_META,
+			LIENZO_RECIPE_META,
 			wp_json_encode(
 				array(
 					'version' => 1,
@@ -162,7 +162,7 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 		);
 
 		wp_set_current_user( $this->admin );
-		$data = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $id ) )->get_data();
+		$data = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $id ) )->get_data();
 
 		$this->assertCount( 1, $data['recipe']['ops'] );
 		$this->assertSame( 'contrast', $data['recipe']['ops'][0]['type'] );
@@ -171,15 +171,15 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 	/**
 	 * Opening a rendered image serves the pixels of the original it came from.
 	 *
-	 * @covers ::daguerre_rest_get_media
+	 * @covers ::lienzo_rest_get_media
 	 */
 	public function test_get_media_follows_source_pointer() {
 		$original = $this->make_image();
 		$derived  = $this->make_image();
-		update_post_meta( $derived, DAGUERRE_SOURCE_META, $original );
+		update_post_meta( $derived, LIENZO_SOURCE_META, $original );
 
 		wp_set_current_user( $this->admin );
-		$data = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $derived ) )->get_data();
+		$data = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $derived ) )->get_data();
 
 		$this->assertSame( $derived, $data['id'] );
 		$this->assertSame( $original, $data['sourceId'] );
@@ -188,7 +188,7 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 	/**
 	 * A non-image attachment is refused before any file work happens.
 	 *
-	 * @covers ::daguerre_rest_permission
+	 * @covers ::lienzo_rest_permission
 	 */
 	public function test_non_image_attachment_is_forbidden() {
 		$id = self::factory()->attachment->create_object(
@@ -199,7 +199,7 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 		);
 
 		wp_set_current_user( $this->admin );
-		$response = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $id ) );
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $id ) );
 
 		$this->assertSame( 403, $response->get_status() );
 	}
@@ -207,13 +207,13 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 	/**
 	 * The config blob handed to the browser carries the routes and the op schema.
 	 *
-	 * @covers ::daguerre_get_config
+	 * @covers ::lienzo_get_config
 	 */
 	public function test_config_blob_shape() {
 		wp_set_current_user( $this->admin );
-		$config = daguerre_get_config();
+		$config = lienzo_get_config();
 
-		$this->assertStringContainsString( 'daguerre/v1', $config['restUrl'] );
+		$this->assertStringContainsString( 'lienzo/v1', $config['restUrl'] );
 		$this->assertNotEmpty( $config['restNonce'] );
 		// No Pixi URL: the shell's module registry supplies it, so shipping one would
 		// mean a second Pixi 8 on the page fighting the first over GPU resources.

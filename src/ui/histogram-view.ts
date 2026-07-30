@@ -28,12 +28,12 @@ export class HistogramView {
 
 	constructor() {
 		this.el = document.createElement( 'div' );
-		this.el.className = 'dg-histogram';
+		this.el.className = 'lz-histogram';
 		this.el.setAttribute( 'role', 'img' );
 		this.el.setAttribute( 'aria-label', 'Tone distribution of the edited image' );
 
 		this.canvas = document.createElement( 'canvas' );
-		this.canvas.className = 'dg-histogram__canvas';
+		this.canvas.className = 'lz-histogram__canvas';
 		this.el.appendChild( this.canvas );
 
 		this.ctx = this.canvas.getContext( '2d' );

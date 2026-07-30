@@ -4,7 +4,7 @@
  *
  * A row action in list mode and a button on the attachment edit screen. Neither is a
  * link any more: the editor is a native desktop window, so these carry a
- * `data-daguerre-open` attribute that the bundle turns into a request to open it.
+ * `data-lienzo-open` attribute that the bundle turns into a request to open it.
  * Linking to a page would load that page as an *iframe* window inside the shell,
  * which is the one context where the editor cannot reach Pixi or the shell's
  * components.
@@ -13,15 +13,15 @@
  * image toolbar -- patch Backbone views and register a block filter from JavaScript,
  * and end up in the same place.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
 
-add_filter( 'media_row_actions', 'daguerre_media_row_action', 10, 2 );
-add_action( 'attachment_submitbox_misc_actions', 'daguerre_attachment_edit_button', 20 );
-add_action( 'admin_enqueue_scripts', 'daguerre_enqueue_on_media_screens' );
-add_action( 'enqueue_block_editor_assets', 'daguerre_enqueue_for_block_editor' );
+add_filter( 'media_row_actions', 'lienzo_media_row_action', 10, 2 );
+add_action( 'attachment_submitbox_misc_actions', 'lienzo_attachment_edit_button', 20 );
+add_action( 'admin_enqueue_scripts', 'lienzo_enqueue_on_media_screens' );
+add_action( 'enqueue_block_editor_assets', 'lienzo_enqueue_for_block_editor' );
 
 /**
  * Loads the editor on screens where the media modal can appear.
@@ -35,10 +35,10 @@ add_action( 'enqueue_block_editor_assets', 'daguerre_enqueue_for_block_editor' )
  * @param string $hook_suffix Current admin page.
  * @return void
  */
-function daguerre_enqueue_on_media_screens( $hook_suffix ) {
+function lienzo_enqueue_on_media_screens( $hook_suffix ) {
 	// Desktop Mode off for this user means classic admin, where there is no shell to
 	// render into. Loading the bundle there would only add weight.
-	if ( ! current_user_can( 'upload_files' ) || ! daguerre_is_desktop_mode_active() ) {
+	if ( ! current_user_can( 'upload_files' ) || ! lienzo_is_desktop_mode_active() ) {
 		return;
 	}
 
@@ -54,13 +54,13 @@ function daguerre_enqueue_on_media_screens( $hook_suffix ) {
 	 * @param string[] $screens     Admin page hook suffixes.
 	 * @param string   $hook_suffix Current admin page.
 	 */
-	$screens = (array) apply_filters( 'daguerre_media_screens', $screens, $hook_suffix );
+	$screens = (array) apply_filters( 'lienzo_media_screens', $screens, $hook_suffix );
 
 	if ( ! in_array( $hook_suffix, $screens, true ) ) {
 		return;
 	}
 
-	daguerre_enqueue_editor();
+	lienzo_enqueue_editor();
 }
 
 /**
@@ -70,12 +70,12 @@ function daguerre_enqueue_on_media_screens( $hook_suffix ) {
  *
  * @return void
  */
-function daguerre_enqueue_for_block_editor() {
-	if ( ! current_user_can( 'upload_files' ) || ! daguerre_is_desktop_mode_active() ) {
+function lienzo_enqueue_for_block_editor() {
+	if ( ! current_user_can( 'upload_files' ) || ! lienzo_is_desktop_mode_active() ) {
 		return;
 	}
 
-	daguerre_enqueue_editor();
+	lienzo_enqueue_editor();
 
 	// The toolbar button is built with wp.element rather than JSX, so these are
 	// runtime globals rather than bundled imports -- but they still have to be on
@@ -87,9 +87,9 @@ function daguerre_enqueue_for_block_editor() {
 }
 
 /**
- * Adds "Edit with Daguerre" to the Media Library list-table row actions.
+ * Adds "Edit with Lienzo" to the Media Library list-table row actions.
  *
- * Only appears for images Daguerre can actually open, so the link is never a
+ * Only appears for images Lienzo can actually open, so the link is never a
  * promise the editor cannot keep.
  *
  * @since 0.1.0
@@ -98,22 +98,22 @@ function daguerre_enqueue_for_block_editor() {
  * @param WP_Post  $post    Attachment being listed.
  * @return string[] Filtered row actions.
  */
-function daguerre_media_row_action( $actions, $post ) {
-	if ( ! daguerre_is_desktop_mode_active() || ! daguerre_can_edit( $post->ID ) ) {
+function lienzo_media_row_action( $actions, $post ) {
+	if ( ! lienzo_is_desktop_mode_active() || ! lienzo_can_edit( $post->ID ) ) {
 		return $actions;
 	}
 
-	$actions['daguerre'] = sprintf(
-		'<button type="button" class="button-link" data-daguerre-open="%d">%s</button>',
+	$actions['lienzo'] = sprintf(
+		'<button type="button" class="button-link" data-lienzo-open="%d">%s</button>',
 		(int) $post->ID,
-		esc_html__( 'Edit with Daguerre', 'daguerre' )
+		esc_html__( 'Edit with Lienzo', 'lienzo' )
 	);
 
 	return $actions;
 }
 
 /**
- * Adds an "Edit with Daguerre" button to the attachment edit screen.
+ * Adds an "Edit with Lienzo" button to the attachment edit screen.
  *
  * Sits in the Publish box beside core's own actions, which is where someone
  * already looking at a single attachment expects to find things to do to it.
@@ -123,14 +123,14 @@ function daguerre_media_row_action( $actions, $post ) {
  * @param WP_Post $post Attachment being edited.
  * @return void
  */
-function daguerre_attachment_edit_button( $post ) {
-	if ( ! daguerre_is_desktop_mode_active() || ! daguerre_can_edit( $post->ID ) ) {
+function lienzo_attachment_edit_button( $post ) {
+	if ( ! lienzo_is_desktop_mode_active() || ! lienzo_can_edit( $post->ID ) ) {
 		return;
 	}
 
 	printf(
-		'<div class="misc-pub-section misc-pub-daguerre"><button type="button" class="button" data-daguerre-open="%d">%s</button></div>',
+		'<div class="misc-pub-section misc-pub-lienzo"><button type="button" class="button" data-lienzo-open="%d">%s</button></div>',
 		(int) $post->ID,
-		esc_html__( 'Edit with Daguerre', 'daguerre' )
+		esc_html__( 'Edit with Lienzo', 'lienzo' )
 	);
 }

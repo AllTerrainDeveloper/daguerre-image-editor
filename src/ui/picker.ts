@@ -5,13 +5,13 @@
  * photo, so that route needs to end somewhere useful rather than telling you to go
  * somewhere else and come back.
  *
- * It reads core's own `wp/v2/media` route rather than a Daguerre one: the data is
+ * It reads core's own `wp/v2/media` route rather than a Lienzo one: the data is
  * already exposed, already paginated, and already permission-checked per user.
  */
 
 import { __, sprintf } from '../i18n';
 import { request } from '../platform';
-import type { DaguerreConfig } from '../types';
+import type { LienzoConfig } from '../types';
 
 /** How many thumbnails to fetch. Enough to fill a screen without a pager. */
 const PAGE_SIZE = 60;
@@ -63,7 +63,7 @@ function thumbnailFor( item: MediaItem ): string {
  */
 export async function renderPicker(
 	root: HTMLElement,
-	config: DaguerreConfig,
+	config: LienzoConfig,
 	onPick?: ( attachmentId: number ) => void,
 	isStale?: () => boolean
 ): Promise< void > {
@@ -71,14 +71,14 @@ export async function renderPicker(
 		return;
 	}
 
-	root.classList.add( 'dg-picker' );
+	root.classList.add( 'lz-picker' );
 
 	const heading = document.createElement( 'h2' );
-	heading.className = 'dg-picker__heading';
+	heading.className = 'lz-picker__heading';
 	heading.textContent = __( 'Choose a photo to edit' );
 
 	const status = document.createElement( 'p' );
-	status.className = 'dg-picker__status';
+	status.className = 'lz-picker__status';
 	status.textContent = __( 'Loading your photos…' );
 
 	root.replaceChildren( heading, status );
@@ -104,7 +104,7 @@ export async function renderPicker(
 
 		items = ( await response.json() ) as MediaItem[];
 	} catch ( error ) {
-		status.classList.add( 'dg-picker__status--error' );
+		status.classList.add( 'lz-picker__status--error' );
 		status.textContent =
 			error instanceof Error ? error.message : __( 'Your media library could not be loaded.' );
 		return;
@@ -142,7 +142,7 @@ export async function renderPicker(
 	status.remove();
 
 	const grid = document.createElement( 'div' );
-	grid.className = 'dg-picker__grid';
+	grid.className = 'lz-picker__grid';
 	grid.setAttribute( 'role', 'list' );
 
 	for ( const item of editable ) {
@@ -174,18 +174,18 @@ function renderTile(
 
 	const tile = document.createElement( 'button' );
 	tile.type = 'button';
-	tile.className = 'dg-picker__tile';
+	tile.className = 'lz-picker__tile';
 	tile.setAttribute( 'role', 'listitem' );
 
 	const image = document.createElement( 'img' );
-	image.className = 'dg-picker__thumb';
+	image.className = 'lz-picker__thumb';
 	image.src = thumbnailFor( item );
 	image.alt = '';
 	image.loading = 'lazy';
 	image.decoding = 'async';
 
 	const caption = document.createElement( 'span' );
-	caption.className = 'dg-picker__caption';
+	caption.className = 'lz-picker__caption';
 	caption.textContent = title;
 
 	const { width, height } = item.media_details ?? {};

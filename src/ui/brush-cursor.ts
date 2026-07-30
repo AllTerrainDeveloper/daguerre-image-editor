@@ -56,7 +56,7 @@ export class BrushCursor {
 		this.options = options;
 
 		this.el = document.createElement( 'div' );
-		this.el.className = 'dg-brush-cursor';
+		this.el.className = 'lz-brush-cursor';
 		this.el.setAttribute( 'aria-hidden', 'true' );
 		this.el.style.display = 'none';
 

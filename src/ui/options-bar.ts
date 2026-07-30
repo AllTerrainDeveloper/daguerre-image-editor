@@ -88,7 +88,7 @@ export class OptionsBar {
 		this.options = options;
 
 		this.el = document.createElement( 'div' );
-		this.el.className = 'dg-options';
+		this.el.className = 'lz-options';
 		this.el.setAttribute( 'role', 'toolbar' );
 		this.el.setAttribute( 'aria-label', __( 'Tool options' ) );
 
@@ -111,7 +111,7 @@ export class OptionsBar {
 		this.el.replaceChildren();
 
 		const name = document.createElement( 'span' );
-		name.className = 'dg-options__tool';
+		name.className = 'lz-options__tool';
 		name.textContent = TOOL_NAMES[ tool ] ? __( TOOL_NAMES[ tool ] ) : '';
 		this.el.appendChild( name );
 
@@ -667,7 +667,7 @@ export class OptionsBar {
 
 		const hint = document.createElement( 'span' );
 
-		hint.className = 'dg-options__hint';
+		hint.className = 'lz-options__hint';
 		hint.textContent = text;
 		this.el.appendChild( hint );
 	}
@@ -700,7 +700,7 @@ export class OptionsBar {
 	 */
 	private divider(): void {
 		const rule = document.createElement( 'span' );
-		rule.className = 'dg-options__divider';
+		rule.className = 'lz-options__divider';
 		rule.setAttribute( 'aria-hidden', 'true' );
 		this.el.appendChild( rule );
 	}

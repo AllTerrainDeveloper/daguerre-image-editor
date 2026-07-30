@@ -3,7 +3,7 @@
  * Desktop Mode integration.
  *
  * Every registration in this file is additive and sits behind a `function_exists()`
- * gate. Daguerre is a standalone plugin: with Desktop Mode absent, nothing here
+ * gate. Lienzo is a standalone plugin: with Desktop Mode absent, nothing here
  * runs and all four standalone hosts continue to work untouched. There is
  * deliberately no `Requires Plugins: desktop-mode` header on the bootstrap.
  *
@@ -11,7 +11,7 @@
  * is the detection helper the rest of the plugin uses to decide whether to offer
  * desktop affordances.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -22,13 +22,13 @@ defined( 'ABSPATH' ) || exit;
  * Two separate questions, and both matter. `function_exists()` answers "is the
  * plugin active"; `desktop_mode_is_enabled()` answers "has this particular user
  * opted in", since Desktop Mode is a per-user preference rather than a site-wide
- * one. Only when both hold should Daguerre present itself as a desktop app.
+ * one. Only when both hold should Lienzo present itself as a desktop app.
  *
  * @since 0.1.0
  *
  * @return bool True when Desktop Mode is active for the current user.
  */
-function daguerre_is_desktop_mode_active() {
+function lienzo_is_desktop_mode_active() {
 	if ( ! function_exists( 'desktop_mode_register_window' ) || ! function_exists( 'desktop_mode_is_enabled' ) ) {
 		return false;
 	}
@@ -36,7 +36,7 @@ function daguerre_is_desktop_mode_active() {
 	return (bool) desktop_mode_is_enabled();
 }
 
-add_action( 'plugins_loaded', 'daguerre_maybe_init_desktop_mode', 20 );
+add_action( 'plugins_loaded', 'lienzo_maybe_init_desktop_mode', 20 );
 
 /**
  * Wires up the Desktop Mode integrations, if Desktop Mode is there to wire into.
@@ -49,14 +49,14 @@ add_action( 'plugins_loaded', 'daguerre_maybe_init_desktop_mode', 20 );
  *
  * @return void
  */
-function daguerre_maybe_init_desktop_mode() {
+function lienzo_maybe_init_desktop_mode() {
 	if ( ! function_exists( 'desktop_mode_register_window' ) ) {
 		return;
 	}
 
-	add_action( 'init', 'daguerre_register_desktop_window', 20 );
-	add_action( 'desktop_mode_mode_init', 'daguerre_enqueue_in_shell' );
-	add_filter( 'desktop_mode_my_wordpress_preview_actions', 'daguerre_my_wordpress_action' );
+	add_action( 'init', 'lienzo_register_desktop_window', 20 );
+	add_action( 'desktop_mode_mode_init', 'lienzo_enqueue_in_shell' );
+	add_filter( 'desktop_mode_my_wordpress_preview_actions', 'lienzo_my_wordpress_action' );
 }
 
 /**
@@ -71,15 +71,15 @@ function daguerre_maybe_init_desktop_mode() {
  *
  * @return void
  */
-function daguerre_register_desktop_window() {
+function lienzo_register_desktop_window() {
 	$registered = desktop_mode_register_window(
-		'daguerre',
+		'lienzo',
 		array(
-			'title'        => __( 'Photos', 'daguerre' ),
+			'title'        => __( 'Lienzo.', 'lienzo' ),
 			'icon'         => 'dashicons-format-image',
-			'template'     => 'daguerre_render_desktop_template',
-			'script'       => 'daguerre',
-			'style'        => 'daguerre',
+			'template'     => 'lienzo_render_desktop_template',
+			'script'       => 'lienzo',
+			'style'        => 'lienzo',
 			'width'        => 1100,
 			'height'       => 720,
 			'min_width'    => 640,
@@ -95,11 +95,11 @@ function daguerre_register_desktop_window() {
 
 	if ( function_exists( 'desktop_mode_register_icon' ) ) {
 		desktop_mode_register_icon(
-			'daguerre',
+			'lienzo',
 			array(
-				'title'        => __( 'Photos', 'daguerre' ),
+				'title'        => __( 'Lienzo.', 'lienzo' ),
 				'icon'         => 'dashicons-format-image',
-				'window'       => 'daguerre',
+				'window'       => 'lienzo',
 				'position'     => 30,
 				'capabilities' => array( 'upload_files' ),
 			)
@@ -108,13 +108,13 @@ function daguerre_register_desktop_window() {
 
 	if ( function_exists( 'desktop_mode_register_file_opener' ) ) {
 		desktop_mode_register_file_opener(
-			'daguerre',
+			'lienzo',
 			array(
-				'label'        => __( 'Edit in Daguerre', 'daguerre' ),
+				'label'        => __( 'Edit in Lienzo', 'lienzo' ),
 				'types'        => array( 'attachment' ),
 				'is_default'   => false,
 				'sort'         => 15,
-				'script'       => 'daguerre',
+				'script'       => 'lienzo',
 				'capabilities' => array( 'upload_files' ),
 			)
 		);
@@ -133,8 +133,8 @@ function daguerre_register_desktop_window() {
  *
  * @return void
  */
-function daguerre_render_desktop_template() {
-	echo '<div class="daguerre-root" data-daguerre-root data-host="window"></div>';
+function lienzo_render_desktop_template() {
+	echo '<div class="lienzo-root" data-lienzo-root data-host="window"></div>';
 }
 
 /**
@@ -150,31 +150,31 @@ function daguerre_render_desktop_template() {
  *
  * @return void
  */
-function daguerre_enqueue_in_shell() {
+function lienzo_enqueue_in_shell() {
 	if ( ! current_user_can( 'upload_files' ) ) {
 		return;
 	}
 
-	daguerre_enqueue_editor();
+	lienzo_enqueue_editor();
 }
 
 /**
- * Adds "Edit in Daguerre" to the My WordPress media preview rail.
+ * Adds "Edit in Lienzo" to the My WordPress media preview rail.
  *
  * @since 0.1.0
  *
  * @param array $actions Registered preview actions.
  * @return array Filtered actions.
  */
-function daguerre_my_wordpress_action( $actions ) {
+function lienzo_my_wordpress_action( $actions ) {
 	$actions[] = array(
-		'id'         => 'daguerre',
-		'label'      => __( 'Edit in Daguerre', 'daguerre' ),
+		'id'         => 'lienzo',
+		'label'      => __( 'Edit in Lienzo', 'lienzo' ),
 		'icon'       => 'dashicons-format-image',
 		'capability' => 'upload_files',
 		'mime'       => '^image/',
 		'sections'   => array( 'media' ),
-		'script'     => 'daguerre',
+		'script'     => 'lienzo',
 	);
 
 	return $actions;
@@ -191,7 +191,7 @@ function daguerre_my_wordpress_action( $actions ) {
  *
  * @return bool True when rendering inside a Desktop Mode window iframe.
  */
-function daguerre_is_desktop_mode_chromeless() {
+function lienzo_is_desktop_mode_chromeless() {
 	if ( ! function_exists( 'desktop_mode_is_chromeless_request' ) ) {
 		return false;
 	}

@@ -93,10 +93,10 @@ export class TransformOverlay {
 		this.options = options;
 
 		this.root = document.createElement( 'div' );
-		this.root.className = 'dg-transform';
+		this.root.className = 'lz-transform';
 
 		this.box = document.createElement( 'div' );
-		this.box.className = 'dg-transform__box';
+		this.box.className = 'lz-transform__box';
 		this.box.dataset.handle = 'move';
 		this.box.title = __(
 			'Drag to move. Corners scale both axes, edges scale one, the top handle rotates. Hold Shift on a corner to scale freely.'
@@ -113,7 +113,7 @@ export class TransformOverlay {
 			'e',
 		] as Handle[] ) {
 			const grip = document.createElement( 'span' );
-			grip.className = `dg-transform__handle dg-transform__handle--${ handle }`;
+			grip.className = `lz-transform__handle lz-transform__handle--${ handle }`;
 			grip.dataset.handle = handle;
 			this.box.appendChild( grip );
 		}
@@ -121,19 +121,19 @@ export class TransformOverlay {
 		// Guides showing what a snap has locked onto. Siblings of the box rather than
 		// children, so they are not rotated with it.
 		this.guideX = document.createElement( 'span' );
-		this.guideX.className = 'dg-snap dg-snap--v';
+		this.guideX.className = 'lz-snap lz-snap--v';
 		this.guideX.hidden = true;
 
 		this.guideY = document.createElement( 'span' );
-		this.guideY.className = 'dg-snap dg-snap--h';
+		this.guideY.className = 'lz-snap lz-snap--h';
 		this.guideY.hidden = true;
 
 		const stem = document.createElement( 'span' );
-		stem.className = 'dg-transform__stem';
+		stem.className = 'lz-transform__stem';
 		this.box.appendChild( stem );
 
 		const rotate = document.createElement( 'span' );
-		rotate.className = 'dg-transform__handle dg-transform__handle--rotate';
+		rotate.className = 'lz-transform__handle lz-transform__handle--rotate';
 		rotate.dataset.handle = 'rotate';
 		rotate.title = __( 'Rotate. Hold Shift to snap.' );
 		this.box.appendChild( rotate );

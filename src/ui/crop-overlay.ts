@@ -65,7 +65,7 @@ export class CropOverlay {
 		this.options = options;
 
 		this.root = document.createElement( 'div' );
-		this.root.className = 'dg-crop';
+		this.root.className = 'lz-crop';
 		this.root.setAttribute( 'aria-hidden', 'true' );
 
 		// The dimming is a huge box-shadow, which has to be clipped to the image --
@@ -73,25 +73,25 @@ export class CropOverlay {
 		// deliberately overhang the rectangle's edges. So the two live in separate
 		// layers over the same rectangle.
 		const clip = document.createElement( 'div' );
-		clip.className = 'dg-crop__clip';
+		clip.className = 'lz-crop__clip';
 
 		this.dim = document.createElement( 'div' );
-		this.dim.className = 'dg-crop__dim';
+		this.dim.className = 'lz-crop__dim';
 		clip.appendChild( this.dim );
 
 		this.box = document.createElement( 'div' );
-		this.box.className = 'dg-crop__box';
+		this.box.className = 'lz-crop__box';
 
 		// Rule of thirds. Purely decorative, hence aria-hidden on the root.
 		for ( const line of [ 'v1', 'v2', 'h1', 'h2' ] ) {
 			const guide = document.createElement( 'span' );
-			guide.className = `dg-crop__guide dg-crop__guide--${ line }`;
+			guide.className = `lz-crop__guide lz-crop__guide--${ line }`;
 			this.box.appendChild( guide );
 		}
 
 		for ( const handle of [ 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e' ] as Handle[] ) {
 			const grip = document.createElement( 'span' );
-			grip.className = `dg-crop__handle dg-crop__handle--${ handle }`;
+			grip.className = `lz-crop__handle lz-crop__handle--${ handle }`;
 			grip.dataset.handle = handle;
 			this.box.appendChild( grip );
 		}

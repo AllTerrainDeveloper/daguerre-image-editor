@@ -1,10 +1,10 @@
 /**
- * Typed client for the `daguerre/v1` routes.
+ * Typed client for the `lienzo/v1` routes.
  */
 
 import { request } from '../platform';
 import type { Recipe } from '../model/recipe';
-import type { DaguerreConfig, MediaPayload, Preset, SaveResult } from '../types';
+import type { LienzoConfig, MediaPayload, Preset, SaveResult } from '../types';
 
 /** An error carrying the server's own message and code. */
 export class RestError extends Error {
@@ -32,7 +32,7 @@ export class RestError extends Error {
  */
 async function toError( response: Response ): Promise< RestError > {
 	let message = `Request failed with status ${ response.status }.`;
-	let code = 'daguerre_http_error';
+	let code = 'lienzo_http_error';
 
 	try {
 		const body = await response.json();
@@ -53,15 +53,15 @@ async function toError( response: Response ): Promise< RestError > {
 }
 
 /**
- * Client for Daguerre's REST routes.
+ * Client for Lienzo's REST routes.
  */
 export class RestClient {
-	private config: DaguerreConfig;
+	private config: LienzoConfig;
 
 	/**
-	 * @param config Runtime configuration from `window.daguerreConfig`.
+	 * @param config Runtime configuration from `window.lienzoConfig`.
 	 */
-	constructor( config: DaguerreConfig ) {
+	constructor( config: LienzoConfig ) {
 		this.config = config;
 	}
 

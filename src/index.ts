@@ -1,7 +1,7 @@
 /**
  * Bundle entry point.
  *
- * Publishes the API on `window.daguerre` and boots the desktop integration plus the
+ * Publishes the API on `window.lienzo` and boots the desktop integration plus the
  * controls that open it. There is one editing surface -- the native window -- because
  * that is the only place the shell's Pixi, components and drag bridge are reachable;
  * everything else on this list is a way of asking for it.
@@ -18,14 +18,14 @@ import { listPanels, registerPanel, unregisterPanel } from './ui/panels';
 import type { PanelDef } from './ui/panels';
 
 /**
- * The public JavaScript API, as it lands on `window.daguerre`.
+ * The public JavaScript API, as it lands on `window.lienzo`.
  *
- * Vite builds this bundle as an IIFE named `daguerre`, which assigns the module's
+ * Vite builds this bundle as an IIFE named `lienzo`, which assigns the module's
  * *exports* to the global. So the exports at the foot of this file are the API --
  * there is no second object to keep in step, and an earlier one that tried to be was
  * silently overwritten on every load.
  */
-export interface DaguerreApi {
+export interface LienzoApi {
 	mount: typeof mount;
 	/**
 	 * Opens an image in the desktop window.
@@ -43,12 +43,12 @@ export interface DaguerreApi {
 
 declare global {
 	interface Window {
-		daguerre?: DaguerreApi;
+		lienzo?: LienzoApi;
 	}
 }
 
 /** Bundle version, matching the plugin's. */
-export const version: string = window.daguerreConfig?.version ?? '0.0.0';
+export const version: string = window.lienzoConfig?.version ?? '0.0.0';
 
 /** Starts every host that has a mount point on this screen. */
 function boot(): void {

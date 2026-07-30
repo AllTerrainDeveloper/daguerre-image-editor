@@ -1,5 +1,5 @@
 /**
- * The "Edit with Daguerre" controls scattered around the admin.
+ * The "Edit with Lienzo" controls scattered around the admin.
  *
  * The row action in the media list, the button on the attachment screen, and anything
  * a plugin adds with the same attribute. They used to be links to a full-screen editor
@@ -15,7 +15,7 @@
 import { openInDesktop } from './desktop-mode';
 
 /** Marks a control that opens an image in the desktop window. */
-const ATTRIBUTE = 'data-daguerre-open';
+const ATTRIBUTE = 'data-lienzo-open';
 
 /**
  * Wires up every open control on the page, present and future.

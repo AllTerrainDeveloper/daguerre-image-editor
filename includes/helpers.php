@@ -2,13 +2,13 @@
 /**
  * Shared helpers.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Returns the image MIME types Daguerre can open and write.
+ * Returns the image MIME types Lienzo can open and write.
  *
  * The list is deliberately narrower than WordPress's own upload whitelist: every
  * entry here must be decodable by `Image.decode()` in a browser *and* encodable by
@@ -19,9 +19,9 @@ defined( 'ABSPATH' ) || exit;
  *
  * @return string[] Array of MIME type strings.
  */
-function daguerre_supported_mime_types() {
+function lienzo_supported_mime_types() {
 	/**
-	 * Filters the image MIME types Daguerre will open.
+	 * Filters the image MIME types Lienzo will open.
 	 *
 	 * Adding a type here does not make the browser able to decode it. Only add
 	 * types you have verified round-trip through a canvas on your target browsers.
@@ -31,21 +31,21 @@ function daguerre_supported_mime_types() {
 	 * @param string[] $mime_types Supported MIME types.
 	 */
 	return (array) apply_filters(
-		'daguerre_supported_mime_types',
+		'lienzo_supported_mime_types',
 		array( 'image/jpeg', 'image/png', 'image/webp', 'image/avif' )
 	);
 }
 
 /**
- * Determines whether a MIME type is one Daguerre can edit.
+ * Determines whether a MIME type is one Lienzo can edit.
  *
  * @since 0.1.0
  *
  * @param string $mime_type MIME type to test.
  * @return bool True when the type is supported.
  */
-function daguerre_is_supported_mime( $mime_type ) {
-	return in_array( (string) $mime_type, daguerre_supported_mime_types(), true );
+function lienzo_is_supported_mime( $mime_type ) {
+	return in_array( (string) $mime_type, lienzo_supported_mime_types(), true );
 }
 
 /**
@@ -62,7 +62,7 @@ function daguerre_is_supported_mime( $mime_type ) {
  * @param int $user_id       Optional. User ID. Default 0, meaning the current user.
  * @return bool True when the user may edit this image.
  */
-function daguerre_can_edit( $attachment_id, $user_id = 0 ) {
+function lienzo_can_edit( $attachment_id, $user_id = 0 ) {
 	$attachment_id = (int) $attachment_id;
 	$post          = get_post( $attachment_id );
 
@@ -70,7 +70,7 @@ function daguerre_can_edit( $attachment_id, $user_id = 0 ) {
 		return false;
 	}
 
-	if ( ! daguerre_is_supported_mime( $post->post_mime_type ) ) {
+	if ( ! lienzo_is_supported_mime( $post->post_mime_type ) ) {
 		return false;
 	}
 
@@ -86,8 +86,8 @@ function daguerre_can_edit( $attachment_id, $user_id = 0 ) {
 /**
  * Resolves the attachment whose pixels should be loaded into the editor.
  *
- * Daguerre never edits already-rendered output. When an attachment carries a
- * `_daguerre_source` pointer it was produced by a previous save, so re-opening it
+ * Lienzo never edits already-rendered output. When an attachment carries a
+ * `_lienzo_source` pointer it was produced by a previous save, so re-opening it
  * loads the *original* instead. That is what keeps repeated edits first-generation
  * rather than compounding quantisation loss on every round trip.
  *
@@ -99,9 +99,9 @@ function daguerre_can_edit( $attachment_id, $user_id = 0 ) {
  * @param int $attachment_id Attachment post ID the user asked to edit.
  * @return int Attachment ID to load pixels from.
  */
-function daguerre_resolve_source_id( $attachment_id ) {
+function lienzo_resolve_source_id( $attachment_id ) {
 	$attachment_id = (int) $attachment_id;
-	$source_id     = (int) get_post_meta( $attachment_id, DAGUERRE_SOURCE_META, true );
+	$source_id     = (int) lienzo_get_meta( $attachment_id, LIENZO_SOURCE_META, LIENZO_LEGACY_SOURCE_META );
 
 	if ( $source_id > 0 && $source_id !== $attachment_id ) {
 		$source = get_post( $source_id );
@@ -125,7 +125,7 @@ function daguerre_resolve_source_id( $attachment_id ) {
  * @param int $attachment_id Attachment post ID.
  * @return string|WP_Error Absolute readable path, or WP_Error on failure.
  */
-function daguerre_get_source_path( $attachment_id ) {
+function lienzo_get_source_path( $attachment_id ) {
 	$attachment_id = (int) $attachment_id;
 
 	$path = wp_get_original_image_path( $attachment_id );
@@ -136,16 +136,16 @@ function daguerre_get_source_path( $attachment_id ) {
 
 	if ( ! $path || ! is_string( $path ) ) {
 		return new WP_Error(
-			'daguerre_no_source_file',
-			__( 'The original image file for this attachment could not be located.', 'daguerre' ),
+			'lienzo_no_source_file',
+			__( 'The original image file for this attachment could not be located.', 'lienzo' ),
 			array( 'status' => 404 )
 		);
 	}
 
 	if ( ! file_exists( $path ) || ! is_readable( $path ) ) {
 		return new WP_Error(
-			'daguerre_source_unreadable',
-			__( 'The original image file exists in the database but is not readable on disk.', 'daguerre' ),
+			'lienzo_source_unreadable',
+			__( 'The original image file exists in the database but is not readable on disk.', 'lienzo' ),
 			array( 'status' => 404 )
 		);
 	}
@@ -154,7 +154,7 @@ function daguerre_get_source_path( $attachment_id ) {
 }
 
 /**
- * Returns the maximum size, in bytes, Daguerre will accept for a rendered upload.
+ * Returns the maximum size, in bytes, Lienzo will accept for a rendered upload.
  *
  * Defaults to the smaller of the PHP upload limit and 64MB. A full-resolution PNG
  * render of a 6000x4000 photograph can legitimately exceed 40MB, so this ceiling
@@ -165,7 +165,7 @@ function daguerre_get_source_path( $attachment_id ) {
  *
  * @return int Maximum upload size in bytes.
  */
-function daguerre_max_upload_bytes() {
+function lienzo_max_upload_bytes() {
 	$limit = min( (int) wp_max_upload_size(), 64 * MB_IN_BYTES );
 
 	/**
@@ -175,7 +175,7 @@ function daguerre_max_upload_bytes() {
 	 *
 	 * @param int $limit Maximum size in bytes.
 	 */
-	return (int) apply_filters( 'daguerre_max_upload_bytes', $limit );
+	return (int) apply_filters( 'lienzo_max_upload_bytes', $limit );
 }
 
 /**
@@ -193,7 +193,7 @@ function daguerre_max_upload_bytes() {
  *
  * @return int Maximum pixels per render.
  */
-function daguerre_max_render_pixels() {
+function lienzo_max_render_pixels() {
 	/**
 	 * Filters the largest image the browser will try to render.
 	 *
@@ -204,5 +204,28 @@ function daguerre_max_render_pixels() {
 	 *
 	 * @param int $pixels Maximum pixels per render.
 	 */
-	return (int) apply_filters( 'daguerre_max_render_pixels', 80000000 );
+	return (int) apply_filters( 'lienzo_max_render_pixels', 80000000 );
+}
+
+/**
+ * Reads a plugin meta value, falling back to the key it used before the rename.
+ *
+ * Only ever reads the legacy key; saving always writes the current one, so an edit
+ * re-saved under the new name quietly migrates itself.
+ *
+ * @since 0.1.0
+ *
+ * @param int    $attachment_id Attachment to read.
+ * @param string $key           Current meta key.
+ * @param string $legacy        Key used before the plugin was renamed.
+ * @return mixed The stored value, or an empty string when neither key is set.
+ */
+function lienzo_get_meta( $attachment_id, $key, $legacy ) {
+	$value = get_post_meta( (int) $attachment_id, $key, true );
+
+	if ( '' !== $value && null !== $value && false !== $value ) {
+		return $value;
+	}
+
+	return get_post_meta( (int) $attachment_id, $legacy, true );
 }

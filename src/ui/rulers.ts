@@ -47,17 +47,17 @@ export class Rulers {
 		this.options = options;
 
 		this.root = document.createElement( 'div' );
-		this.root.className = 'dg-rulers';
+		this.root.className = 'lz-rulers';
 		this.root.setAttribute( 'aria-hidden', 'true' );
 
 		this.horizontal = document.createElement( 'canvas' );
-		this.horizontal.className = 'dg-ruler dg-ruler--h';
+		this.horizontal.className = 'lz-ruler lz-ruler--h';
 
 		this.vertical = document.createElement( 'canvas' );
-		this.vertical.className = 'dg-ruler dg-ruler--v';
+		this.vertical.className = 'lz-ruler lz-ruler--v';
 
 		const corner = document.createElement( 'div' );
-		corner.className = 'dg-ruler__corner';
+		corner.className = 'lz-ruler__corner';
 
 		this.root.append( corner, this.horizontal, this.vertical );
 		options.stage.appendChild( this.root );

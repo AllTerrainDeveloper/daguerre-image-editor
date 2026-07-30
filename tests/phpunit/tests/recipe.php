@@ -2,16 +2,16 @@
 /**
  * Recipe schema and validation.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 /**
- * Tests for daguerre_validate_recipe() and friends.
+ * Tests for lienzo_validate_recipe() and friends.
  *
- * @group daguerre
- * @group daguerre-recipe
+ * @group lienzo
+ * @group lienzo-recipe
  */
-class Tests_Daguerre_Recipe extends WP_UnitTestCase {
+class Tests_Lienzo_Recipe extends WP_UnitTestCase {
 
 	/**
 	 * Builds a minimal valid recipe with the given ops.
@@ -20,7 +20,7 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	 * @return array Recipe.
 	 */
 	private function recipe( $ops = array() ) {
-		$recipe        = daguerre_default_recipe( 42 );
+		$recipe        = lienzo_default_recipe( 42 );
 		$recipe['ops'] = $ops;
 
 		return $recipe;
@@ -29,7 +29,7 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	/**
 	 * A well-formed recipe survives validation unchanged.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_valid_recipe_round_trips() {
 		$recipe = $this->recipe(
@@ -40,10 +40,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 				),
 			)
 		);
-		$result = daguerre_validate_recipe( $recipe );
+		$result = lienzo_validate_recipe( $recipe );
 
 		$this->assertNotWPError( $result );
-		$this->assertSame( DAGUERRE_RECIPE_VERSION, $result['version'] );
+		$this->assertSame( LIENZO_RECIPE_VERSION, $result['version'] );
 		$this->assertSame( 42, $result['source'] );
 		$this->assertCount( 1, $result['ops'] );
 		$this->assertSame( 'exposure', $result['ops'][0]['type'] );
@@ -53,10 +53,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	/**
 	 * A JSON string is accepted as readily as a decoded array.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_accepts_json_string() {
-		$result = daguerre_validate_recipe( wp_json_encode( $this->recipe() ) );
+		$result = lienzo_validate_recipe( wp_json_encode( $this->recipe() ) );
 
 		$this->assertNotWPError( $result );
 		$this->assertSame( 42, $result['source'] );
@@ -65,28 +65,28 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	/**
 	 * Malformed JSON is rejected rather than silently treated as empty.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_malformed_json() {
-		$result = daguerre_validate_recipe( '{ not json' );
+		$result = lienzo_validate_recipe( '{ not json' );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_invalid_json', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_invalid_json', $result->get_error_code() );
 	}
 
 	/**
 	 * A recipe from a newer schema than this site understands is rejected.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_future_version() {
 		$recipe            = $this->recipe();
-		$recipe['version'] = DAGUERRE_RECIPE_VERSION + 1;
+		$recipe['version'] = LIENZO_RECIPE_VERSION + 1;
 
-		$result = daguerre_validate_recipe( $recipe );
+		$result = lienzo_validate_recipe( $recipe );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_bad_version', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_bad_version', $result->get_error_code() );
 	}
 
 	/**
@@ -95,10 +95,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	 * A dropped op would produce a recipe that re-opens showing sliders which do not
 	 * match the pixels on screen, so this has to be loud.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_unknown_op() {
-		$result = daguerre_validate_recipe(
+		$result = lienzo_validate_recipe(
 			$this->recipe(
 				array(
 					array(
@@ -110,17 +110,17 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 		);
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_unknown_op', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_unknown_op', $result->get_error_code() );
 		$this->assertSame( 'teleport', $result->get_error_data()['op'] );
 	}
 
 	/**
 	 * Values outside an op's declared range are rejected.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_out_of_range_value() {
-		$result = daguerre_validate_recipe(
+		$result = lienzo_validate_recipe(
 			$this->recipe(
 				array(
 					array(
@@ -132,7 +132,7 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 		);
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_value_out_of_range', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_value_out_of_range', $result->get_error_code() );
 	}
 
 	/**
@@ -140,10 +140,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	 *
 	 * Guards against a regression where every op shares one hardcoded -1..1 bound.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_hue_uses_its_own_range() {
-		$result = daguerre_validate_recipe(
+		$result = lienzo_validate_recipe(
 			$this->recipe(
 				array(
 					array(
@@ -161,10 +161,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	/**
 	 * The same op twice is rejected; last-wins would be ambiguous.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_duplicate_op() {
-		$result = daguerre_validate_recipe(
+		$result = lienzo_validate_recipe(
 			$this->recipe(
 				array(
 					array(
@@ -180,16 +180,16 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 		);
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_duplicate_op', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_duplicate_op', $result->get_error_code() );
 	}
 
 	/**
 	 * An op sitting at its default is dropped so stored recipes stay minimal.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_drops_no_op_adjustments() {
-		$result = daguerre_validate_recipe(
+		$result = lienzo_validate_recipe(
 			$this->recipe(
 				array(
 					array(
@@ -212,10 +212,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	/**
 	 * A non-numeric value is rejected rather than coerced to zero.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_non_numeric_value() {
-		$result = daguerre_validate_recipe(
+		$result = lienzo_validate_recipe(
 			$this->recipe(
 				array(
 					array(
@@ -227,52 +227,52 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 		);
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_bad_value', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_bad_value', $result->get_error_code() );
 	}
 
 	/**
 	 * An output format the browser cannot encode is rejected.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_unsupported_output_format() {
 		$recipe                     = $this->recipe();
 		$recipe['output']['format'] = 'image/gif';
 
-		$result = daguerre_validate_recipe( $recipe );
+		$result = lienzo_validate_recipe( $recipe );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_bad_format', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_bad_format', $result->get_error_code() );
 	}
 
 	/**
 	 * Quality outside 0.1..1.0 is rejected.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_bad_quality() {
 		$recipe                      = $this->recipe();
 		$recipe['output']['quality'] = 2.5;
 
-		$result = daguerre_validate_recipe( $recipe );
+		$result = lienzo_validate_recipe( $recipe );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_bad_quality', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_bad_quality', $result->get_error_code() );
 	}
 
 	/**
 	 * A recipe with no source attachment is rejected.
 	 *
-	 * @covers ::daguerre_validate_recipe
+	 * @covers ::lienzo_validate_recipe
 	 */
 	public function test_rejects_missing_source() {
 		$recipe           = $this->recipe();
 		$recipe['source'] = 0;
 
-		$result = daguerre_validate_recipe( $recipe );
+		$result = lienzo_validate_recipe( $recipe );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_recipe_bad_source', $result->get_error_code() );
+		$this->assertSame( 'lienzo_recipe_bad_source', $result->get_error_code() );
 	}
 
 	/**
@@ -281,10 +281,10 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	 * Cheap guard against a typo in the table that would make an op impossible to
 	 * leave at rest.
 	 *
-	 * @covers ::daguerre_op_schema
+	 * @covers ::lienzo_op_schema
 	 */
 	public function test_schema_defaults_are_in_range() {
-		foreach ( daguerre_op_schema() as $type => $spec ) {
+		foreach ( lienzo_op_schema() as $type => $spec ) {
 			$this->assertGreaterThanOrEqual( $spec['min'], $spec['default'], $type );
 			$this->assertLessThanOrEqual( $spec['max'], $spec['default'], $type );
 		}
@@ -293,12 +293,160 @@ class Tests_Daguerre_Recipe extends WP_UnitTestCase {
 	/**
 	 * A stored recipe that no longer validates reads back as absent, not fatal.
 	 *
-	 * @covers ::daguerre_get_recipe
+	 * @covers ::lienzo_get_recipe
 	 */
 	public function test_get_recipe_ignores_corrupt_meta() {
 		$post_id = self::factory()->post->create();
-		update_post_meta( $post_id, DAGUERRE_RECIPE_META, '{ broken' );
+		update_post_meta( $post_id, LIENZO_RECIPE_META, '{ broken' );
 
-		$this->assertNull( daguerre_get_recipe( $post_id ) );
+		$this->assertNull( lienzo_get_recipe( $post_id ) );
+	}
+
+	/**
+	 * A current-version recipe with a layer stack survives validation intact.
+	 *
+	 * The PHP validator and `src/model/recipe.ts` are twins and have to agree on the
+	 * version. They did not: the editor was writing v5 while this side capped at v4, so
+	 * every save was rejected with "unsupported recipe version" -- the one failure mode
+	 * a contract split across two languages exists to have.
+	 *
+	 * @covers ::lienzo_validate_recipe
+	 * @covers ::lienzo_validate_layers
+	 */
+	public function test_layer_stack_round_trips() {
+		$recipe = lienzo_validate_recipe(
+			wp_json_encode(
+				array(
+					'version'       => LIENZO_RECIPE_VERSION,
+					'source'        => 12,
+					'ops'           => array(),
+					'layers'        => array(
+						array(
+							'id'        => 'base',
+							'name'      => 'Image',
+							'kind'      => 'image',
+							'transform' => array(
+								'x' => 0.5,
+								'y' => 0.5,
+							),
+						),
+						array(
+							'id'        => 'layer-abc',
+							'name'      => 'Pasted',
+							'kind'      => 'raster',
+							'transform' => array(
+								'x'      => 0.25,
+								'scaleX' => 2.0,
+							),
+							'opacity'   => 0.5,
+							'visible'   => false,
+						),
+					),
+					'activeLayerId' => 'layer-abc',
+				)
+			)
+		);
+
+		$this->assertNotWPError( $recipe );
+		$this->assertCount( 2, $recipe['layers'] );
+		$this->assertSame( 'layer-abc', $recipe['activeLayerId'] );
+		$this->assertSame( 'raster', $recipe['layers'][1]['kind'] );
+		$this->assertSame( 2.0, $recipe['layers'][1]['transform']['scaleX'] );
+		$this->assertSame( 0.5, $recipe['layers'][1]['opacity'] );
+		$this->assertFalse( $recipe['layers'][1]['visible'] );
+	}
+
+	/**
+	 * An active layer id naming a layer that is not there falls back to the base.
+	 *
+	 * @covers ::lienzo_validate_recipe
+	 */
+	public function test_active_layer_must_exist() {
+		$recipe = lienzo_validate_recipe(
+			wp_json_encode(
+				array(
+					'version'       => LIENZO_RECIPE_VERSION,
+					'source'        => 12,
+					'ops'           => array(),
+					'activeLayerId' => 'layer-that-was-deleted',
+				)
+			)
+		);
+
+		$this->assertSame( 'base', $recipe['activeLayerId'] );
+	}
+
+	/**
+	 * A pre-stack recipe's single transform becomes the base layer's.
+	 *
+	 * @covers ::lienzo_migrate_recipe
+	 */
+	public function test_v4_transform_becomes_the_base_layer() {
+		$recipe = lienzo_validate_recipe(
+			wp_json_encode(
+				array(
+					'version' => 4,
+					'source'  => 12,
+					'ops'     => array(),
+					'layer'   => array(
+						'x'        => 0.3,
+						'rotation' => 45.0,
+					),
+				)
+			)
+		);
+
+		$this->assertSame( LIENZO_RECIPE_VERSION, $recipe['version'] );
+		$this->assertCount( 1, $recipe['layers'] );
+		$this->assertSame( 0.3, $recipe['layers'][0]['transform']['x'] );
+		$this->assertSame( 45.0, $recipe['layers'][0]['transform']['rotation'] );
+		$this->assertArrayNotHasKey( 'layer', $recipe );
+	}
+
+	/**
+	 * The oldest recipes still carry their geometry all the way to a layer stack.
+	 *
+	 * @covers ::lienzo_migrate_recipe
+	 */
+	public function test_v2_geometry_survives_to_the_stack() {
+		$recipe = lienzo_validate_recipe(
+			wp_json_encode(
+				array(
+					'version'  => 2,
+					'source'   => 12,
+					'ops'      => array(),
+					'geometry' => array(
+						'rotate'     => 90.0,
+						'straighten' => 1.5,
+						'flipH'      => true,
+					),
+				)
+			)
+		);
+
+		$this->assertCount( 1, $recipe['layers'] );
+		// Rotation and straightening were separate fields and are one angle now.
+		$this->assertSame( 91.5, $recipe['layers'][0]['transform']['rotation'] );
+		$this->assertTrue( $recipe['layers'][0]['transform']['flipH'] );
+	}
+
+	/**
+	 * A recipe from a future version is refused rather than half-understood.
+	 *
+	 * @covers ::lienzo_validate_recipe
+	 */
+	public function test_future_version_is_refused() {
+		$recipe = lienzo_validate_recipe(
+			wp_json_encode(
+				array(
+					'version' => LIENZO_RECIPE_VERSION + 1,
+					'source'  => 12,
+					'ops'     => array(),
+				)
+			)
+		);
+
+		$this->assertWPError( $recipe );
+		$this->assertSame( 'lienzo_recipe_bad_version', $recipe->get_error_code() );
 	}
 }

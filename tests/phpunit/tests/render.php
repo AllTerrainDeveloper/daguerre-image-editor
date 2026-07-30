@@ -2,16 +2,16 @@
 /**
  * The save pipeline.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 /**
  * Tests for includes/render.php and the render route.
  *
- * @group daguerre
- * @group daguerre-render
+ * @group lienzo
+ * @group lienzo-render
  */
-class Tests_Daguerre_Render extends WP_UnitTestCase {
+class Tests_Lienzo_Render extends WP_UnitTestCase {
 
 	/**
 	 * Administrator user ID.
@@ -100,7 +100,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	 */
 	private function recipe( $source_id ) {
 		return array(
-			'version' => DAGUERRE_RECIPE_VERSION,
+			'version' => LIENZO_RECIPE_VERSION,
 			'source'  => $source_id,
 			'ops'     => array(
 				array(
@@ -121,7 +121,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	 * This is the whole promise of the plugin, so it is asserted on the bytes: the
 	 * source file's path and modification time must both survive a save.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_creates_new_attachment_and_preserves_original() {
 		wp_set_current_user( $this->admin );
@@ -130,7 +130,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		$source_path = get_attached_file( $source_id );
 		$before      = filemtime( $source_path );
 
-		$new_id = daguerre_store_render(
+		$new_id = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
@@ -148,21 +148,21 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	/**
 	 * The recipe and the source pointer are stored on the new attachment.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_stores_recipe_and_source() {
 		wp_set_current_user( $this->admin );
 
 		$source_id = $this->make_image();
-		$new_id    = daguerre_store_render(
+		$new_id    = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
 		);
 
-		$this->assertSame( $source_id, (int) get_post_meta( $new_id, DAGUERRE_SOURCE_META, true ) );
+		$this->assertSame( $source_id, (int) get_post_meta( $new_id, LIENZO_SOURCE_META, true ) );
 
-		$stored = daguerre_get_recipe( $new_id );
+		$stored = lienzo_get_recipe( $new_id );
 
 		$this->assertIsArray( $stored );
 		$this->assertSame( 'contrast', $stored['ops'][0]['type'] );
@@ -171,19 +171,19 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	/**
 	 * Re-opening a saved image resolves back to the original's pixels.
 	 *
-	 * @covers ::daguerre_resolve_source_id
+	 * @covers ::lienzo_resolve_source_id
 	 */
 	public function test_saved_image_reopens_against_the_original() {
 		wp_set_current_user( $this->admin );
 
 		$source_id = $this->make_image();
-		$new_id    = daguerre_store_render(
+		$new_id    = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
 		);
 
-		$data = rest_do_request( new WP_REST_Request( 'GET', '/daguerre/v1/media/' . $new_id ) )->get_data();
+		$data = rest_do_request( new WP_REST_Request( 'GET', '/lienzo/v1/media/' . $new_id ) )->get_data();
 
 		$this->assertSame( $new_id, $data['id'] );
 		$this->assertSame( $source_id, $data['sourceId'] );
@@ -193,7 +193,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	/**
 	 * Alt text follows the image to its rendered copy.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_copies_alt_text() {
 		wp_set_current_user( $this->admin );
@@ -201,7 +201,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		$source_id = $this->make_image();
 		update_post_meta( $source_id, '_wp_attachment_image_alt', 'A field of canola' );
 
-		$new_id = daguerre_store_render(
+		$new_id = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
@@ -216,13 +216,13 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	/**
 	 * Core's provenance metadata is recorded alongside our own pointer.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_records_parent_image() {
 		wp_set_current_user( $this->admin );
 
 		$source_id = $this->make_image();
-		$new_id    = daguerre_store_render(
+		$new_id    = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
@@ -236,7 +236,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	/**
 	 * The saved action fires with the new and source IDs.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_fires_action() {
 		wp_set_current_user( $this->admin );
@@ -244,7 +244,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		$seen = array();
 
 		add_action(
-			'daguerre_image_saved',
+			'lienzo_image_saved',
 			static function ( $new_id, $source_id ) use ( &$seen ) {
 				$seen = array( $new_id, $source_id );
 			},
@@ -253,7 +253,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		);
 
 		$source_id = $this->make_image();
-		$new_id    = daguerre_store_render(
+		$new_id    = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
@@ -268,7 +268,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	 * The endpoint takes arbitrary bytes from an authenticated client, so the MIME
 	 * re-check after sideloading is load-bearing security, not belt and braces.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_rejects_disguised_php() {
 		wp_set_current_user( $this->admin );
@@ -280,7 +280,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		file_put_contents( $tmp, "<?php echo 'pwned'; ?>" );
 		$this->temp_files[] = $tmp;
 
-		$result = daguerre_store_render(
+		$result = lienzo_store_render(
 			array(
 				'tmp_name' => $tmp,
 				'name'     => 'evil.jpg',
@@ -298,29 +298,29 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 	/**
 	 * A render larger than the site's ceiling is refused.
 	 *
-	 * @covers ::daguerre_store_render
+	 * @covers ::lienzo_store_render
 	 */
 	public function test_save_rejects_oversized_render() {
 		wp_set_current_user( $this->admin );
 
 		$source_id = $this->make_image();
 
-		add_filter( 'daguerre_max_upload_bytes', static fn() => 10 );
+		add_filter( 'lienzo_max_upload_bytes', static fn() => 10 );
 
-		$result = daguerre_store_render(
+		$result = lienzo_store_render(
 			$this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ),
 			$source_id,
 			$this->recipe( $source_id )
 		);
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'daguerre_render_too_large', $result->get_error_code() );
+		$this->assertSame( 'lienzo_render_too_large', $result->get_error_code() );
 	}
 
 	/**
 	 * The route refuses a recipe belonging to a different image.
 	 *
-	 * @covers ::daguerre_rest_render
+	 * @covers ::lienzo_rest_render
 	 */
 	public function test_route_rejects_mismatched_recipe() {
 		wp_set_current_user( $this->admin );
@@ -328,7 +328,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		$a = $this->make_image();
 		$b = $this->make_image();
 
-		$request = new WP_REST_Request( 'POST', '/daguerre/v1/media/' . $a . '/render' );
+		$request = new WP_REST_Request( 'POST', '/lienzo/v1/media/' . $a . '/render' );
 		$request->set_param( 'recipe', wp_json_encode( $this->recipe( $b ) ) );
 		$request->set_file_params(
 			array( 'file' => $this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ) )
@@ -337,31 +337,31 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		$response = rest_do_request( $request );
 
 		$this->assertSame( 400, $response->get_status() );
-		$this->assertSame( 'daguerre_recipe_source_mismatch', $response->get_data()['code'] );
+		$this->assertSame( 'lienzo_recipe_source_mismatch', $response->get_data()['code'] );
 	}
 
 	/**
 	 * The route refuses a request with no file.
 	 *
-	 * @covers ::daguerre_rest_render
+	 * @covers ::lienzo_rest_render
 	 */
 	public function test_route_rejects_missing_file() {
 		wp_set_current_user( $this->admin );
 
 		$id      = $this->make_image();
-		$request = new WP_REST_Request( 'POST', '/daguerre/v1/media/' . $id . '/render' );
+		$request = new WP_REST_Request( 'POST', '/lienzo/v1/media/' . $id . '/render' );
 		$request->set_param( 'recipe', wp_json_encode( $this->recipe( $id ) ) );
 
 		$response = rest_do_request( $request );
 
 		$this->assertSame( 400, $response->get_status() );
-		$this->assertSame( 'daguerre_render_missing_file', $response->get_data()['code'] );
+		$this->assertSame( 'lienzo_render_missing_file', $response->get_data()['code'] );
 	}
 
 	/**
 	 * A user who may edit the image but not upload cannot save.
 	 *
-	 * @covers ::daguerre_rest_save_permission
+	 * @covers ::lienzo_rest_save_permission
 	 */
 	public function test_route_requires_upload_capability() {
 		$author = self::factory()->user->create( array( 'role' => 'author' ) );
@@ -382,25 +382,25 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 			}
 		);
 
-		$request = new WP_REST_Request( 'POST', '/daguerre/v1/media/' . $id . '/render' );
+		$request = new WP_REST_Request( 'POST', '/lienzo/v1/media/' . $id . '/render' );
 		$request->set_param( 'recipe', wp_json_encode( $this->recipe( $id ) ) );
 
 		$response = rest_do_request( $request );
 
 		$this->assertSame( 403, $response->get_status() );
-		$this->assertSame( 'daguerre_cannot_upload', $response->get_data()['code'] );
+		$this->assertSame( 'lienzo_cannot_upload', $response->get_data()['code'] );
 	}
 
 	/**
 	 * The route round-trips: a saved render comes back with a 201 and its new ID.
 	 *
-	 * @covers ::daguerre_rest_render
+	 * @covers ::lienzo_rest_render
 	 */
 	public function test_route_saves_and_reports_stored_dimensions() {
 		wp_set_current_user( $this->admin );
 
 		$id      = $this->make_image();
-		$request = new WP_REST_Request( 'POST', '/daguerre/v1/media/' . $id . '/render' );
+		$request = new WP_REST_Request( 'POST', '/lienzo/v1/media/' . $id . '/render' );
 		$request->set_param( 'recipe', wp_json_encode( $this->recipe( $id ) ) );
 		$request->set_file_params(
 			array( 'file' => $this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'canola.jpg' ) )

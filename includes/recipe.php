@@ -10,7 +10,7 @@
  * the two op tables must agree exactly. When you add an op, add it in both places
  * and add a case to `src/engine/color-matrix.ts`.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -19,12 +19,12 @@ defined( 'ABSPATH' ) || exit;
  * Current recipe schema version.
  *
  * Bump when the shape changes incompatibly, and add a migration in
- * `daguerre_migrate_recipe()` and its TypeScript counterpart.
+ * `lienzo_migrate_recipe()` and its TypeScript counterpart.
  */
-define( 'DAGUERRE_RECIPE_VERSION', 4 );
+define( 'LIENZO_RECIPE_VERSION', 5 );
 
 /**
- * Returns the table of adjustment operations Daguerre understands.
+ * Returns the table of adjustment operations Lienzo understands.
  *
  * Every op is a single scalar stored under the key `v`. Keeping the shape uniform
  * is what lets the validator, the UI slider factory and the colour-matrix composer
@@ -37,7 +37,7 @@ define( 'DAGUERRE_RECIPE_VERSION', 4 );
  *
  * @return array<string, array{min: float, max: float, default: float}> Op table keyed by op type.
  */
-function daguerre_op_schema() {
+function lienzo_op_schema() {
 	$schema = array(
 		'exposure'    => array(
 			'min'     => -1.0,
@@ -107,7 +107,7 @@ function daguerre_op_schema() {
 	 *
 	 * @param array $schema Op table keyed by op type.
 	 */
-	return (array) apply_filters( 'daguerre_op_schema', $schema );
+	return (array) apply_filters( 'lienzo_op_schema', $schema );
 }
 
 /**
@@ -118,19 +118,20 @@ function daguerre_op_schema() {
  * @param int $source_id Attachment ID the pixels come from.
  * @return array Recipe array.
  */
-function daguerre_default_recipe( $source_id ) {
+function lienzo_default_recipe( $source_id ) {
 	return array(
-		'version' => DAGUERRE_RECIPE_VERSION,
-		'source'  => (int) $source_id,
-		'ops'     => array(),
-		'canvas'  => array(
+		'version'       => LIENZO_RECIPE_VERSION,
+		'source'        => (int) $source_id,
+		'ops'           => array(),
+		'canvas'        => array(
 			'width'  => 0,
 			'height' => 0,
 		),
-		'layer'   => daguerre_default_layer(),
-		'curves'  => array(),
-		'levels'  => daguerre_default_levels(),
-		'output'  => array(
+		'layers'        => array( lienzo_default_layer_entry() ),
+		'activeLayerId' => LIENZO_BASE_LAYER_ID,
+		'curves'        => array(),
+		'levels'        => lienzo_default_levels(),
+		'output'        => array(
 			'format'  => 'image/jpeg',
 			'quality' => 0.92,
 		),
@@ -144,7 +145,7 @@ function daguerre_default_recipe( $source_id ) {
  *
  * @return array Identity layer transform.
  */
-function daguerre_default_layer() {
+function lienzo_default_layer() {
 	return array(
 		'x'        => 0.5,
 		'y'        => 0.5,
@@ -163,7 +164,7 @@ function daguerre_default_layer() {
  *
  * @return array Identity levels.
  */
-function daguerre_default_levels() {
+function lienzo_default_levels() {
 	return array(
 		'black' => 0,
 		'white' => 255,
@@ -189,12 +190,12 @@ function daguerre_default_levels() {
  * @param array $recipe Raw recipe array.
  * @return array Recipe at the current schema version.
  */
-function daguerre_migrate_recipe( $recipe ) {
+function lienzo_migrate_recipe( $recipe ) {
 	$version = isset( $recipe['version'] ) ? (int) $recipe['version'] : 1;
 
 	if ( $version < 2 ) {
 		$recipe['curves'] = array();
-		$recipe['levels'] = daguerre_default_levels();
+		$recipe['levels'] = lienzo_default_levels();
 	}
 
 	if ( $version < 3 ) {
@@ -214,7 +215,7 @@ function daguerre_migrate_recipe( $recipe ) {
 			'height' => 0,
 		);
 		$recipe['layer']  = array_merge(
-			daguerre_default_layer(),
+			lienzo_default_layer(),
 			array(
 				'rotation' => $rotate + $straighten,
 				'flipH'    => ! empty( $geometry['flipH'] ),
@@ -225,9 +226,105 @@ function daguerre_migrate_recipe( $recipe ) {
 		unset( $recipe['geometry'] );
 	}
 
-	$recipe['version'] = DAGUERRE_RECIPE_VERSION;
+	// v4 -> v5 wrapped the single transform in a one-layer stack, so that a paste, a
+	// dropped photo or a line of text can be an object of its own.
+	if ( $version < 5 ) {
+		$transform = isset( $recipe['layer'] ) ? $recipe['layer'] : null;
+
+		$recipe['layers']        = array(
+			array_merge(
+				lienzo_default_layer_entry(),
+				array( 'transform' => lienzo_validate_layer( $transform ) )
+			),
+		);
+		$recipe['activeLayerId'] = LIENZO_BASE_LAYER_ID;
+
+		unset( $recipe['layer'] );
+	}
+
+	$recipe['version'] = LIENZO_RECIPE_VERSION;
 
 	return $recipe;
+}
+
+/**
+ * Returns the base image layer every document starts with.
+ *
+ * @since 0.1.0
+ *
+ * @return array Layer entry.
+ */
+function lienzo_default_layer_entry() {
+	return array(
+		'id'        => LIENZO_BASE_LAYER_ID,
+		'name'      => 'Image',
+		'kind'      => 'image',
+		'transform' => lienzo_default_layer(),
+		'visible'   => true,
+		'opacity'   => 1.0,
+	);
+}
+
+/**
+ * Validates a layer stack.
+ *
+ * A document always has at least one layer, so an unusable stack falls back to a single
+ * image layer rather than to nothing -- the pixels are still there either way, and an
+ * empty stack would render a blank canvas over them.
+ *
+ * Only the *description* of a layer is stored. A raster layer's pixels live in a GPU
+ * texture and nowhere else, which is why re-opening a saved edit restores adjustments
+ * and geometry but not painted strokes; the flattened result is what was saved.
+ *
+ * @since 0.1.0
+ *
+ * @param array $raw Candidate recipe.
+ * @return array Validated layer stack, never empty.
+ */
+function lienzo_validate_layers( $raw ) {
+	$candidates = isset( $raw['layers'] ) && is_array( $raw['layers'] ) ? $raw['layers'] : array();
+	$layers     = array();
+
+	foreach ( $candidates as $candidate ) {
+		if ( ! is_array( $candidate ) ) {
+			continue;
+		}
+
+		$id   = isset( $candidate['id'] ) && is_string( $candidate['id'] ) && '' !== $candidate['id']
+			? $candidate['id']
+			: LIENZO_BASE_LAYER_ID;
+		$kind = isset( $candidate['kind'] ) && 'raster' === $candidate['kind'] ? 'raster' : 'image';
+
+		$layers[] = array(
+			'id'        => $id,
+			'name'      => isset( $candidate['name'] ) && is_string( $candidate['name'] )
+				? sanitize_text_field( $candidate['name'] )
+				: 'Image',
+			'kind'      => $kind,
+			'transform' => lienzo_validate_layer(
+				isset( $candidate['transform'] ) ? $candidate['transform'] : null
+			),
+			'visible'   => ! isset( $candidate['visible'] ) || (bool) $candidate['visible'],
+			'opacity'   => isset( $candidate['opacity'] ) && is_numeric( $candidate['opacity'] )
+				? min( 1.0, max( 0.0, (float) $candidate['opacity'] ) )
+				: 1.0,
+		);
+	}
+
+	if ( empty( $layers ) ) {
+		// A pre-v5 recipe carries one transform under `layer`; anything else falls back
+		// to an untransformed base image.
+		$layers[] = array_merge(
+			lienzo_default_layer_entry(),
+			array(
+				'transform' => lienzo_validate_layer(
+					isset( $raw['layer'] ) ? $raw['layer'] : null
+				),
+			)
+		);
+	}
+
+	return $layers;
 }
 
 /**
@@ -241,7 +338,7 @@ function daguerre_migrate_recipe( $recipe ) {
  * @param mixed $raw Candidate canvas.
  * @return array Normalised canvas size.
  */
-function daguerre_validate_canvas( $raw ) {
+function lienzo_validate_canvas( $raw ) {
 	$canvas = array(
 		'width'  => 0,
 		'height' => 0,
@@ -275,8 +372,8 @@ function daguerre_validate_canvas( $raw ) {
  * @param mixed $raw Candidate transform.
  * @return array Normalised layer transform.
  */
-function daguerre_validate_layer( $raw ) {
-	$layer = daguerre_default_layer();
+function lienzo_validate_layer( $raw ) {
+	$layer = lienzo_default_layer();
 
 	if ( ! is_array( $raw ) ) {
 		return $layer;
@@ -328,7 +425,7 @@ function daguerre_validate_layer( $raw ) {
  * @param mixed $raw Candidate curves.
  * @return array|WP_Error Normalised curves keyed by channel, or an error.
  */
-function daguerre_validate_curves( $raw ) {
+function lienzo_validate_curves( $raw ) {
 	if ( ! is_array( $raw ) ) {
 		return array();
 	}
@@ -345,10 +442,10 @@ function daguerre_validate_curves( $raw ) {
 		foreach ( $raw[ $channel ] as $point ) {
 			if ( ! is_array( $point ) || count( $point ) < 2 ) {
 				return new WP_Error(
-					'daguerre_recipe_bad_curve',
+					'lienzo_recipe_bad_curve',
 					sprintf(
 						/* translators: %s: curve channel name. */
-						__( 'Curve "%s" contains a malformed control point.', 'daguerre' ),
+						__( 'Curve "%s" contains a malformed control point.', 'lienzo' ),
 						$channel
 					),
 					array( 'status' => 400 )
@@ -360,10 +457,10 @@ function daguerre_validate_curves( $raw ) {
 
 			if ( ! is_finite( $x ) || ! is_finite( $y ) || $x < 0 || $x > 255 || $y < 0 || $y > 255 ) {
 				return new WP_Error(
-					'daguerre_recipe_bad_curve',
+					'lienzo_recipe_bad_curve',
 					sprintf(
 						/* translators: %s: curve channel name. */
-						__( 'Curve "%s" has a control point outside 0-255.', 'daguerre' ),
+						__( 'Curve "%s" has a control point outside 0-255.', 'lienzo' ),
 						$channel
 					),
 					array( 'status' => 400 )
@@ -391,8 +488,8 @@ function daguerre_validate_curves( $raw ) {
  * @param mixed $raw Candidate levels.
  * @return array Normalised levels.
  */
-function daguerre_validate_levels( $raw ) {
-	$levels = daguerre_default_levels();
+function lienzo_validate_levels( $raw ) {
+	$levels = lienzo_default_levels();
 
 	if ( ! is_array( $raw ) ) {
 		return $levels;
@@ -425,14 +522,14 @@ function daguerre_validate_levels( $raw ) {
  * @param mixed $raw Recipe as decoded from JSON, or a JSON string.
  * @return array|WP_Error Normalised recipe, or WP_Error describing the first problem found.
  */
-function daguerre_validate_recipe( $raw ) {
+function lienzo_validate_recipe( $raw ) {
 	if ( is_string( $raw ) ) {
 		$raw = json_decode( $raw, true );
 
 		if ( null === $raw ) {
 			return new WP_Error(
-				'daguerre_recipe_invalid_json',
-				__( 'The edit recipe was not valid JSON.', 'daguerre' ),
+				'lienzo_recipe_invalid_json',
+				__( 'The edit recipe was not valid JSON.', 'lienzo' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -440,35 +537,35 @@ function daguerre_validate_recipe( $raw ) {
 
 	if ( ! is_array( $raw ) ) {
 		return new WP_Error(
-			'daguerre_recipe_not_object',
-			__( 'The edit recipe must be an object.', 'daguerre' ),
+			'lienzo_recipe_not_object',
+			__( 'The edit recipe must be an object.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
 
 	$version = isset( $raw['version'] ) ? (int) $raw['version'] : 0;
 
-	if ( $version < 1 || $version > DAGUERRE_RECIPE_VERSION ) {
+	if ( $version < 1 || $version > LIENZO_RECIPE_VERSION ) {
 		return new WP_Error(
-			'daguerre_recipe_bad_version',
+			'lienzo_recipe_bad_version',
 			sprintf(
 				/* translators: 1: submitted schema version, 2: highest supported schema version. */
-				__( 'Unsupported recipe version %1$d. This site understands up to version %2$d.', 'daguerre' ),
+				__( 'Unsupported recipe version %1$d. This site understands up to version %2$d.', 'lienzo' ),
 				$version,
-				DAGUERRE_RECIPE_VERSION
+				LIENZO_RECIPE_VERSION
 			),
 			array( 'status' => 400 )
 		);
 	}
 
-	$raw = daguerre_migrate_recipe( $raw );
+	$raw = lienzo_migrate_recipe( $raw );
 
 	$source_id = isset( $raw['source'] ) ? (int) $raw['source'] : 0;
 
 	if ( $source_id <= 0 ) {
 		return new WP_Error(
-			'daguerre_recipe_bad_source',
-			__( 'The edit recipe must name the attachment its pixels came from.', 'daguerre' ),
+			'lienzo_recipe_bad_source',
+			__( 'The edit recipe must name the attachment its pixels came from.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
@@ -477,21 +574,21 @@ function daguerre_validate_recipe( $raw ) {
 
 	if ( ! is_array( $ops_raw ) ) {
 		return new WP_Error(
-			'daguerre_recipe_bad_ops',
-			__( 'The edit recipe operations must be a list.', 'daguerre' ),
+			'lienzo_recipe_bad_ops',
+			__( 'The edit recipe operations must be a list.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
 
-	$schema = daguerre_op_schema();
+	$schema = lienzo_op_schema();
 	$ops    = array();
 	$seen   = array();
 
 	foreach ( $ops_raw as $op ) {
 		if ( ! is_array( $op ) || ! isset( $op['type'] ) || ! is_string( $op['type'] ) ) {
 			return new WP_Error(
-				'daguerre_recipe_bad_op',
-				__( 'Every recipe operation must be an object with a type.', 'daguerre' ),
+				'lienzo_recipe_bad_op',
+				__( 'Every recipe operation must be an object with a type.', 'lienzo' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -500,10 +597,10 @@ function daguerre_validate_recipe( $raw ) {
 
 		if ( ! isset( $schema[ $type ] ) ) {
 			return new WP_Error(
-				'daguerre_recipe_unknown_op',
+				'lienzo_recipe_unknown_op',
 				sprintf(
 					/* translators: %s: the unrecognised operation type. */
-					__( 'Unknown recipe operation "%s".', 'daguerre' ),
+					__( 'Unknown recipe operation "%s".', 'lienzo' ),
 					$type
 				),
 				array(
@@ -515,10 +612,10 @@ function daguerre_validate_recipe( $raw ) {
 
 		if ( isset( $seen[ $type ] ) ) {
 			return new WP_Error(
-				'daguerre_recipe_duplicate_op',
+				'lienzo_recipe_duplicate_op',
 				sprintf(
 					/* translators: %s: the duplicated operation type. */
-					__( 'Recipe operation "%s" appears more than once.', 'daguerre' ),
+					__( 'Recipe operation "%s" appears more than once.', 'lienzo' ),
 					$type
 				),
 				array(
@@ -530,10 +627,10 @@ function daguerre_validate_recipe( $raw ) {
 
 		if ( ! isset( $op['v'] ) || ! is_numeric( $op['v'] ) ) {
 			return new WP_Error(
-				'daguerre_recipe_bad_value',
+				'lienzo_recipe_bad_value',
 				sprintf(
 					/* translators: %s: the operation type missing a value. */
-					__( 'Recipe operation "%s" is missing a numeric value.', 'daguerre' ),
+					__( 'Recipe operation "%s" is missing a numeric value.', 'lienzo' ),
 					$type
 				),
 				array(
@@ -547,10 +644,10 @@ function daguerre_validate_recipe( $raw ) {
 
 		if ( ! is_finite( $value ) || $value < $schema[ $type ]['min'] || $value > $schema[ $type ]['max'] ) {
 			return new WP_Error(
-				'daguerre_recipe_value_out_of_range',
+				'lienzo_recipe_value_out_of_range',
 				sprintf(
 					/* translators: 1: operation type, 2: minimum allowed value, 3: maximum allowed value. */
-					__( 'Recipe operation "%1$s" must be between %2$s and %3$s.', 'daguerre' ),
+					__( 'Recipe operation "%1$s" must be between %2$s and %3$s.', 'lienzo' ),
 					$type,
 					$schema[ $type ]['min'],
 					$schema[ $type ]['max']
@@ -579,12 +676,12 @@ function daguerre_validate_recipe( $raw ) {
 	$format  = isset( $output['format'] ) ? (string) $output['format'] : 'image/jpeg';
 	$quality = isset( $output['quality'] ) ? (float) $output['quality'] : 0.92;
 
-	if ( ! daguerre_is_supported_mime( $format ) ) {
+	if ( ! lienzo_is_supported_mime( $format ) ) {
 		return new WP_Error(
-			'daguerre_recipe_bad_format',
+			'lienzo_recipe_bad_format',
 			sprintf(
 				/* translators: %s: the unsupported output MIME type. */
-				__( 'Unsupported output format "%s".', 'daguerre' ),
+				__( 'Unsupported output format "%s".', 'lienzo' ),
 				$format
 			),
 			array( 'status' => 400 )
@@ -593,27 +690,40 @@ function daguerre_validate_recipe( $raw ) {
 
 	if ( ! is_finite( $quality ) || $quality < 0.1 || $quality > 1.0 ) {
 		return new WP_Error(
-			'daguerre_recipe_bad_quality',
-			__( 'Output quality must be between 0.1 and 1.0.', 'daguerre' ),
+			'lienzo_recipe_bad_quality',
+			__( 'Output quality must be between 0.1 and 1.0.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
 
-	$curves = daguerre_validate_curves( isset( $raw['curves'] ) ? $raw['curves'] : array() );
+	$curves = lienzo_validate_curves( isset( $raw['curves'] ) ? $raw['curves'] : array() );
 
 	if ( is_wp_error( $curves ) ) {
 		return $curves;
 	}
 
+	$layers          = lienzo_validate_layers( $raw );
+	$active_layer_id = LIENZO_BASE_LAYER_ID;
+
+	if ( isset( $raw['activeLayerId'] ) && is_string( $raw['activeLayerId'] ) ) {
+		foreach ( $layers as $layer ) {
+			if ( $layer['id'] === $raw['activeLayerId'] ) {
+				$active_layer_id = $raw['activeLayerId'];
+				break;
+			}
+		}
+	}
+
 	return array(
-		'version' => DAGUERRE_RECIPE_VERSION,
-		'source'  => $source_id,
-		'ops'     => $ops,
-		'canvas'  => daguerre_validate_canvas( isset( $raw['canvas'] ) ? $raw['canvas'] : null ),
-		'layer'   => daguerre_validate_layer( isset( $raw['layer'] ) ? $raw['layer'] : null ),
-		'curves'  => $curves,
-		'levels'  => daguerre_validate_levels( isset( $raw['levels'] ) ? $raw['levels'] : null ),
-		'output'  => array(
+		'version'       => LIENZO_RECIPE_VERSION,
+		'source'        => $source_id,
+		'ops'           => $ops,
+		'canvas'        => lienzo_validate_canvas( isset( $raw['canvas'] ) ? $raw['canvas'] : null ),
+		'layers'        => $layers,
+		'activeLayerId' => $active_layer_id,
+		'curves'        => $curves,
+		'levels'        => lienzo_validate_levels( isset( $raw['levels'] ) ? $raw['levels'] : null ),
+		'output'        => array(
 			'format'  => $format,
 			'quality' => $quality,
 		),
@@ -632,14 +742,18 @@ function daguerre_validate_recipe( $raw ) {
  * @param int $attachment_id Attachment post ID.
  * @return array|null Validated recipe, or null when there is none.
  */
-function daguerre_get_recipe( $attachment_id ) {
-	$stored = get_post_meta( (int) $attachment_id, DAGUERRE_RECIPE_META, true );
+function lienzo_get_recipe( $attachment_id ) {
+	$stored = lienzo_get_meta(
+		(int) $attachment_id,
+		LIENZO_RECIPE_META,
+		LIENZO_LEGACY_RECIPE_META
+	);
 
 	if ( empty( $stored ) ) {
 		return null;
 	}
 
-	$recipe = daguerre_validate_recipe( $stored );
+	$recipe = lienzo_validate_recipe( $stored );
 
 	return is_wp_error( $recipe ) ? null : $recipe;
 }

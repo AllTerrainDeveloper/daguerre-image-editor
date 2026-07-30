@@ -2,19 +2,19 @@
 /**
  * Script and style registration.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
 
-add_action( 'init', 'daguerre_register_assets' );
+add_action( 'init', 'lienzo_register_assets' );
 
 /**
  * Registers the editor bundle and stylesheet.
  *
  * Registration happens on `init` so that any surface which needs the editor -- the
  * admin page, the media modal, the block editor, a Desktop Mode native window --
- * can simply `wp_enqueue_script( 'daguerre' )` without caring who got there first.
+ * can simply `wp_enqueue_script( 'lienzo' )` without caring who got there first.
  *
  * PixiJS is deliberately *not* registered as a dependency. It is vendored at
  * `assets/vendor/pixi.min.js` and injected at runtime by `src/engine/pixi-loader.ts`
@@ -25,25 +25,25 @@ add_action( 'init', 'daguerre_register_assets' );
  *
  * @return void
  */
-function daguerre_register_assets() {
+function lienzo_register_assets() {
 	$suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
-	$script = 'assets/js/daguerre' . $suffix . '.js';
+	$script = 'assets/js/lienzo' . $suffix . '.js';
 
 	wp_register_script(
-		'daguerre',
-		DAGUERRE_URL . $script,
+		'lienzo',
+		LIENZO_URL . $script,
 		array( 'wp-i18n' ),
-		daguerre_asset_version( $script ),
+		lienzo_asset_version( $script ),
 		true
 	);
 
-	wp_set_script_translations( 'daguerre', 'daguerre', DAGUERRE_DIR . 'languages' );
+	wp_set_script_translations( 'lienzo', 'lienzo', LIENZO_DIR . 'languages' );
 
 	wp_register_style(
-		'daguerre',
-		DAGUERRE_URL . 'assets/css/daguerre.css',
+		'lienzo',
+		LIENZO_URL . 'assets/css/lienzo.css',
 		array( 'dashicons' ),
-		daguerre_asset_version( 'assets/css/daguerre.css' )
+		lienzo_asset_version( 'assets/css/lienzo.css' )
 	);
 }
 
@@ -61,16 +61,16 @@ function daguerre_register_assets() {
  * @param string $relative Path within the plugin directory.
  * @return string Version string for `wp_register_script()`.
  */
-function daguerre_asset_version( $relative ) {
-	$path = DAGUERRE_DIR . $relative;
+function lienzo_asset_version( $relative ) {
+	$path = LIENZO_DIR . $relative;
 
 	if ( ! file_exists( $path ) ) {
-		return DAGUERRE_VERSION;
+		return LIENZO_VERSION;
 	}
 
 	$modified = filemtime( $path );
 
-	return $modified ? DAGUERRE_VERSION . '.' . $modified : DAGUERRE_VERSION;
+	return $modified ? LIENZO_VERSION . '.' . $modified : LIENZO_VERSION;
 }
 
 /**
@@ -90,40 +90,40 @@ function daguerre_asset_version( $relative ) {
  *
  * @return void
  */
-function daguerre_enqueue_editor() {
-	if ( wp_script_is( 'daguerre', 'enqueued' ) ) {
+function lienzo_enqueue_editor() {
+	if ( wp_script_is( 'lienzo', 'enqueued' ) ) {
 		return;
 	}
 
-	wp_enqueue_script( 'daguerre' );
-	wp_enqueue_style( 'daguerre' );
+	wp_enqueue_script( 'lienzo' );
+	wp_enqueue_style( 'lienzo' );
 
 	wp_add_inline_script(
-		'daguerre',
-		'window.daguerreConfig = ' . wp_json_encode( daguerre_get_config() ) . ';',
+		'lienzo',
+		'window.lienzoConfig = ' . wp_json_encode( lienzo_get_config() ) . ';',
 		'before'
 	);
 }
 
 /**
- * Builds the configuration blob handed to the browser as `window.daguerreConfig`.
+ * Builds the configuration blob handed to the browser as `window.lienzoConfig`.
  *
  * @since 0.1.0
  *
  * @return array Configuration array, JSON-encodable.
  */
-function daguerre_get_config() {
+function lienzo_get_config() {
 	$config = array(
-		'version'         => DAGUERRE_VERSION,
-		'restUrl'         => esc_url_raw( trailingslashit( rest_url( DAGUERRE_REST_NAMESPACE ) ) ),
+		'version'         => LIENZO_VERSION,
+		'restUrl'         => esc_url_raw( trailingslashit( rest_url( LIENZO_REST_NAMESPACE ) ) ),
 		'restNonce'       => wp_create_nonce( 'wp_rest' ),
-		'pluginUrl'       => esc_url_raw( DAGUERRE_URL ),
+		'pluginUrl'       => esc_url_raw( LIENZO_URL ),
 		'mediaUrl'        => esc_url_raw( rest_url( 'wp/v2/media' ) ),
-		'supportedMimes'  => daguerre_supported_mime_types(),
-		'maxRenderPixels' => daguerre_max_render_pixels(),
+		'supportedMimes'  => lienzo_supported_mime_types(),
+		'maxRenderPixels' => lienzo_max_render_pixels(),
 		'canUpload'       => current_user_can( 'upload_files' ),
-		'desktopMode'     => daguerre_is_desktop_mode_active(),
-		'schema'          => daguerre_op_schema(),
+		'desktopMode'     => lienzo_is_desktop_mode_active(),
+		'schema'          => lienzo_op_schema(),
 	);
 
 	/**
@@ -133,5 +133,5 @@ function daguerre_get_config() {
 	 *
 	 * @param array $config Configuration handed to the browser.
 	 */
-	return (array) apply_filters( 'daguerre_config', $config );
+	return (array) apply_filters( 'lienzo_config', $config );
 }

@@ -11,13 +11,13 @@
 	failOnRisky="true"
 	>
 	<testsuites>
-		<testsuite name="daguerre">
+		<testsuite name="lienzo">
 			<directory suffix=".php">./tests/</directory>
 		</testsuite>
 	</testsuites>
 	<groups>
 		<include>
-			<group>daguerre</group>
+			<group>lienzo</group>
 		</include>
 	</groups>
 </phpunit>

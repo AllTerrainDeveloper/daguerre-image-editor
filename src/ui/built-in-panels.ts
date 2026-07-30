@@ -1,5 +1,5 @@
 /**
- * The panels Daguerre ships with.
+ * The panels Lienzo ships with.
  *
  * These use exactly the public `registerPanel()` API a third party would use --
  * there is no privileged path for built-ins. If Layers or Curves cannot be built
@@ -232,7 +232,7 @@ export function registerBuiltInPanels(): void {
 		order: 5,
 		render: ( host, ctx ) => {
 			const list = document.createElement( 'div' );
-			list.className = 'dg-layers';
+			list.className = 'lz-layers';
 
 			/** Controls belonging to the rows currently drawn. */
 			let rowHandles: IconButtonHandle[] = [];
@@ -249,7 +249,7 @@ export function registerBuiltInPanels(): void {
 				// Front-most first, which is how every layers palette reads.
 				for ( const layer of [ ...ctx.getLayers() ].reverse() ) {
 					const row = document.createElement( 'div' );
-					row.className = 'dg-layer';
+					row.className = 'lz-layer';
 					row.classList.toggle( 'is-active', layer.id === ctx.getActiveLayerId() );
 
 					// The row's controls come from the adaptive kit, so a layers palette
@@ -259,7 +259,7 @@ export function registerBuiltInPanels(): void {
 					const eye = createIconButton( {
 						glyph: layer.visible ? '●' : '○',
 						label: layer.visible ? __( 'Hide layer' ) : __( 'Show layer' ),
-						className: 'dg-layer__eye',
+						className: 'lz-layer__eye',
 						onClick: () =>
 							ctx.setLayers(
 								updateLayer( ctx.getLayers(), layer.id, {
@@ -270,7 +270,7 @@ export function registerBuiltInPanels(): void {
 
 					const name = document.createElement( 'button' );
 					name.type = 'button';
-					name.className = 'dg-layer__name';
+					name.className = 'lz-layer__name';
 					name.textContent = layer.name;
 					name.addEventListener( 'click', () =>
 						ctx.setLayers( ctx.getLayers(), layer.id )
@@ -279,7 +279,7 @@ export function registerBuiltInPanels(): void {
 					const up = createIconButton( {
 						glyph: '↑',
 						label: __( 'Bring forward' ),
-						className: 'dg-layer__move',
+						className: 'lz-layer__move',
 						onClick: () =>
 							ctx.setLayers(
 								reorderLayer( ctx.getLayers(), layer.id, 1 ),
@@ -290,7 +290,7 @@ export function registerBuiltInPanels(): void {
 					const down = createIconButton( {
 						glyph: '↓',
 						label: __( 'Send backward' ),
-						className: 'dg-layer__move',
+						className: 'lz-layer__move',
 						onClick: () =>
 							ctx.setLayers(
 								reorderLayer( ctx.getLayers(), layer.id, -1 ),
@@ -307,7 +307,7 @@ export function registerBuiltInPanels(): void {
 						const remove = createIconButton( {
 							glyph: '×',
 							label: __( 'Delete layer' ),
-							className: 'dg-layer__delete',
+							className: 'lz-layer__delete',
 							onClick: () =>
 								ctx.setLayers(
 									ctx.getLayers().filter(
@@ -331,7 +331,7 @@ export function registerBuiltInPanels(): void {
 			} );
 
 			const hint = document.createElement( 'p' );
-			hint.className = 'dg-hint';
+			hint.className = 'lz-hint';
 			hint.textContent = __(
 				'Painted and pasted layers are pixels, not settings — save a copy to keep them.'
 			);
@@ -532,7 +532,7 @@ export function registerBuiltInPanels(): void {
 				}
 			};
 
-			host.addEventListener( 'dg-panel-toggle', onToggle );
+			host.addEventListener( 'lz-panel-toggle', onToggle );
 
 			const quarter = ( direction: 1 | -1 ) => {
 				const layer = activeLayer( ctx.getRecipe() ).transform;
@@ -544,7 +544,7 @@ export function registerBuiltInPanels(): void {
 			};
 
 			const buttons = document.createElement( 'div' );
-			buttons.className = 'dg-buttons';
+			buttons.className = 'lz-buttons';
 
 			const handles = [
 				{ label: '⟲', title: __( 'Rotate left' ), run: () => quarter( -1 ) },
@@ -628,7 +628,7 @@ export function registerBuiltInPanels(): void {
 			} );
 
 			const fitButtons = document.createElement( 'div' );
-			fitButtons.className = 'dg-buttons';
+			fitButtons.className = 'lz-buttons';
 
 			const fits = [
 				{
@@ -689,7 +689,7 @@ export function registerBuiltInPanels(): void {
 			);
 
 			return () => {
-				host.removeEventListener( 'dg-panel-toggle', onToggle );
+				host.removeEventListener( 'lz-panel-toggle', onToggle );
 				offViewport();
 				offRecipe();
 				offSliders();
@@ -742,7 +742,7 @@ export function registerBuiltInPanels(): void {
 				ctx.setActiveTool( 'crop' );
 			};
 
-			host.addEventListener( 'dg-panel-toggle', onToggle );
+			host.addEventListener( 'lz-panel-toggle', onToggle );
 
 			let pendingWidth = ctx.getRecipe().canvas.width;
 			let pendingHeight = ctx.getRecipe().canvas.height;
@@ -791,7 +791,7 @@ export function registerBuiltInPanels(): void {
 			};
 
 			const size = document.createElement( 'div' );
-			size.className = 'dg-size';
+			size.className = 'lz-size';
 			size.append( widthField.el, heightField.el );
 
 			const aspectSelect = createSelect( {
@@ -843,7 +843,7 @@ export function registerBuiltInPanels(): void {
 			} );
 
 			const hint = document.createElement( 'p' );
-			hint.className = 'dg-hint';
+			hint.className = 'lz-hint';
 			hint.textContent = __(
 				'Cropping resizes the canvas. The image itself is untouched — move or scale it with the Transform tool.'
 			);
@@ -854,7 +854,7 @@ export function registerBuiltInPanels(): void {
 			host.append( size, aspectSelect.el, applyCropButton.el, trim.el, hint );
 
 			return () => {
-				host.removeEventListener( 'dg-panel-toggle', onToggle );
+				host.removeEventListener( 'lz-panel-toggle', onToggle );
 				offViewport();
 				offRecipe();
 				offTool();
@@ -904,7 +904,7 @@ export function registerBuiltInPanels(): void {
 			} );
 
 			const hint = document.createElement( 'p' );
-			hint.className = 'dg-hint';
+			hint.className = 'lz-hint';
 			hint.textContent = __(
 				'Click to add a point, drag it well outside to remove it, double-click to reset.'
 			);
@@ -1026,7 +1026,7 @@ export function registerBuiltInPanels(): void {
 		defaultCollapsed: true,
 		render: ( host, ctx ) => {
 			const list = document.createElement( 'div' );
-			list.className = 'dg-presets';
+			list.className = 'lz-presets';
 
 			/** Controls belonging to the rows currently drawn. */
 			let rowHandles: Array< { destroy: () => void } > = [];
@@ -1034,7 +1034,7 @@ export function registerBuiltInPanels(): void {
 			let presetName = '';
 
 			const status = document.createElement( 'p' );
-			status.className = 'dg-hint';
+			status.className = 'lz-hint';
 
 			const refresh = async () => {
 				list.replaceChildren();
@@ -1068,7 +1068,7 @@ export function registerBuiltInPanels(): void {
 
 				for ( const preset of presets ) {
 					const row = document.createElement( 'div' );
-					row.className = 'dg-preset';
+					row.className = 'lz-preset';
 
 					const apply = createButton( {
 						label: preset.name,
@@ -1076,12 +1076,12 @@ export function registerBuiltInPanels(): void {
 						onClick: () => ctx.applyPreset( preset ),
 					} );
 
-					apply.el.classList.add( 'dg-preset__apply' );
+					apply.el.classList.add( 'lz-preset__apply' );
 
 					const remove = createIconButton( {
 						glyph: '×',
 						label: sprintf( __( 'Delete “%s”' ), preset.name ),
-						className: 'dg-preset__delete',
+						className: 'lz-preset__delete',
 						onClick: async () => {
 							await ctx.deletePreset( preset.id );
 							await refresh();
@@ -1196,7 +1196,7 @@ export function registerBuiltInPanels(): void {
 			}
 
 			const list = document.createElement( 'dl' );
-			list.className = 'dg-info';
+			list.className = 'lz-info';
 
 			for ( const [ term, value ] of rows ) {
 				const dt = document.createElement( 'dt' );

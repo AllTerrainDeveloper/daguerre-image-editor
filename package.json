@@ -1,5 +1,5 @@
 {
-	"name": "daguerre",
+	"name": "lienzo",
 	"version": "0.1.0",
 	"private": true,
 	"description": "A non-destructive, GPU-accelerated image editor for the WordPress media library.",
@@ -17,8 +17,8 @@
 		"test:watch": "vitest",
 		"env:start": "wp-env start",
 		"env:stop": "wp-env stop",
-		"test:php:install": "wp-env run tests-cli --env-cwd=wp-content/plugins/daguerre composer install",
-		"test:php": "wp-env run tests-cli --env-cwd=wp-content/plugins/daguerre vendor/bin/phpunit --configuration tests/phpunit/phpunit.xml.dist",
+		"test:php:install": "wp-env run tests-cli --env-cwd=wp-content/plugins/lienzo composer install",
+		"test:php": "wp-env run tests-cli --env-cwd=wp-content/plugins/lienzo vendor/bin/phpunit --configuration tests/phpunit/phpunit.xml.dist",
 		"deploy": "node bin/deploy.mjs"
 	},
 	"devDependencies": {

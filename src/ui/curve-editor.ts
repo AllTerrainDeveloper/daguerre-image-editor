@@ -49,10 +49,10 @@ export class CurveEditor {
 		this.options = options;
 
 		this.el = document.createElement( 'div' );
-		this.el.className = 'dg-curve';
+		this.el.className = 'lz-curve';
 
 		this.canvas = document.createElement( 'canvas' );
-		this.canvas.className = 'dg-curve__canvas';
+		this.canvas.className = 'lz-curve__canvas';
 		this.canvas.setAttribute( 'role', 'img' );
 		this.canvas.setAttribute(
 			'aria-label',

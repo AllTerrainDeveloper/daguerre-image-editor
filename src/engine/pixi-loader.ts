@@ -1,7 +1,7 @@
 /**
  * Gets PixiJS from Desktop Mode.
  *
- * Daguerre does not ship Pixi. Desktop Mode already vendors a copy and registers it in
+ * Lienzo does not ship Pixi. Desktop Mode already vendors a copy and registers it in
  * its module registry as `pixijs`, so asking for it there is both smaller and safer
  * than carrying a second one: two Pixi 8 instances on a page share GPU resource
  * registries through globals, and tearing one down can invalidate textures belonging to
@@ -46,7 +46,7 @@ export async function loadPixi(): Promise< Pixi > {
 
 	if ( ! desktop?.loadModules ) {
 		throw new Error(
-			'Daguerre needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page.'
+			'Lienzo needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page.'
 		);
 	}
 

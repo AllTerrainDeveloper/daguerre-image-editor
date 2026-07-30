@@ -6,7 +6,7 @@
  * original -- a save always creates a new attachment, linked back to the source, so
  * the file a user uploaded is exactly the file that stays on disk.
  *
- * @package Daguerre
+ * @package Lienzo
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -19,7 +19,7 @@ defined( 'ABSPATH' ) || exit;
  * @param string $mime_type Output MIME type.
  * @return string Extension without a leading dot, or an empty string when unknown.
  */
-function daguerre_extension_for_mime( $mime_type ) {
+function lienzo_extension_for_mime( $mime_type ) {
 	$map = array(
 		'image/jpeg' => 'jpg',
 		'image/png'  => 'png',
@@ -48,8 +48,8 @@ function daguerre_extension_for_mime( $mime_type ) {
  * @param string $mime_type   Output MIME type.
  * @return string Filename with extension.
  */
-function daguerre_edited_filename( $source_path, $mime_type ) {
-	$extension = daguerre_extension_for_mime( $mime_type );
+function lienzo_edited_filename( $source_path, $mime_type ) {
+	$extension = lienzo_extension_for_mime( $mime_type );
 	$basename  = pathinfo( $source_path, PATHINFO_FILENAME );
 
 	// Strip a trailing "-edited" or "-edited-3" so repeats do not stack.
@@ -67,7 +67,7 @@ function daguerre_edited_filename( $source_path, $mime_type ) {
 	 * @param string $suffix      Suffix, without a separator.
 	 * @param string $source_path Absolute path of the source image.
 	 */
-	$suffix = apply_filters( 'daguerre_edited_suffix', 'edited', $source_path );
+	$suffix = apply_filters( 'lienzo_edited_suffix', 'edited', $source_path );
 
 	return $basename . '-' . $suffix . '.' . $extension;
 }
@@ -82,25 +82,25 @@ function daguerre_edited_filename( $source_path, $mime_type ) {
  * @param array $recipe    Validated recipe.
  * @return int|WP_Error New attachment ID, or an error.
  */
-function daguerre_store_render( $file, $source_id, $recipe ) {
+function lienzo_store_render( $file, $source_id, $recipe ) {
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 	require_once ABSPATH . 'wp-admin/includes/image.php';
 	require_once ABSPATH . 'wp-admin/includes/media.php';
 
-	$source_path = daguerre_get_source_path( $source_id );
+	$source_path = lienzo_get_source_path( $source_id );
 
 	if ( is_wp_error( $source_path ) ) {
 		return $source_path;
 	}
 
-	$max = daguerre_max_upload_bytes();
+	$max = lienzo_max_upload_bytes();
 
 	if ( isset( $file['size'] ) && (int) $file['size'] > $max ) {
 		return new WP_Error(
-			'daguerre_render_too_large',
+			'lienzo_render_too_large',
 			sprintf(
 				/* translators: %s: maximum upload size, already formatted. */
-				__( 'The rendered image is larger than the %s limit for this site.', 'daguerre' ),
+				__( 'The rendered image is larger than the %s limit for this site.', 'lienzo' ),
 				size_format( $max )
 			),
 			array( 'status' => 413 )
@@ -110,19 +110,19 @@ function daguerre_store_render( $file, $source_id, $recipe ) {
 	// Name the file ourselves from the source and the requested format. The client
 	// does not get to choose the extension, because the extension is what WordPress
 	// keys its MIME check on.
-	$file['name'] = daguerre_edited_filename( $source_path, $recipe['output']['format'] );
+	$file['name'] = lienzo_edited_filename( $source_path, $recipe['output']['format'] );
 
 	$sideloaded = wp_handle_sideload(
 		$file,
 		array(
 			'test_form' => false,
-			'mimes'     => daguerre_upload_mimes(),
+			'mimes'     => lienzo_upload_mimes(),
 		)
 	);
 
 	if ( isset( $sideloaded['error'] ) ) {
 		return new WP_Error(
-			'daguerre_sideload_failed',
+			'lienzo_sideload_failed',
 			$sideloaded['error'],
 			array( 'status' => 400 )
 		);
@@ -131,12 +131,12 @@ function daguerre_store_render( $file, $source_id, $recipe ) {
 	// wp_handle_sideload() sniffs the real content type rather than trusting the
 	// name we just gave it. Re-check the answer: a file that arrives claiming to be
 	// a PNG but is something else must not become an attachment.
-	if ( ! daguerre_is_supported_mime( $sideloaded['type'] ) ) {
+	if ( ! lienzo_is_supported_mime( $sideloaded['type'] ) ) {
 		wp_delete_file( $sideloaded['file'] );
 
 		return new WP_Error(
-			'daguerre_render_bad_type',
-			__( 'The rendered image was not a supported image type.', 'daguerre' ),
+			'lienzo_render_bad_type',
+			__( 'The rendered image was not a supported image type.', 'lienzo' ),
 			array( 'status' => 400 )
 		);
 	}
@@ -174,7 +174,7 @@ function daguerre_store_render( $file, $source_id, $recipe ) {
 	 * Filters the metadata of a freshly rendered image.
 	 *
 	 * Mirrors core's filter of the same name from its REST image editor, so a
-	 * plugin already listening for edited images sees Daguerre's output too.
+	 * plugin already listening for edited images sees Lienzo's output too.
 	 *
 	 * @since 0.1.0
 	 *
@@ -187,8 +187,8 @@ function daguerre_store_render( $file, $source_id, $recipe ) {
 
 	wp_update_attachment_metadata( $attachment_id, $metadata );
 
-	update_post_meta( $attachment_id, DAGUERRE_SOURCE_META, $source_id );
-	update_post_meta( $attachment_id, DAGUERRE_RECIPE_META, wp_json_encode( $recipe ) );
+	update_post_meta( $attachment_id, LIENZO_SOURCE_META, $source_id );
+	update_post_meta( $attachment_id, LIENZO_RECIPE_META, wp_json_encode( $recipe ) );
 
 	$alt = get_post_meta( $source_id, '_wp_attachment_image_alt', true );
 
@@ -205,7 +205,7 @@ function daguerre_store_render( $file, $source_id, $recipe ) {
 	 * @param int   $source_id     Attachment the pixels came from.
 	 * @param array $recipe        Validated recipe.
 	 */
-	do_action( 'daguerre_image_saved', $attachment_id, $source_id, $recipe );
+	do_action( 'lienzo_image_saved', $attachment_id, $source_id, $recipe );
 
 	return $attachment_id;
 }
@@ -220,11 +220,11 @@ function daguerre_store_render( $file, $source_id, $recipe ) {
  *
  * @return array<string, string> Extension pattern to MIME type.
  */
-function daguerre_upload_mimes() {
+function lienzo_upload_mimes() {
 	$mimes = array();
 
-	foreach ( daguerre_supported_mime_types() as $mime_type ) {
-		$extension = daguerre_extension_for_mime( $mime_type );
+	foreach ( lienzo_supported_mime_types() as $mime_type ) {
+		$extension = lienzo_extension_for_mime( $mime_type );
 
 		if ( ! $extension ) {
 			continue;

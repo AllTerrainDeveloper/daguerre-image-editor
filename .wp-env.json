@@ -1,10 +1,8 @@
 {
 	"core": null,
-	"plugins": [
-		"."
-	],
+	"plugins": [],
 	"mappings": {
-		"wp-content/plugins/daguerre": ".",
+		"wp-content/plugins/lienzo": ".",
 		"wp-content/plugins/desktop-mode": "../alcazaba-plugin"
 	},
 	"config": {

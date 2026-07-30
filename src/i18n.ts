@@ -8,12 +8,12 @@
  */
 
 /**
- * Translates a string in the `daguerre` text domain.
+ * Translates a string in the `lienzo` text domain.
  *
  * @param text Untranslated string.
  */
 export function __( text: string ): string {
-	return window.wp?.i18n?.__?.( text, 'daguerre' ) ?? text;
+	return window.wp?.i18n?.__?.( text, 'lienzo' ) ?? text;
 }
 
 /**
