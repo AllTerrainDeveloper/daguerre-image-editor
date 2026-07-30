@@ -98,6 +98,24 @@ export function mount( element: HTMLElement, options: MountOptions ): EditorInst
 }
 
 /**
+ * Names a text layer after the words it holds.
+ *
+ * A stack of layers called "Layer 3" is a stack you have to click through to read. The
+ * first line, trimmed, is what someone would call it themselves.
+ *
+ * @param text What was typed.
+ */
+function textLayerName( text: string ): string {
+	const first = text.split( '\n' )[ 0 ].trim();
+
+	if ( ! first ) {
+		return __( 'Text' );
+	}
+
+	return first.length > 24 ? `${ first.slice( 0, 23 ) }…` : first;
+}
+
+/**
  * Reads the configuration PHP localized onto the page.
  *
  * @throws {Error} When the bundle was loaded without its configuration.
@@ -987,10 +1005,16 @@ class Editor implements EditorInstance {
 	}
 
 	/**
-	 * Rasterises typed text onto the canvas.
+	 * Turns typed text into a layer of its own.
 	 *
-	 * Through the same `textCanvas()` the caret is styled from, so what was on screen
-	 * while typing and what lands in the layer cannot disagree.
+	 * Not painted into the shared raster layer. Text is an object: you want to move it,
+	 * scale it, put something behind it or throw it away without touching anything else
+	 * -- and none of that is possible once it has been flattened into a canvas-sized
+	 * sheet along with every brush stroke. So each commit becomes a layer whose texture
+	 * is exactly the size of the glyphs, positioned where they were typed, which the
+	 * Transform tool can then move and scale like any other object.
+	 *
+	 * This is the same path a paste takes, for the same reason.
 	 *
 	 * @param text  What was typed.
 	 * @param point Canvas coordinates of the first line's top-left corner.
@@ -1011,26 +1035,24 @@ class Editor implements EditorInstance {
 			return;
 		}
 
-		const layerId = this.paintTarget();
-		const at = {
-			x: point.x + rendered.offsetX,
-			y: point.y + rendered.offsetY,
-		};
+		const recipe = this.history.current;
+		const canvas = recipe.canvas;
 
-		this.captureTiles( layerId, {
-			x: at.x,
-			y: at.y,
-			width: rendered.canvas.width,
-			height: rendered.canvas.height,
+		if ( canvas.width < 1 || canvas.height < 1 ) {
+			return;
+		}
+
+		// A layer is positioned by its centre, and the text was placed by the top-left
+		// corner of its first line -- so the bitmap's own size closes the gap.
+		const layer = createRasterLayer( textLayerName( text ), {
+			x: ( point.x + rendered.offsetX + rendered.canvas.width / 2 ) / canvas.width,
+			y:
+				( point.y + rendered.offsetY + rendered.canvas.height / 2 ) /
+				canvas.height,
 		} );
-		renderer.compositeCanvas(
-			layerId,
-			rendered.canvas,
-			at.x,
-			at.y,
-			this.brush.opacity
-		);
-		this.commitStroke();
+
+		renderer.addRasterTexture( layer.id, rendered.canvas );
+		this.applyLayers( [ ...recipe.layers, layer ], layer.id );
 	}
 
 	/**
@@ -1046,11 +1068,13 @@ class Editor implements EditorInstance {
 			( layer ) => layer.id === recipe.activeLayerId
 		);
 
-		if ( active && active.kind === 'raster' ) {
+		if ( active && this.isPaintSheet( active.id ) ) {
 			return active.id;
 		}
 
-		const existing = recipe.layers.find( ( layer ) => layer.kind === 'raster' );
+		const existing = recipe.layers.find(
+			( layer ) => layer.kind === 'raster' && this.isPaintSheet( layer.id )
+		);
 
 		if ( existing ) {
 			return existing.id;
@@ -1067,6 +1091,34 @@ class Editor implements EditorInstance {
 		this.applyLayers( [ ...recipe.layers, layer ], layer.id, false );
 
 		return layer.id;
+	}
+
+	/**
+	 * Whether a layer is a full-canvas sheet that can be painted on directly.
+	 *
+	 * Text and pasted layers are *objects*: their texture is the size of their content
+	 * and their transform puts it somewhere. Painting into one would promote it to a
+	 * canvas-sized target with the old content re-centred, so the object would jump
+	 * across the canvas the moment a brush touched it. Strokes therefore go to a sheet,
+	 * and the objects stay where they were put.
+	 *
+	 * @param layerId Layer to test.
+	 */
+	private isPaintSheet( layerId: string ): boolean {
+		const recipe = this.history.current;
+		const layer = recipe.layers.find( ( entry ) => entry.id === layerId );
+
+		if ( ! layer || layer.kind !== 'raster' || ! this.renderer ) {
+			return false;
+		}
+
+		const size = this.renderer.layerTextureSize( layerId );
+
+		// A sheet with no texture yet is one that has just been created for this stroke.
+		return (
+			size.width === 0 ||
+			( size.width === recipe.canvas.width && size.height === recipe.canvas.height )
+		);
 	}
 
 	/**

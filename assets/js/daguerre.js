@@ -8161,6 +8161,13 @@ void main( void )
     void editor.boot();
     return editor;
   }
+  function textLayerName(text) {
+    const first = text.split("\n")[0].trim();
+    if (!first) {
+      return __("Text");
+    }
+    return first.length > 24 ? `${first.slice(0, 23)}…` : first;
+  }
   function readConfig() {
     const config = window.daguerreConfig;
     if (!config) {
@@ -8805,10 +8812,16 @@ void main( void )
       this.syncToolbar();
     }
     /**
-     * Rasterises typed text onto the canvas.
+     * Turns typed text into a layer of its own.
      *
-     * Through the same `textCanvas()` the caret is styled from, so what was on screen
-     * while typing and what lands in the layer cannot disagree.
+     * Not painted into the shared raster layer. Text is an object: you want to move it,
+     * scale it, put something behind it or throw it away without touching anything else
+     * -- and none of that is possible once it has been flattened into a canvas-sized
+     * sheet along with every brush stroke. So each commit becomes a layer whose texture
+     * is exactly the size of the glyphs, positioned where they were typed, which the
+     * Transform tool can then move and scale like any other object.
+     *
+     * This is the same path a paste takes, for the same reason.
      *
      * @param text  What was typed.
      * @param point Canvas coordinates of the first line's top-left corner.
@@ -8827,25 +8840,17 @@ void main( void )
       if (!renderer || !rendered) {
         return;
       }
-      const layerId = this.paintTarget();
-      const at = {
-        x: point.x + rendered.offsetX,
-        y: point.y + rendered.offsetY
-      };
-      this.captureTiles(layerId, {
-        x: at.x,
-        y: at.y,
-        width: rendered.canvas.width,
-        height: rendered.canvas.height
+      const recipe = this.history.current;
+      const canvas = recipe.canvas;
+      if (canvas.width < 1 || canvas.height < 1) {
+        return;
+      }
+      const layer = createRasterLayer(textLayerName(text), {
+        x: (point.x + rendered.offsetX + rendered.canvas.width / 2) / canvas.width,
+        y: (point.y + rendered.offsetY + rendered.canvas.height / 2) / canvas.height
       });
-      renderer.compositeCanvas(
-        layerId,
-        rendered.canvas,
-        at.x,
-        at.y,
-        this.brush.opacity
-      );
-      this.commitStroke();
+      renderer.addRasterTexture(layer.id, rendered.canvas);
+      this.applyLayers([...recipe.layers, layer], layer.id);
     }
     /**
      * The layer a stroke should land on.
@@ -8859,10 +8864,12 @@ void main( void )
       const active2 = recipe.layers.find(
         (layer2) => layer2.id === recipe.activeLayerId
       );
-      if (active2 && active2.kind === "raster") {
+      if (active2 && this.isPaintSheet(active2.id)) {
         return active2.id;
       }
-      const existing = recipe.layers.find((layer2) => layer2.kind === "raster");
+      const existing = recipe.layers.find(
+        (layer2) => layer2.kind === "raster" && this.isPaintSheet(layer2.id)
+      );
       if (existing) {
         return existing.id;
       }
@@ -8870,6 +8877,26 @@ void main( void )
       this.renderer?.ensurePaintTexture(layer.id);
       this.applyLayers([...recipe.layers, layer], layer.id, false);
       return layer.id;
+    }
+    /**
+     * Whether a layer is a full-canvas sheet that can be painted on directly.
+     *
+     * Text and pasted layers are *objects*: their texture is the size of their content
+     * and their transform puts it somewhere. Painting into one would promote it to a
+     * canvas-sized target with the old content re-centred, so the object would jump
+     * across the canvas the moment a brush touched it. Strokes therefore go to a sheet,
+     * and the objects stay where they were put.
+     *
+     * @param layerId Layer to test.
+     */
+    isPaintSheet(layerId) {
+      const recipe = this.history.current;
+      const layer = recipe.layers.find((entry) => entry.id === layerId);
+      if (!layer || layer.kind !== "raster" || !this.renderer) {
+        return false;
+      }
+      const size = this.renderer.layerTextureSize(layerId);
+      return size.width === 0 || size.width === recipe.canvas.width && size.height === recipe.canvas.height;
     }
     /**
      * Replaces the marquee.

@@ -125,7 +125,15 @@ Sixteen tools, but only four gestures, and each one is a single method:
   the pixels are only committed on release: allocating and uploading a canvas-sized bitmap on every
   pointer move would stall a 20-megapixel document to show what an outline conveys perfectly.
 - **Clicking a point** — fill, wand, eyedropper, zoom.
-- **Typing on the canvas** — text. Clicking opens a caret where the glyphs will land,
+- **Typing on the canvas** — text, which lands as an *object* rather than as paint: each commit
+  becomes its own layer, named after its words, with a texture the size of the glyphs and a transform
+  that puts it where it was typed. That is what makes it movable, scalable and deletable on its own —
+  none of which survives being flattened into a canvas-sized sheet alongside every brush stroke.
+  Pasted pixels take the same path. Strokes go to a full-canvas sheet instead, because painting into
+  an object would promote its texture to canvas size with the content re-centred, and the object
+  would jump the moment a brush touched it.
+
+  Clicking opens a caret where the glyphs will land,
   styled with the same font, size and colour the render will use and scaled to the current zoom, so
   what you type is what appears. It rasterises through the same `textCanvas()` the caret is styled
   from, which is what stops the editing surface and the output drifting apart. A `<textarea>` rather
