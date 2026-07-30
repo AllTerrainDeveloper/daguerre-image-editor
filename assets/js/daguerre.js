@@ -4740,6 +4740,11 @@ void main( void )
       image.src = url;
     });
   }
+  async function loadImageUrl(url) {
+    const image = await loadElement(url);
+    return { image, release: () => {
+    }, via: "direct" };
+  }
   async function loadImageFile(file) {
     if (!file.type.startsWith("image/")) {
       throw new Error(`${file.name} is not an image.`);
@@ -7739,12 +7744,37 @@ void main( void )
       }
     });
   }
-  function attachFileDrop(element, drop) {
-    const hasImage = (event) => Array.from(event.dataTransfer?.items ?? []).some(
-      (item) => item.kind === "file" && item.type.startsWith("image/")
+  const IMAGE_URL = /\.(?:jpe?g|png|gif|webp|avif|bmp)(?:\?|#|$)/i;
+  function readDroppedImage(transfer) {
+    if (!transfer) {
+      return null;
+    }
+    const file = Array.from(transfer.files).find(
+      (entry) => entry.type.startsWith("image/")
     );
+    if (file) {
+      return { file };
+    }
+    const html = transfer.getData("text/html");
+    const id = /wp-image-(\d+)/.exec(html)?.[1] ?? /data-id=["']?(\d+)/.exec(html)?.[1];
+    if (id) {
+      return { attachmentId: Number(id) };
+    }
+    const list = transfer.getData("text/uri-list") || transfer.getData("text/plain");
+    const url = list.split(/[\r\n]+/).map((line) => line.trim()).find((line) => line && !line.startsWith("#"));
+    if (url && IMAGE_URL.test(url)) {
+      return { url };
+    }
+    const src = /<img[^>]+src=["']([^"']+)/i.exec(html)?.[1];
+    return src ? { url: src } : null;
+  }
+  function attachFileDrop(element, drop) {
+    const looksLikeImage = (event) => {
+      const types = Array.from(event.dataTransfer?.types ?? []);
+      return types.includes("Files") || types.includes("text/uri-list") || types.includes("text/html") || types.includes("text/plain");
+    };
     const onOver = (event) => {
-      if (!hasImage(event)) {
+      if (!looksLikeImage(event)) {
         return;
       }
       event.preventDefault();
@@ -7760,17 +7790,13 @@ void main( void )
       element.classList.remove("is-drop-target");
     };
     const onDrop = (event) => {
-      const files = Array.from(event.dataTransfer?.files ?? []).filter(
-        (file) => file.type.startsWith("image/")
-      );
       element.classList.remove("is-drop-target");
-      if (files.length === 0) {
+      const dropped = readDroppedImage(event.dataTransfer);
+      if (!dropped) {
         return;
       }
       event.preventDefault();
-      for (const file of files) {
-        drop({ file, clientX: event.clientX, clientY: event.clientY });
-      }
+      drop({ ...dropped, clientX: event.clientX, clientY: event.clientY });
     };
     element.addEventListener("dragover", onOver);
     element.addEventListener("dragleave", onLeave);
@@ -8555,6 +8581,27 @@ void main( void )
     target.tagName.startsWith("WPD-") || target.closest('[ contenteditable="true" ]') !== null;
   }
   const DROP_FIT = 0.8;
+  async function loadFullSize(url) {
+    const full = url.replace(/-\d+x\d+(\.[a-z0-9]+)(\?|#|$)/i, "$1$2");
+    if (full !== url) {
+      try {
+        return await loadImageUrl(full);
+      } catch {
+      }
+    }
+    return loadImageUrl(url);
+  }
+  function fileNameFromUrl(url) {
+    try {
+      const path = new URL(url, window.location.href).pathname;
+      return decodeURIComponent(path.split("/").pop() ?? "").replace(
+        /\.[^.]+$/,
+        ""
+      ) || "Image";
+    } catch {
+      return "Image";
+    }
+  }
   function mount(element, options) {
     const editor = new Editor(element, options);
     void editor.boot();
@@ -9246,6 +9293,11 @@ void main( void )
           image = loaded.image;
           release = loaded.release;
           title = title || dropped.file.name.replace(/\.[^.]+$/, "");
+        } else if (dropped.url) {
+          const loaded = await loadFullSize(dropped.url);
+          image = loaded.image;
+          release = loaded.release;
+          title = title || fileNameFromUrl(dropped.url);
         } else {
           return false;
         }

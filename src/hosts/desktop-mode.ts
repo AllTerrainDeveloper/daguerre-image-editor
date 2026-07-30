@@ -500,35 +500,114 @@ function registerDropTarget(
 	} );
 }
 
+/** Image URL patterns worth accepting from a native drag. */
+const IMAGE_URL = /\.(?:jpe?g|png|gif|webp|avif|bmp)(?:\?|#|$)/i;
+
 /**
- * Accepts images dragged in from outside the browser.
+ * Reads whatever an image drag offers, in order of usefulness.
  *
- * The shell's drag manager handles drags that start *inside* the desktop; a file coming
- * from Finder or Explorer arrives as a plain HTML5 drop, which the manager never sees.
- * Both end in the same place, so both are worth having -- and the file path needs no
- * upload at all: the pixels go straight into a layer, exactly like a paste.
+ * Three quite different things arrive at this one handler:
+ *
+ * - **Files**, from Finder or Explorer. No upload needed; the bytes go straight into a
+ *   texture.
+ * - **An attachment id**, when the drag came from somewhere that marks its markup up --
+ *   WordPress puts `wp-image-<id>` on inserted images, and the media grid puts
+ *   `data-id` on its tiles. Worth digging for: with an id the pixels load through the
+ *   CORS-safe path, and a CDN-served file falls back to the byte proxy instead of
+ *   tainting the canvas.
+ * - **A URL**, which is what dragging a thumbnail out of the Media Library actually
+ *   gives you. `text/uri-list` and nothing else.
+ *
+ * The last of those is the common case and the one this handler originally missed
+ * entirely, so dragging from the Media Library did nothing at all.
+ *
+ * @param transfer The drag's data.
+ * @return What to load, or null when the drag holds no image.
+ */
+function readDroppedImage(
+	transfer: DataTransfer | null
+): Omit< DroppedImage, 'clientX' | 'clientY' > | null {
+	if ( ! transfer ) {
+		return null;
+	}
+
+	const file = Array.from( transfer.files ).find( ( entry ) =>
+		entry.type.startsWith( 'image/' )
+	);
+
+	if ( file ) {
+		return { file };
+	}
+
+	const html = transfer.getData( 'text/html' );
+	const id =
+		/wp-image-(\d+)/.exec( html )?.[ 1 ] ??
+		/data-id=["']?(\d+)/.exec( html )?.[ 1 ];
+
+	if ( id ) {
+		return { attachmentId: Number( id ) };
+	}
+
+	// `text/uri-list` may hold several lines, and comment lines start with a hash.
+	const list = transfer.getData( 'text/uri-list' ) || transfer.getData( 'text/plain' );
+	const url = list
+		.split( /[\r\n]+/ )
+		.map( ( line ) => line.trim() )
+		.find( ( line ) => line && ! line.startsWith( '#' ) );
+
+	if ( url && IMAGE_URL.test( url ) ) {
+		return { url };
+	}
+
+	// A dragged `<img>` offers markup even when it offers no usable URL list.
+	const src = /<img[^>]+src=["']([^"']+)/i.exec( html )?.[ 1 ];
+
+	return src ? { url: src } : null;
+}
+
+/**
+ * Accepts images dragged onto the editor by the browser.
+ *
+ * The shell's drag manager handles drags that start on the *desktop* -- a My WordPress
+ * media tile, a desktop icon. Everything else is a plain HTML5 drag the manager never
+ * sees: a file from Finder, and, crucially, a thumbnail dragged out of the Media
+ * Library window, which is an iframe whose drags reach the parent as ordinary
+ * `dragover`/`drop` events.
  *
  * @param element Drop area.
- * @param drop    Called with each image file dropped.
+ * @param drop    Called with each image dropped.
  * @return Teardown.
  */
 function attachFileDrop(
 	element: HTMLElement,
 	drop: ( dropped: DroppedImage ) => void
 ): () => void {
-	const hasImage = ( event: DragEvent ): boolean =>
-		Array.from( event.dataTransfer?.items ?? [] ).some(
-			( item ) => item.kind === 'file' && item.type.startsWith( 'image/' )
+	/**
+	 * Whether a drag looks like it holds an image.
+	 *
+	 * `dragover` cannot read the data -- the browser withholds it until the drop -- so
+	 * this goes on the advertised *types*. Being generous here is right: refusing a
+	 * drag is final, and the drop handler can still decline.
+	 */
+	const looksLikeImage = ( event: DragEvent ): boolean => {
+		const types = Array.from( event.dataTransfer?.types ?? [] );
+
+		return (
+			types.includes( 'Files' ) ||
+			types.includes( 'text/uri-list' ) ||
+			types.includes( 'text/html' ) ||
+			types.includes( 'text/plain' )
 		);
+	};
 
 	const onOver = ( event: DragEvent ) => {
-		if ( ! hasImage( event ) ) {
+		if ( ! looksLikeImage( event ) ) {
 			return;
 		}
 
-		// Both preventDefaults are required: without the dragover one the browser
-		// refuses the drop, and without `dropEffect` the cursor claims it will move the
-		// file rather than copy it.
+		// Both are required: without preventDefault on dragover the browser refuses the
+		// drop outright, and without `dropEffect` the cursor claims it will move the
+		// original rather than copy it.
 		event.preventDefault();
 
 		if ( event.dataTransfer ) {
@@ -549,21 +628,16 @@ function attachFileDrop(
 	};
 
 	const onDrop = ( event: DragEvent ) => {
-		const files = Array.from( event.dataTransfer?.files ?? [] ).filter( ( file ) =>
-			file.type.startsWith( 'image/' )
-		);
-
 		element.classList.remove( 'is-drop-target' );
 
-		if ( files.length === 0 ) {
+		const dropped = readDroppedImage( event.dataTransfer );
+
+		if ( ! dropped ) {
 			return;
 		}
 
 		event.preventDefault();
-
-		for ( const file of files ) {
-			drop( { file, clientX: event.clientX, clientY: event.clientY } );
-		}
+		drop( { ...dropped, clientX: event.clientX, clientY: event.clientY } );
 	};
 
 	element.addEventListener( 'dragover', onOver );

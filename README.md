@@ -225,12 +225,24 @@ sit inside the canvas. Deliberately not "open this instead": a drop onto a docum
 already in progress means *combine them*, and replacing it would throw away the work.
 An empty window has nothing to combine with, so there a drop opens.
 
-Two routes arrive at one place. Drags that start inside the desktop — the Media Library,
-a desktop icon — come through the shell's drag manager as an attachment, and its pixels
-load via the same CORS-safe path the document uses, so a CDN-served file falls back to
-the byte proxy instead of tainting the canvas. A file dragged from Finder or Explorer is
-a plain HTML5 drop the shell never sees; it needs no upload at all, going straight from a
-blob URL into a texture like a paste.
+Three quite different things arrive at one handler, because three quite different drags
+end up here:
+
+- **An attachment**, from a My WordPress media tile or a desktop icon, through the
+  shell's drag manager. Its pixels load via the same CORS-safe path the document uses, so
+  a CDN-served file falls back to the byte proxy instead of tainting the canvas.
+- **A URL**, which is what dragging a thumbnail out of the **Media Library** actually
+  offers — `text/uri-list` and nothing else. The Media Library is a chromeless iframe, so
+  its drags are ordinary HTML5 drags that the shell's drag manager never sees; they reach
+  the parent as plain `dragover`/`drop`. Missing this was why dragging from the Media
+  Library did nothing at all. A generated size in the URL (`photo-150x150.jpg`) is
+  stripped to load the original, falling back to the URL as dragged — because a file
+  legitimately named `poster-1920x1080.jpg` looks exactly like a generated size.
+- **A file**, from Finder or Explorer. No upload needed: blob URL straight into a
+  texture, like a paste.
+
+Desktop Mode's iframe bridge does not get in the way of the middle case: it only claims
+drags carrying *files*.
 
 Layer textures are retained for **every state on the undo stack**, not just the current
 one. That is what makes redo work: a dropped, pasted or typed layer keeps its pixels in a

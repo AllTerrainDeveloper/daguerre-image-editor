@@ -54,6 +54,24 @@ function loadElement( url: string ): Promise< HTMLImageElement > {
 }
 
 /**
+ * Loads an image by URL, for a drag that carried a link rather than bytes.
+ *
+ * Dragging a thumbnail out of the Media Library is a plain HTML5 drag: the browser
+ * offers `text/uri-list`, not a file. Same-origin uploads load cleanly; a CDN that
+ * sends no CORS headers fails here rather than silently tainting the canvas and
+ * breaking every later save, which is the whole point of asking for CORS up front.
+ *
+ * @param url Image URL.
+ * @return The loaded image and its cleanup.
+ * @throws {Error} When the image cannot be loaded, or could not be used if it were.
+ */
+export async function loadImageUrl( url: string ): Promise< LoadedImage > {
+	const image = await loadElement( url );
+
+	return { image, release: () => {}, via: 'direct' };
+}
+
+/**
  * Loads an image dragged in from outside the browser.
  *
  * A blob URL is same-origin by definition, so this path can never taint the canvas --

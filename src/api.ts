@@ -39,7 +39,11 @@ import {
 	validateRecipe,
 } from './model/recipe';
 import type { OpType, Recipe } from './model/recipe';
-import { loadImageFile, loadSourceImage } from './net/image-loader';
+import {
+	loadImageFile,
+	loadImageUrl,
+	loadSourceImage,
+} from './net/image-loader';
 import type { LoadedImage } from './net/image-loader';
 import { RestClient } from './net/rest';
 import { isDesktopModeEnabled, toast } from './platform';
@@ -65,6 +69,53 @@ import type { ActiveTool, PanelContext, ViewPrefs } from './ui/panels';
  * an object sitting on the canvas rather than a replacement for it.
  */
 const DROP_FIT = 0.8;
+
+/**
+ * Loads an image URL, preferring the full-size original behind a generated size.
+ *
+ * A thumbnail dragged out of the Media Library list gives its *rendered* URL, which is
+ * usually a WordPress-generated size -- `photo-150x150.jpg`. Adding that as a layer
+ * would put a 150-pixel image on the canvas when the original is sitting right there.
+ *
+ * The suffix is stripped and tried first, with the URL as it came as the fallback,
+ * because the guess is not safe on its own: a file legitimately named
+ * `poster-1920x1080.jpg` looks exactly like a generated size.
+ *
+ * @param url URL as dragged.
+ */
+async function loadFullSize( url: string ): Promise< LoadedImage > {
+	const full = url.replace( /-\d+x\d+(\.[a-z0-9]+)(\?|#|$)/i, '$1$2' );
+
+	if ( full !== url ) {
+		try {
+			return await loadImageUrl( full );
+		} catch {
+			// Not a generated size after all -- the name merely looked like one.
+		}
+	}
+
+	return loadImageUrl( url );
+}
+
+/**
+ * A readable layer name from an image URL.
+ *
+ * @param url Image URL.
+ */
+function fileNameFromUrl( url: string ): string {
+	try {
+		const path = new URL( url, window.location.href ).pathname;
+
+		return (
+			decodeURIComponent( path.split( '/' ).pop() ?? '' ).replace(
+				/\.[^.]+$/,
+				''
+			) || 'Image'
+		);
+	} catch {
+		return 'Image';
+	}
+}
 
 export interface MountOptions {
 	/** Attachment to open. */
@@ -93,6 +144,13 @@ export interface DroppedImage {
 	attachmentId?: number;
 	/** A file dragged in from outside the browser. Used when there is no attachment. */
 	file?: File;
+	/**
+	 * An image URL, for a drag that carried a link rather than bytes.
+	 *
+	 * What dragging a thumbnail out of the Media Library actually offers. Used only
+	 * when no attachment id could be recovered, since an id gets the CORS-safe path.
+	 */
+	url?: string;
 	/** Name for the layer. Falls back to the attachment's title or the file's name. */
 	title?: string;
 	/** Where the pointer released, in client coordinates. Defaults to the centre. */
@@ -1088,6 +1146,12 @@ class Editor implements EditorInstance {
 				image = loaded.image;
 				release = loaded.release;
 				title = title || dropped.file.name.replace( /\.[^.]+$/, '' );
+			} else if ( dropped.url ) {
+				const loaded = await loadFullSize( dropped.url );
+
+				image = loaded.image;
+				release = loaded.release;
+				title = title || fileNameFromUrl( dropped.url );
 			} else {
 				return false;
 			}
