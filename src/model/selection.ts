@@ -342,6 +342,47 @@ function thinPath(
 }
 
 /**
+ * Clips a lifted region to the selection's actual shape.
+ *
+ * Pixels are read out of the renderer as a rectangle, because that is the only shape a
+ * texture read has -- but the *selection* is very often not one. Copying an ellipse or a
+ * lasso without this step yields its bounding box, corners and all, which is not what
+ * anyone drew.
+ *
+ * The mask is rasterised at canvas size and drawn offset, so it lines up with the region
+ * pixel for pixel however the region was cropped. `destination-in` keeps the region only
+ * where the mask is opaque, which is exactly the selection.
+ *
+ * A rectangular selection is unaffected: its bounding box is its shape.
+ *
+ * @param region    Lifted pixels, modified in place.
+ * @param selection Shape to clip to.
+ * @param canvas    Canvas size the selection is expressed against.
+ * @param origin    Where the region's top-left corner sits, in canvas pixels.
+ * @return True when the region was clipped.
+ */
+export function clipToSelection(
+	region: HTMLCanvasElement,
+	selection: Selection,
+	canvas: { width: number; height: number },
+	origin: { x: number; y: number }
+): boolean {
+	const mask = buildSelectionMask( selection, canvas.width, canvas.height );
+	const ctx = region.getContext( '2d' );
+
+	if ( ! mask || ! ctx ) {
+		return false;
+	}
+
+	ctx.save();
+	ctx.globalCompositeOperation = 'destination-in';
+	ctx.drawImage( mask, -Math.round( origin.x ), -Math.round( origin.y ) );
+	ctx.restore();
+
+	return true;
+}
+
+/**
  * Builds a rectangle or ellipse selection from two dragged corners.
  *
  * @param shape Which shape.

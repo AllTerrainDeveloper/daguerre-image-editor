@@ -167,6 +167,10 @@ exchanged for its opposite as it is applied: the cost is paid when someone actua
 rather than on every stroke. A flood fill can legitimately touch everything, so past a cap the action
 records no patch and says so, instead of restoring half a change and claiming success.
 
+Copying respects the shape you drew. A texture can only be read as a rectangle, so the
+lifted block is clipped back through the selection mask with `destination-in` — without
+that, copying an ellipse or a lasso gave you its bounding box, corners and all.
+
 `model/selection.ts` gained `traceMask()`, and that is why the magic wand was cheap: it reuses the
 paint bucket's flood fill, then traces the region into a closed path. The rest of the editor speaks
 in paths, so converting once here means the outline renderer, the mask rasteriser and the brush

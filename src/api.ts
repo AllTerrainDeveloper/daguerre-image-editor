@@ -20,6 +20,7 @@ import {
 import type { CanvasSize, Layer, LayerTransform } from './model/document';
 import {
 	buildSelectionMask,
+	clipToSelection,
 	isEmptySelection,
 	selectionBounds,
 	selectionToPath,
@@ -1767,9 +1768,13 @@ class Editor implements EditorInstance {
 		}
 
 		const bounds = selectionBounds( rect );
+		const origin = {
+			x: bounds.x * recipe.canvas.width,
+			y: bounds.y * recipe.canvas.height,
+		};
 		const copied = this.renderer.extractRegion(
-			bounds.x * recipe.canvas.width,
-			bounds.y * recipe.canvas.height,
+			origin.x,
+			origin.y,
 			bounds.w * recipe.canvas.width,
 			bounds.h * recipe.canvas.height
 		);
@@ -1779,6 +1784,11 @@ class Editor implements EditorInstance {
 
 			return;
 		}
+
+		// A texture can only be read as a rectangle, but an ellipse, a lasso and a
+		// polygon are not rectangles -- so the lifted block is clipped back to the shape
+		// that was actually drawn. Without this, copying a lasso gave its bounding box.
+		clipToSelection( copied, rect, recipe.canvas, origin );
 
 		this.clipboard = copied;
 		toast( __( 'Copied.' ), 'success' );

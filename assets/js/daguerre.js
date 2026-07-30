@@ -2825,6 +2825,18 @@ void main( void )
     }
     return out;
   }
+  function clipToSelection(region, selection, canvas, origin) {
+    const mask = buildSelectionMask(selection, canvas.width, canvas.height);
+    const ctx = region.getContext("2d");
+    if (!mask || !ctx) {
+      return false;
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(mask, -Math.round(origin.x), -Math.round(origin.y));
+    ctx.restore();
+    return true;
+  }
   function selectionFromDrag(shape, from, to) {
     return {
       shape,
@@ -9856,9 +9868,13 @@ void main( void )
         return;
       }
       const bounds = selectionBounds(rect);
+      const origin = {
+        x: bounds.x * recipe.canvas.width,
+        y: bounds.y * recipe.canvas.height
+      };
       const copied = this.renderer.extractRegion(
-        bounds.x * recipe.canvas.width,
-        bounds.y * recipe.canvas.height,
+        origin.x,
+        origin.y,
         bounds.w * recipe.canvas.width,
         bounds.h * recipe.canvas.height
       );
@@ -9866,6 +9882,7 @@ void main( void )
         toast(__("Nothing to copy."), "error");
         return;
       }
+      clipToSelection(copied, rect, recipe.canvas, origin);
       this.clipboard = copied;
       toast(__("Copied."), "success");
     }

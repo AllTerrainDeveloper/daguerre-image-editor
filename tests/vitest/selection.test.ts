@@ -5,6 +5,7 @@ import {
 	isEmptySelection,
 	selectionBounds,
 	selectionFromDrag,
+	clipToSelection,
 	selectionToPath,
 	traceMask,
 } from '../../src/model/selection';
@@ -371,5 +372,98 @@ describe( 'traceMask', () => {
 
 		expect( isEmptySelection( selection ) ).toBe( false );
 		expect( selectionToPath( selection, 100, 100 ).endsWith( 'Z' ) ).toBe( true );
+	} );
+} );
+
+describe( 'clipToSelection', () => {
+	/**
+	 * Stands in for a 2D context, recording what was drawn and how.
+	 *
+	 * jsdom ships no canvas backend, so the composite operation and the offset are what
+	 * can be asserted -- and they are the two things that decide whether the clip lands
+	 * on the right pixels.
+	 */
+	function stubContext() {
+		const calls: Array< { op: string; x: number; y: number } > = [];
+		const original = HTMLCanvasElement.prototype.getContext;
+
+		HTMLCanvasElement.prototype.getContext = function () {
+			const ctx = {
+				globalCompositeOperation: 'source-over',
+				fillStyle: '',
+				save: () => {},
+				restore: () => {},
+				beginPath: () => {},
+				rect: () => {},
+				ellipse: () => {},
+				moveTo: () => {},
+				lineTo: () => {},
+				closePath: () => {},
+				fill: () => {},
+				drawImage: ( _image: unknown, x: number, y: number ) =>
+					calls.push( { op: ctx.globalCompositeOperation, x, y } ),
+			};
+
+			return ctx as unknown as CanvasRenderingContext2D;
+		} as unknown as typeof original;
+
+		return { calls, restore: () => { HTMLCanvasElement.prototype.getContext = original; } };
+	}
+
+	it( 'keeps only the pixels inside the shape', () => {
+		const stub = stubContext();
+
+		try {
+			const region = document.createElement( 'canvas' );
+			const clipped = clipToSelection(
+				region,
+				{ shape: 'ellipse', points: [ { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.8 } ] },
+				{ width: 400, height: 400 },
+				{ x: 80, y: 80 }
+			);
+
+			expect( clipped ).toBe( true );
+			// `destination-in` is what discards everything the mask does not cover; any
+			// other operation would paint the mask instead of clipping with it.
+			expect( stub.calls[ 0 ].op ).toBe( 'destination-in' );
+		} finally {
+			stub.restore();
+		}
+	} );
+
+	it( 'offsets the mask by the region origin, so it lines up', () => {
+		const stub = stubContext();
+
+		try {
+			clipToSelection(
+				document.createElement( 'canvas' ),
+				{ shape: 'lasso', points: [ { x: 0.5, y: 0.5 }, { x: 0.9, y: 0.6 }, { x: 0.7, y: 0.9 } ] },
+				{ width: 200, height: 200 },
+				{ x: 100, y: 100 }
+			);
+
+			// The mask is canvas-sized; the region was lifted from (100,100), so the mask
+			// has to slide back by exactly that much.
+			expect( stub.calls[ 0 ] ).toMatchObject( { x: -100, y: -100 } );
+		} finally {
+			stub.restore();
+		}
+	} );
+
+	it( 'declines when the selection covers nothing', () => {
+		const stub = stubContext();
+
+		try {
+			expect(
+				clipToSelection(
+					document.createElement( 'canvas' ),
+					{ shape: 'rect', points: [] },
+					{ width: 100, height: 100 },
+					{ x: 0, y: 0 }
+				)
+			).toBe( false );
+		} finally {
+			stub.restore();
+		}
 	} );
 } );
