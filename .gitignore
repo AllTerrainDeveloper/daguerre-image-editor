@@ -7,5 +7,9 @@ node_modules/
 *.log
 .phpunit.result.cache
 
-# assets/vendor/ and assets/js/ are deliberately committed: the plugin must be
-# installable straight from a checkout, without an npm install.
+# Release output. Rebuilt by `npm run plugin:package`, so it is never a source of truth.
+/dist/
+
+# assets/js/ is deliberately committed: the plugin must be installable straight from a
+# checkout, without an npm install. Pixi is no longer vendored here; it comes from the
+# Desktop Mode shell at runtime.

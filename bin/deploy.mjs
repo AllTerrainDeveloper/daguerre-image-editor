@@ -24,30 +24,11 @@ import {
 	statSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { EXCLUDED } from './ships.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve( dirname( fileURLToPath( import.meta.url ) ), '..' );
 
-/** Directories and files that must never be copied into a running site. */
-const EXCLUDED = new Set( [
-	'node_modules',
-	'vendor',
-	'.git',
-	'.wp-env.json',
-	'.wp-env.override.json',
-	'.DS_Store',
-	'bin',
-	'src',
-	'tests',
-	'package.json',
-	'package-lock.json',
-	'composer.json',
-	'composer.lock',
-	'phpcs.xml.dist',
-	'vite.config.js',
-	'tsconfig.json',
-	'README.md',
-] );
 
 /**
  * Marker proving a directory is a Lienzo install rather than something else.

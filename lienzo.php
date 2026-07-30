@@ -10,7 +10,6 @@
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       lienzo
- * Domain Path:       /languages
  * Requires Plugins:  desktop-mode
  *
  * Lienzo is a Desktop Mode application. It runs as a native window inside the

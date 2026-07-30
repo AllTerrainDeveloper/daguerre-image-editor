@@ -355,7 +355,7 @@ all unit-testable in jsdom without a GPU.
 
 ```bash
 npm install
-npm run build          # vendors Pixi, builds the bundles, deploys to the local site
+npm run build          # builds the bundles and syncs them to the local QA site
 npm run dev            # watch build
 npm run deploy         # sync only, without rebuilding
 npm run typecheck      # tsc --noEmit
@@ -364,6 +364,30 @@ npm run env:start      # wp-env at http://localhost:8894 (admin / password)
 npm run test:php:install
 npm run test:php       # phpunit, @group lienzo
 ```
+
+### Releasing
+
+```bash
+npm run plugin:build    # typecheck, tests, then both bundles. No deploy, no QA site needed.
+npm run plugin:check    # WordPress's own Plugin Check, the tool the review queue runs
+npm run plugin:package  # dist/lienzo.zip, plus dist/assets/ for the directory art
+```
+
+`bin/ships.mjs` is the single list of what belongs in a distributed copy, imported by
+both the local deploy and the packager, because the two answering differently is how a
+zip ends up carrying `node_modules` or missing a file the QA site has been running for
+weeks. The zip contains one `lienzo/` folder so it unpacks to the right slug however it
+is installed, and it is staged into `dist/lienzo/` first so you can list and diff the
+exact tree a reviewer will see.
+
+The banner and icon art lives in `.wordpress-org/` and is deliberately **not** in the
+zip: the plugin directory serves it from its own `assets/` path in SVN, and shipping it
+would add half a megabyte to every download. `plugin:package` copies it to
+`dist/assets/` so both halves of an SVN commit are ready side by side.
+
+`plugin:check` runs against the repository as wp-env maps it, not the package, so it
+excludes the build tooling explicitly; that list mirrors `bin/ships.mjs` in Plugin
+Check's own form. Unzip the package if you want to see the real tree.
 
 ### Two sites, and why builds deploy themselves
 
