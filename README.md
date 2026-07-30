@@ -1,3 +1,5 @@
+https://github.com/user-attachments/assets/ed057f67-54c8-495e-a8f1-88437d278800
+
 # Lienzo.
 
 A non-destructive, GPU-accelerated image editor for the WordPress media library.
@@ -6,18 +8,19 @@ WordPress has shipped the same image editor since 2008 — rotate, flip, crop, s
 `wp-admin/includes/image-edit.php` renders its toolbar as hardcoded `onclick=` markup with no
 action hooks inside, so it cannot be extended, only replaced. Lienzo replaces it.
 
-## Status
+## What it does
 
-**All six phases complete, plus layers, selections and an eighteen-tool rail.** Colour and tone, a
-live per-frame histogram, crop/straighten/rotate/flip, curves and levels, sharpen/blur/vignette/grain
-and saved presets; then a layer stack, four selection shapes, brushes, a magic wand, retouching and
-toning brushes, a clone stamp, gradients, shapes, paths and on-canvas text. Adjustments stay
-non-destructive — always written as a new attachment with the edit stored as a re-openable recipe.
+Colour and tone with a live per-frame histogram; crop, straighten, rotate and flip; curves and
+levels; sharpen, blur, vignette and grain; saved presets. Then a layer stack, four selection shapes,
+brushes, a magic wand, retouching and toning brushes, a clone stamp, gradients, shapes, paths, and
+text typed directly on the canvas. Undo and redo reach painted pixels, not only settings.
 
-Lienzo runs as a **native window inside [Desktop Mode](../alcazaba-plugin)**, which it requires.
-Opened from the dock, a desktop icon, a double-clicked image, the Media Library row action, the
-attachment screen, the media modal or the `core/image` block toolbar — every one of those opens the
-same window.
+Adjustments stay non-destructive: a save always writes a *new* attachment and stores the edit as a
+re-openable recipe, so the original file is never rewritten and repeated edits never compound.
+
+Lienzo runs as a **native window inside Desktop Mode**, which it requires. The dock, a desktop icon,
+a double-clicked image, the Media Library row action, the attachment screen, the media modal and the
+`core/image` block toolbar all open that same window.
 
 ## Design in one page
 
@@ -63,7 +66,7 @@ been. `lienzo_recipe_is_reproducible()` is the one place that decides.
 **Resolution independence is what makes the preview honest.** The on-screen sprite is scaled to fit
 the viewport and Pixi runs filters at rendered size, so dragging a slider on a 6000px photo costs
 what a thumbnail costs. Saving re-runs the identical filter against the unscaled texture. The two
-agree because every phase-1 op is per-pixel colour maths with no spatial radius. *An op with a pixel
+agree because every colour op is per-pixel maths with no spatial radius. *An op with a pixel
 radius — blur, sharpen, grain — breaks that and must scale its radius with the render size.*
 
 ## The sidebar is a panel registry
@@ -98,7 +101,7 @@ Accordion rather than tabs, deliberately: a histogram is something you watch *wh
 slider, so putting it behind a tab switch would break the one workflow it exists for. Anything you
 would rather not see gets switched off in the picker instead.
 
-## Sixteen tools, four mechanisms
+## Eighteen tools, four mechanisms
 
 The rail on the leading edge holds the tools, two columns wide and grouped by what they do to the
 image. Exactly one owns the stage at a time, because they all want the same pointer events on the
@@ -119,7 +122,7 @@ fills the selection in translucent red instead of outlining it: marching ants sa
 a mask says how soft it is, which an outline cannot show at all. `F` fills the screen — via the
 Fullscreen API when it is allowed, and a CSS class when it is not, because inside a Desktop Mode
 window the request is usually refused and an editor that silently ignores a keypress is worse than
-one that just grows. `⋯` lists every tool by name with its shortcut, since sixteen glyphs are quick
+one that just grows. `⋯` lists every tool by name with its shortcut, since eighteen glyphs are quick
 to click and slow to learn.
 
 Two Photoshop slots are deliberately absent: the frame tool, which places an empty image
@@ -127,7 +130,7 @@ placeholder and has nothing to do in a library editor, and the separate lasso sl
 polygon are shapes of the one Select tool, chosen in its options bar, which is where every other
 selection setting already lives.
 
-Sixteen tools, but only four gestures, and each one is a single method:
+Eighteen tools, but only four gestures, and each one is a single method:
 
 - **Stroking** — brush, eraser and the retouching brushes. A stroke is interpolated into evenly
   spaced dabs, so how fast you drag does not change the result.
@@ -194,8 +197,8 @@ invisible at fit zoom and obvious at 100% — that is arithmetic, not a bug.
 
 ## A Desktop Mode application
 
-Lienzo requires the [Desktop Mode](../alcazaba-plugin) plugin and runs as a **native window** in
-the desktop shell, rendering into the shell's own DOM. That is the whole design, not a preference:
+Lienzo requires the Desktop Mode plugin and runs as a **native window** in the desktop shell,
+rendering into the shell's own DOM. That is the whole design, not a preference:
 the shell's `<wpd-*>` components, its drag bridge and its PixiJS all live in the parent frame, and a
 chromeless iframe can reach none of them — no component is registered there at all. There is
 therefore one editing surface, and the row action, the media modal button and the block editor button
@@ -320,13 +323,13 @@ unrelated Pixi apps on the page.
 ```
 lienzo.php               plugin bootstrap, constants
 includes/
+  requirements.php         the Desktop Mode capability gate + the plugins-screen notice
   helpers.php              capabilities, source resolution, render ceiling
   recipe.php               op schema + validation  (contract twin of src/model/recipe.ts)
   rest.php                 lienzo/v1 routes
   assets.php               script/style registration + the config blob
   render.php               blob -> sideload -> attachment -> recipe meta
   presets.php              per-user saved looks
-  admin-page.php           the full-screen editor page
   media-actions.php        row action + attachment-screen button
   desktop-mode.php         every Desktop Mode touchpoint, behind function_exists
 src/
@@ -346,7 +349,7 @@ src/
   net/                     REST client, image loading with CORS fallback
   ui/panels.ts             panel registry + collapsible chrome
   ui/built-in-panels.ts    every shipped panel, via the public registerPanel()
-  ui/tool-rail.ts          the sixteen tools, two columns, keyboard shortcuts
+  ui/tool-rail.ts          the eighteen tools, two columns, keyboard shortcuts
   ui/stage-tools.ts        every canvas gesture, through one coordinate conversion
   ui/options-bar.ts        the contextual strip; a second view of one model
   ui/crop-overlay.ts       the draggable crop rectangle
@@ -472,27 +475,27 @@ browser implementation gives you a slider that validates and then does nothing.
 | `lienzo_config` | The blob handed to the browser |
 | `lienzo_rest_media_payload` | The open-image response |
 
-## Roadmap
+## Known limits
 
-| Phase | Scope | State |
-|---|---|---|
-| 0 | Skeleton, build, read routes, test harness | ✅ |
-| 1 | Engine, colour and tone, live histogram | ✅ |
-| 2 | Save: full-res render, `POST /render`, recipe persistence, re-open | ✅ |
-| 3 | Media modal, row actions, block editor toolbar | ✅ |
-| 4 | Desktop Mode native window, icon, file opener, drag in/out | ✅ |
-| 5 | Crop, straighten, rotate, flip; curves and levels via a LUT | ✅ |
-| 6 | Sharpen, blur, vignette, grain, presets | ✅ |
-| — | Layers, selection, painting, copy/paste, rulers, snapping | ✅ |
-| — | Eighteen-tool rail: wand, retouch, clone, dodge/burn, history brush, gradient, shape, path, text, hand, zoom, quick mask, full screen | ✅ |
+Stated plainly, because each is better read here than discovered:
 
-Not yet done, and honestly out of scope so far: linear-light compositing, 16-bit intermediates,
-batch apply across a selection, and a WGSL program so the filter can run on WebGPU.
-
-One known limit worth stating plainly rather than discovering: **the magic wand and the paint bucket
-are slow on very large images** — a few seconds on a 20-megapixel photo, because the flood fill walks
-every pixel on the CPU. They work; they are not yet instant.
+- **The magic wand and the paint bucket are slow on very large images** — a few seconds on a
+  20-megapixel photo, because the flood fill walks every pixel on the CPU. They work; they are not
+  yet instant.
+- **`traceMask()` traces only the outer contour**, so a wand selection of a region with holes selects
+  through them. The right trade against carrying two selection models.
+- **Compositing is sRGB**, matching core WordPress and most browser editors. Physically correct
+  linear-light exposure, 16-bit intermediates and a WGSL program for WebGPU are all real work that
+  has not been done.
+- **There is no classic-admin editor.** Running natively in the desktop shell is what buys the
+  `<wpd-*>` components, the drag bridge and the shared PixiJS; the cost is that switching Desktop
+  Mode off leaves nothing but a notice explaining why.
+- **`big_image_size_threshold`** can silently downscale a saved render. The success toast reports the
+  dimensions actually stored rather than the ones requested.
+- **Animated GIFs are not offered for editing**, because a canvas round trip flattens them to one
+  frame, and quietly destroying an animation is worse than declining.
 
 ## Licence
 
-GPL-2.0-or-later. Bundles PixiJS (MIT) — see `assets/vendor/pixi-LICENSE.txt`.
+GPL-2.0-or-later. No third-party libraries are bundled and no external requests are made. Rendering
+uses PixiJS (MIT), which Desktop Mode vendors and serves from your own site.
