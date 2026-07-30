@@ -1206,13 +1206,20 @@ input.dg-field__control {
 
 /* The cursor is the clearest signal of which tool has the stage. */
 .dg-stage[ data-tool='select' ],
+.dg-stage[ data-tool='gradient' ],
+.dg-stage[ data-tool='shape' ],
+.dg-stage[ data-tool='path' ] { cursor: crosshair; }
+
+/*
+ * The sized tools get a ring instead. `none` rather than `crosshair`, because two
+ * pointers on screen at once is worse than one -- the ring already marks the centre.
+ */
 .dg-stage[ data-tool='brush' ],
 .dg-stage[ data-tool='eraser' ],
 .dg-stage[ data-tool='retouch' ],
 .dg-stage[ data-tool='tone' ],
 .dg-stage[ data-tool='clone' ],
-.dg-stage[ data-tool='gradient' ],
-.dg-stage[ data-tool='shape' ] { cursor: crosshair; }
+.dg-stage[ data-tool='history' ] { cursor: none; }
 .dg-stage[ data-tool='fill' ],
 .dg-stage[ data-tool='wand' ] { cursor: cell; }
 .dg-stage[ data-tool='eyedropper' ] { cursor: copy; }
@@ -1841,4 +1848,37 @@ svg.dg-selection {
 	inset: 0;
 	z-index: 100000;
 	max-block-size: none;
+}
+
+/* -- Brush cursor ----------------------------------------------------------- */
+
+/*
+ * A ring the size of the brush, in canvas pixels scaled to the current zoom. Drawn as
+ * an element rather than as a CSS `cursor` image because a custom cursor is capped at
+ * 128px in every browser and silently falls back past that -- so the one case where
+ * the preview matters most is the case where it would disappear.
+ *
+ * Two rings in opposite colours, like the marching ants, so it stays visible over both
+ * a white sky and a black shadow.
+ */
+.dg-brush-cursor {
+	position: absolute;
+	z-index: 5;
+	translate: -50% -50%;
+	pointer-events: none;
+	border: 1px solid rgba( 255, 255, 255, 0.9 );
+	outline: 1px solid rgba( 0, 0, 0, 0.75 );
+	border-radius: 50%;
+	box-sizing: border-box;
+}
+
+/* Square brushes get a square ring; anything else reads as a lie about the shape. */
+.dg-brush-cursor[ data-shape='square' ] {
+	border-radius: 2px;
+}
+
+/* A soft brush has a gradient edge, so a solid ring would promise a crispness the
+ * stroke does not have. */
+.dg-brush-cursor.is-soft {
+	border-style: dashed;
 }

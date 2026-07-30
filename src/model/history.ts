@@ -20,6 +20,15 @@ interface Entry< T > {
 	state: T;
 	label: string;
 	at: number;
+	/**
+	 * Anything the caller needs to undo alongside the state.
+	 *
+	 * Painted pixels live outside the recipe -- they are not describable, so a snapshot
+	 * cannot contain them. An entry can therefore carry a patch that puts them back,
+	 * which is what lets one undo reverse one brush stroke rather than only the recipe
+	 * change that happened to accompany it.
+	 */
+	meta?: unknown;
 }
 
 /**
@@ -62,14 +71,16 @@ export class History< T > {
 	 *
 	 * Replaces the top entry instead of adding one when the label matches the
 	 * previous change and it happened recently, so a slider drag becomes a single
-	 * undo step rather than one per pointer move.
+	 * undo step rather than one per pointer move. An entry carrying metadata is never
+	 * merged, because its payload cannot be superseded the way a slider value can.
 	 *
 	 * Pushing after an undo discards the redo tail, which is what every editor does.
 	 *
 	 * @param state New state.
 	 * @param label Groups related changes. Use the op name for slider drags.
+	 * @param meta  Optional. Carried alongside, for changes a snapshot cannot express.
 	 */
-	push( state: T, label: string ): void {
+	push( state: T, label: string, meta?: unknown ): void {
 		const at = this.now();
 		const top = this.entries[ this.index ];
 
@@ -77,14 +88,21 @@ export class History< T > {
 			this.index > 0 &&
 			top.label === label &&
 			at - top.at < COALESCE_MS &&
-			! this.canRedo
+			! this.canRedo &&
+			// Never merge entries carrying a payload. Coalescing exists for slider
+			// drags, where each value supersedes the last. A brush stroke is not like
+			// that: its patch holds pixels that exist nowhere else, so merging two
+			// quick strokes would discard the first stroke's only copy of them and
+			// leave undo restoring half of what it claimed to.
+			meta === undefined &&
+			top.meta === undefined
 		) {
-			this.entries[ this.index ] = { state, label, at };
+			this.entries[ this.index ] = { state, label, at, meta };
 			return;
 		}
 
 		this.entries = this.entries.slice( 0, this.index + 1 );
-		this.entries.push( { state, label, at } );
+		this.entries.push( { state, label, at, meta } );
 
 		if ( this.entries.length > MAX_ENTRIES ) {
 			this.entries.shift();
@@ -105,6 +123,29 @@ export class History< T > {
 	 */
 	replace( state: T ): void {
 		this.entries[ this.index ] = { ...this.entries[ this.index ], state };
+	}
+
+	/** Whatever was attached to the entry currently in effect. */
+	get meta(): unknown {
+		return this.entries[ this.index ].meta;
+	}
+
+	/** The label of the entry currently in effect. */
+	get label(): string {
+		return this.entries[ this.index ].label;
+	}
+
+	/**
+	 * Replaces the metadata on the entry in effect.
+	 *
+	 * Undoing a stroke needs the pixels the stroke *produced* in order to redo it, and
+	 * those only exist once it has happened -- so the patch is swapped for its opposite
+	 * as it is applied, and the entry alternates between undo and redo directions.
+	 *
+	 * @param meta Replacement metadata.
+	 */
+	setMeta( meta: unknown ): void {
+		this.entries[ this.index ].meta = meta;
 	}
 
 	/**

@@ -117,6 +117,9 @@ export class EditorRenderer {
 	/** The selection, rasterised, confining every paint operation. */
 	private paintMask: InstanceType< Pixi[ 'Texture' ] > | null = null;
 
+	/** One white pixel, stretched into an eraser stencil when a region is restored. */
+	private solid: InstanceType< Pixi[ 'Texture' ] > | null = null;
+
 	/** The baked tone table, or null when every curve and level is at rest. */
 	private lut: InstanceType< Pixi[ 'Texture' ] > | null = null;
 
@@ -664,6 +667,137 @@ export class EditorRenderer {
 			read.pixels[ index + 2 ],
 			read.pixels[ index + 3 ],
 		];
+	}
+
+	/**
+	 * Reads one rectangle of a layer's pixels.
+	 *
+	 * Renders just that region into a small target rather than extracting the whole
+	 * texture and cropping: undo captures tiles constantly while a stroke is in
+	 * progress, and a full-texture transfer per tile would cost more than the painting.
+	 *
+	 * @param layerId Layer to read.
+	 * @param rect    Region, in canvas pixels.
+	 * @return The pixels, or null when the layer has no texture yet.
+	 */
+	extractLayerRegion(
+		layerId: string,
+		rect: { x: number; y: number; width: number; height: number }
+	): HTMLCanvasElement | null {
+		const texture = this.layerTextures.get( layerId );
+
+		if ( ! texture || rect.width < 1 || rect.height < 1 ) {
+			return null;
+		}
+
+		const target = this.pixi.RenderTexture.create( {
+			width: Math.round( rect.width ),
+			height: Math.round( rect.height ),
+		} );
+		const sprite = new this.pixi.Sprite( texture );
+
+		sprite.position.set( -Math.round( rect.x ), -Math.round( rect.y ) );
+
+		this.app.renderer.render( { container: sprite, target, clear: true } );
+
+		const canvas = this.app.renderer.extract.canvas( target ) as HTMLCanvasElement;
+
+		sprite.destroy();
+		target.destroy( true );
+
+		return canvas;
+	}
+
+	/**
+	 * Puts one rectangle of a layer back to a previous state.
+	 *
+	 * The region is erased first and then redrawn, rather than drawn over. Drawing over
+	 * would composite the old pixels *onto* the new ones, so a stroke undone would
+	 * leave both visible -- and an empty region could never be restored at all, because
+	 * compositing nothing changes nothing.
+	 *
+	 * @param layerId Layer to write.
+	 * @param rect    Region, in canvas pixels.
+	 * @param pixels  What to put there, or null to leave it empty.
+	 */
+	restoreLayerRegion(
+		layerId: string,
+		rect: { x: number; y: number; width: number; height: number },
+		pixels: HTMLCanvasElement | null
+	): void {
+		const target = this.ensurePaintTexture( layerId );
+		const eraser = new this.pixi.Sprite( this.solidTexture() );
+
+		eraser.position.set( Math.round( rect.x ), Math.round( rect.y ) );
+		eraser.width = Math.round( rect.width );
+		eraser.height = Math.round( rect.height );
+		eraser.blendMode = 'erase';
+
+		this.renderDetached( eraser, target );
+
+		if ( pixels ) {
+			const texture = this.pixi.Texture.from( pixels );
+			const sprite = new this.pixi.Sprite( texture );
+
+			sprite.position.set( Math.round( rect.x ), Math.round( rect.y ) );
+
+			this.renderDetached( sprite, target );
+			texture.destroy( true );
+		}
+
+		this.composeDocument();
+		this.scheduleHistogram();
+	}
+
+	/**
+	 * Renders one sprite into a texture, honouring its blend mode.
+	 *
+	 * The wrapping container is not ceremony. A sprite passed as the render *root* is
+	 * its own render group, and the batcher never applies a root's blend mode -- so an
+	 * `erase` sprite rendered directly paints solid white instead of clearing, with no
+	 * error. `stampBrush()` only avoids this by accident, because the selection clipper
+	 * already wraps its sprite in a container. This makes the requirement explicit.
+	 *
+	 * @param sprite What to draw. Destroyed afterwards.
+	 * @param target Texture to draw into.
+	 */
+	private renderDetached(
+		sprite: InstanceType< Pixi[ 'Sprite' ] >,
+		target: InstanceType< Pixi[ 'RenderTexture' ] >
+	): void {
+		const holder = new this.pixi.Container();
+
+		holder.addChild( sprite );
+
+		this.app.renderer.render( { container: holder, target, clear: false } );
+
+		holder.destroy( { children: true } );
+	}
+
+	/**
+	 * A one-pixel opaque white texture, used as an eraser stencil.
+	 *
+	 * Built here rather than taken from `Texture.WHITE` so the narrow Pixi surface this
+	 * file is typed against stays narrow.
+	 */
+	private solidTexture(): InstanceType< Pixi[ 'Texture' ] > {
+		if ( ! this.solid ) {
+			const canvas = document.createElement( 'canvas' );
+
+			canvas.width = 1;
+			canvas.height = 1;
+
+			const ctx = canvas.getContext( '2d' );
+
+			if ( ctx ) {
+				ctx.fillStyle = '#fff';
+				ctx.fillRect( 0, 0, 1, 1 );
+			}
+
+			this.solid = this.pixi.Texture.from( canvas );
+		}
+
+		return this.solid;
 	}
 
 	/**

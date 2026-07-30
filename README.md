@@ -144,6 +144,15 @@ uploaded back to the GPU, so the cost tracks the brush rather than the image.
 composited through the selection mask, which is what makes them three `<canvas>` draw calls instead
 of three features.
 
+Undo reaches painted pixels, and does it in one press. A recipe is a few hundred bytes, so history
+snapshots it whole; a layer is 67MB, so it cannot work the same way. `model/pixel-history.ts`
+therefore remembers only the 256-pixel *tiles* a stroke touched, and only the version of them that
+existed beforehand — a stroke across a photo costs a few hundred kilobytes rather than the document.
+Redo needs the pixels the stroke *produced*, which only exist once it has happened, so the patch is
+exchanged for its opposite as it is applied: the cost is paid when someone actually undoes something
+rather than on every stroke. A flood fill can legitimately touch everything, so past a cap the action
+records no patch and says so, instead of restoring half a change and claiming success.
+
 `model/selection.ts` gained `traceMask()`, and that is why the magic wand was cheap: it reuses the
 paint bucket's flood fill, then traces the region into a closed path. The rest of the editor speaks
 in paths, so converting once here means the outline renderer, the mask rasteriser and the brush
@@ -371,15 +380,9 @@ browser implementation gives you a slider that validates and then does nothing.
 Not yet done, and honestly out of scope so far: linear-light compositing, 16-bit intermediates,
 batch apply across a selection, and a WGSL program so the filter can run on WebGPU.
 
-Two known limits worth stating plainly rather than discovering:
-
-- **Undo does not reach painted pixels.** History snapshots the recipe, and a brush stroke, a
-  gradient or a retouch is pixels in a layer texture, not a setting. Removing the layer is the way
-  back. Pixel-level undo means snapshotting layer textures, which is a real feature, not an
-  oversight to patch quietly.
-- **The magic wand and the paint bucket are slow on very large images** — a few seconds on a
-  20-megapixel photo, because the flood fill walks every pixel on the CPU. They work; they are not
-  yet instant.
+One known limit worth stating plainly rather than discovering: **the magic wand and the paint bucket
+are slow on very large images** — a few seconds on a 20-megapixel photo, because the flood fill walks
+every pixel on the CPU. They work; they are not yet instant.
 
 ## Licence
 

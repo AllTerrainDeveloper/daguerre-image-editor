@@ -11,6 +11,8 @@
 import { EditorRenderer } from './engine/renderer';
 import { __, sprintf } from './i18n';
 import { History } from './model/history';
+import { TileCollector, dabRegion } from './model/pixel-history';
+import type { PixelPatch, PixelRect, TilePatch } from './model/pixel-history';
 import type { Curves, Levels } from './engine/lut';
 import {
 	createRasterLayer,
@@ -47,6 +49,7 @@ import { createButton } from './ui/controls';
 import type { ButtonHandle } from './ui/controls';
 import { StageTools, defaultBrush } from './ui/stage-tools';
 import type { BrushSettings } from './ui/stage-tools';
+import { BrushCursor } from './ui/brush-cursor';
 import { Rulers } from './ui/rulers';
 import { ToolRail } from './ui/tool-rail';
 import { PanelHost } from './ui/panels';
@@ -163,6 +166,9 @@ class Editor implements EditorInstance {
 
 	private rulers: Rulers | null = null;
 
+	/** The ring showing how big the brush actually is. */
+	private brushCursor: BrushCursor | null = null;
+
 	/** The marquee. */
 	private selection: Selection | null = null;
 
@@ -184,6 +190,18 @@ class Editor implements EditorInstance {
 
 	/** Pixels lifted by the last copy. */
 	private clipboard: HTMLCanvasElement | null = null;
+
+	/**
+	 * Tiles the stroke in progress has overwritten, so it can be undone.
+	 *
+	 * Collected as the stroke happens rather than snapshotted at either end: the region
+	 * a stroke will cover is unknown when it starts, and by the time it finishes the
+	 * old pixels are gone.
+	 */
+	private strokeTiles: TileCollector | null = null;
+
+	/** The layer the stroke in progress is painting into. */
+	private strokeLayer = '';
 
 	private stageTools: StageTools | null = null;
 
@@ -831,12 +849,32 @@ class Editor implements EditorInstance {
 			getBrush: () => this.brush,
 			setBrush: ( patch ) => this.setBrush( patch ),
 			getTargetLayerId: () => this.paintTarget(),
-			stamp: ( id, image, x, y, size, colour, opacity, erase ) =>
-				renderer.stampBrush( id, image, x, y, size, colour, opacity, erase ),
-			fillMask: ( id, mask, colour, opacity ) =>
-				renderer.fillWithMask( id, mask, colour, opacity ),
-			composite: ( id, source, x, y, opacity ) =>
-				renderer.compositeCanvas( id, source, x, y, opacity ),
+			stamp: ( id, image, x, y, size, colour, opacity, erase ) => {
+				this.captureTiles( id, dabRegion( x, y, size ) );
+				renderer.stampBrush( id, image, x, y, size, colour, opacity, erase );
+			},
+			fillMask: ( id, mask, colour, opacity ) => {
+				// A flood fill can reach anywhere, so it offers the whole canvas and
+				// lets the collector decide whether that is affordable.
+				const canvas = this.history.current.canvas;
+
+				this.captureTiles( id, {
+					x: 0,
+					y: 0,
+					width: canvas.width,
+					height: canvas.height,
+				} );
+				renderer.fillWithMask( id, mask, colour, opacity );
+			},
+			composite: ( id, source, x, y, opacity ) => {
+				this.captureTiles( id, {
+					x,
+					y,
+					width: source.width,
+					height: source.height,
+				} );
+				renderer.compositeCanvas( id, source, x, y, opacity );
+			},
 			readDocument: () => renderer.readDocumentPixels(),
 			readPristine: () => renderer.readPristinePixels(),
 			getSelectionShape: () => this.selectionShape,
@@ -845,14 +883,81 @@ class Editor implements EditorInstance {
 			zoomAt: ( factor, x, y ) => renderer.zoomAt( factor, x, y ),
 			onToolStateChange: () => this.optionsBar?.render(),
 			onStrokeEnd: () => {
-				// One history entry per stroke, not per dab.
-				this.history.push( { ...this.history.current }, 'paint' );
-				this.syncToolbar();
+				// One history entry per stroke, not per dab -- and it carries the tiles
+				// the stroke overwrote, so undoing it puts the pixels back rather than
+				// restoring an identical recipe and appearing to do nothing.
+				this.commitStroke();
 			},
 		} );
 
+		this.brushCursor = new BrushCursor( {
+			stage: this.stage,
+			getViewport: () => renderer.getViewport(),
+			getCanvas: () => this.history.current.canvas,
+			getTool: () => this.activeTool,
+			getBrush: () => this.brush,
+		} );
+
+		// Redrawn on zoom and on any brush change, so the ring resizes under a
+		// stationary pointer rather than waiting for the next movement.
+		this.detachKeys.push( renderer.onViewportChange( this.brushCursor.draw ) );
+		this.brushListeners.add( this.brushCursor.draw );
+		this.toolListeners.add( this.brushCursor.draw );
+
 		this.detachKeys.push( renderer.onViewportChange( () => this.syncSelection() ) );
 		this.attachClipboard();
+	}
+
+	/**
+	 * Remembers a region's pixels before a paint operation overwrites them.
+	 *
+	 * @param layerId Layer about to change.
+	 * @param rect    Region about to change, in canvas pixels.
+	 */
+	private captureTiles( layerId: string, rect: PixelRect ): void {
+		const renderer = this.renderer;
+
+		if ( ! renderer ) {
+			return;
+		}
+
+		const canvas = this.history.current.canvas;
+
+		if ( ! this.strokeTiles || this.strokeLayer !== layerId ) {
+			this.strokeTiles = new TileCollector( canvas.width, canvas.height );
+			this.strokeLayer = layerId;
+		}
+
+		this.strokeTiles.add( rect, ( tile ) =>
+			renderer.extractLayerRegion( layerId, tile )
+		);
+	}
+
+	/**
+	 * Closes the stroke in progress and files it as one undo step.
+	 *
+	 * Exactly one entry per stroke. The previous version pushed a copy of the current
+	 * recipe, which was identical to the entry below it -- so the first undo restored a
+	 * state indistinguishable from the one already showing, and it took two presses
+	 * before anything happened.
+	 */
+	private commitStroke(): void {
+		const collector = this.strokeTiles;
+		const layerId = this.strokeLayer;
+
+		this.strokeTiles = null;
+		this.strokeLayer = '';
+
+		if ( ! collector || collector.size === 0 ) {
+			return;
+		}
+
+		this.history.push(
+			{ ...this.history.current },
+			'paint',
+			collector.toPatch( layerId )
+		);
+		this.syncToolbar();
 	}
 
 	/**
@@ -881,7 +986,12 @@ class Editor implements EditorInstance {
 		const layer = createRasterLayer( __( 'Paint' ) );
 
 		this.renderer?.ensurePaintTexture( layer.id );
-		this.applyLayers( [ ...recipe.layers, layer ], layer.id );
+
+		// Not an undo step of its own. The layer exists because a stroke needed
+		// somewhere to go, so folding it into the current entry keeps one stroke to one
+		// undo -- otherwise the first press would remove a stroke's *container* and
+		// appear to do nothing at all.
+		this.applyLayers( [ ...recipe.layers, layer ], layer.id, false );
 
 		return layer.id;
 	}
@@ -1210,11 +1320,22 @@ class Editor implements EditorInstance {
 	 *
 	 * @param layers   New stack.
 	 * @param activeId Optional. Which layer becomes active.
+	 * @param undoable Optional. False folds the change into the current entry, for a
+	 *                 layer that exists only because a stroke needed somewhere to go.
 	 */
-	private applyLayers( layers: Layer[], activeId?: string ): void {
+	private applyLayers(
+		layers: Layer[],
+		activeId?: string,
+		undoable = true
+	): void {
 		const next = setLayers( this.history.current, layers, activeId );
 
-		this.history.push( next, 'layers' );
+		if ( undoable ) {
+			this.history.push( next, 'layers' );
+		} else {
+			this.history.replace( next );
+		}
+
 		this.renderer?.setDocument( next.canvas, next.layers, next.activeLayerId );
 		this.notifyRecipe();
 		this.syncToolbar();
@@ -1589,16 +1710,61 @@ class Editor implements EditorInstance {
 		toast( __( 'Downloaded.' ), 'success' );
 	}
 
-	/** Steps back one edit. */
+	/**
+	 * Steps back one edit.
+	 *
+	 * A stroke's pixels are restored *before* the recipe moves, because the patch
+	 * describes the layer as it stood in the entry being left behind.
+	 */
 	private undo(): void {
+		if ( ! this.history.canUndo ) {
+			return;
+		}
+
+		this.applyPixelPatch();
 		this.history.undo();
 		this.syncFromRecipe();
 	}
 
 	/** Steps forward one edit. */
 	private redo(): void {
+		if ( ! this.history.canRedo ) {
+			return;
+		}
+
 		this.history.redo();
+		this.applyPixelPatch();
 		this.syncFromRecipe();
+	}
+
+	/**
+	 * Swaps the pixels an entry carries for the ones currently there.
+	 *
+	 * The entry's patch holds the tiles as they were before the stroke; putting them
+	 * back means the tiles as they are *now* become the way forward, so the two are
+	 * exchanged in place. That is what makes redo work without storing both directions
+	 * of every stroke -- the cost is paid only when someone actually undoes something.
+	 */
+	private applyPixelPatch(): void {
+		const patch = this.history.meta as PixelPatch | undefined;
+		const renderer = this.renderer;
+
+		if ( ! patch || ! renderer || ! patch.complete ) {
+			return;
+		}
+
+		const swapped: TilePatch[] = [];
+
+		for ( const tile of patch.tiles ) {
+			swapped.push( {
+				rect: tile.rect,
+				pixels: renderer.extractLayerRegion( patch.layerId, tile.rect ),
+			} );
+
+			renderer.restoreLayerRegion( patch.layerId, tile.rect, tile.pixels );
+		}
+
+		this.history.setMeta( { ...patch, tiles: swapped } );
 	}
 
 	/** Returns every adjustment to zero. */
@@ -1658,6 +1824,7 @@ class Editor implements EditorInstance {
 		this.optionsBar?.destroy();
 		this.optionsBar = null;
 		this.rulers?.destroy();
+		this.brushCursor?.destroy();
 		this.rulers = null;
 		this.brushListeners.clear();
 		this.panelHost?.destroy();

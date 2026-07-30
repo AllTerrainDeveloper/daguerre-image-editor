@@ -1219,6 +1219,7 @@ void main( void )
       this.activeLayerId = "";
       this.layerTextures = /* @__PURE__ */ new Map();
       this.paintMask = null;
+      this.solid = null;
       this.lut = null;
       this.documentTexture = null;
       this.lutActive = false;
@@ -1635,6 +1636,102 @@ void main( void )
         read.pixels[index + 2],
         read.pixels[index + 3]
       ];
+    }
+    /**
+     * Reads one rectangle of a layer's pixels.
+     *
+     * Renders just that region into a small target rather than extracting the whole
+     * texture and cropping: undo captures tiles constantly while a stroke is in
+     * progress, and a full-texture transfer per tile would cost more than the painting.
+     *
+     * @param layerId Layer to read.
+     * @param rect    Region, in canvas pixels.
+     * @return The pixels, or null when the layer has no texture yet.
+     */
+    extractLayerRegion(layerId, rect) {
+      const texture = this.layerTextures.get(layerId);
+      if (!texture || rect.width < 1 || rect.height < 1) {
+        return null;
+      }
+      const target = this.pixi.RenderTexture.create({
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      });
+      const sprite = new this.pixi.Sprite(texture);
+      sprite.position.set(-Math.round(rect.x), -Math.round(rect.y));
+      this.app.renderer.render({ container: sprite, target, clear: true });
+      const canvas = this.app.renderer.extract.canvas(target);
+      sprite.destroy();
+      target.destroy(true);
+      return canvas;
+    }
+    /**
+     * Puts one rectangle of a layer back to a previous state.
+     *
+     * The region is erased first and then redrawn, rather than drawn over. Drawing over
+     * would composite the old pixels *onto* the new ones, so a stroke undone would
+     * leave both visible -- and an empty region could never be restored at all, because
+     * compositing nothing changes nothing.
+     *
+     * @param layerId Layer to write.
+     * @param rect    Region, in canvas pixels.
+     * @param pixels  What to put there, or null to leave it empty.
+     */
+    restoreLayerRegion(layerId, rect, pixels) {
+      const target = this.ensurePaintTexture(layerId);
+      const eraser = new this.pixi.Sprite(this.solidTexture());
+      eraser.position.set(Math.round(rect.x), Math.round(rect.y));
+      eraser.width = Math.round(rect.width);
+      eraser.height = Math.round(rect.height);
+      eraser.blendMode = "erase";
+      this.renderDetached(eraser, target);
+      if (pixels) {
+        const texture = this.pixi.Texture.from(pixels);
+        const sprite = new this.pixi.Sprite(texture);
+        sprite.position.set(Math.round(rect.x), Math.round(rect.y));
+        this.renderDetached(sprite, target);
+        texture.destroy(true);
+      }
+      this.composeDocument();
+      this.scheduleHistogram();
+    }
+    /**
+     * Renders one sprite into a texture, honouring its blend mode.
+     *
+     * The wrapping container is not ceremony. A sprite passed as the render *root* is
+     * its own render group, and the batcher never applies a root's blend mode -- so an
+     * `erase` sprite rendered directly paints solid white instead of clearing, with no
+     * error. `stampBrush()` only avoids this by accident, because the selection clipper
+     * already wraps its sprite in a container. This makes the requirement explicit.
+     *
+     * @param sprite What to draw. Destroyed afterwards.
+     * @param target Texture to draw into.
+     */
+    renderDetached(sprite, target) {
+      const holder = new this.pixi.Container();
+      holder.addChild(sprite);
+      this.app.renderer.render({ container: holder, target, clear: false });
+      holder.destroy({ children: true });
+    }
+    /**
+     * A one-pixel opaque white texture, used as an eraser stencil.
+     *
+     * Built here rather than taken from `Texture.WHITE` so the narrow Pixi surface this
+     * file is typed against stays narrow.
+     */
+    solidTexture() {
+      if (!this.solid) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, 1, 1);
+        }
+        this.solid = this.pixi.Texture.from(canvas);
+      }
+      return this.solid;
     }
     /**
      * Reads the image alone, with every painted layer left out.
@@ -2394,22 +2491,29 @@ void main( void )
      *
      * Replaces the top entry instead of adding one when the label matches the
      * previous change and it happened recently, so a slider drag becomes a single
-     * undo step rather than one per pointer move.
+     * undo step rather than one per pointer move. An entry carrying metadata is never
+     * merged, because its payload cannot be superseded the way a slider value can.
      *
      * Pushing after an undo discards the redo tail, which is what every editor does.
      *
      * @param state New state.
      * @param label Groups related changes. Use the op name for slider drags.
+     * @param meta  Optional. Carried alongside, for changes a snapshot cannot express.
      */
-    push(state, label) {
+    push(state, label, meta) {
       const at = this.now();
       const top = this.entries[this.index];
-      if (this.index > 0 && top.label === label && at - top.at < COALESCE_MS && !this.canRedo) {
-        this.entries[this.index] = { state, label, at };
+      if (this.index > 0 && top.label === label && at - top.at < COALESCE_MS && !this.canRedo && // Never merge entries carrying a payload. Coalescing exists for slider
+      // drags, where each value supersedes the last. A brush stroke is not like
+      // that: its patch holds pixels that exist nowhere else, so merging two
+      // quick strokes would discard the first stroke's only copy of them and
+      // leave undo restoring half of what it claimed to.
+      meta === void 0 && top.meta === void 0) {
+        this.entries[this.index] = { state, label, at, meta };
         return;
       }
       this.entries = this.entries.slice(0, this.index + 1);
-      this.entries.push({ state, label, at });
+      this.entries.push({ state, label, at, meta });
       if (this.entries.length > MAX_ENTRIES) {
         this.entries.shift();
       }
@@ -2427,6 +2531,26 @@ void main( void )
      */
     replace(state) {
       this.entries[this.index] = { ...this.entries[this.index], state };
+    }
+    /** Whatever was attached to the entry currently in effect. */
+    get meta() {
+      return this.entries[this.index].meta;
+    }
+    /** The label of the entry currently in effect. */
+    get label() {
+      return this.entries[this.index].label;
+    }
+    /**
+     * Replaces the metadata on the entry in effect.
+     *
+     * Undoing a stroke needs the pixels the stroke *produced* in order to redo it, and
+     * those only exist once it has happened -- so the patch is swapped for its opposite
+     * as it is applied, and the entry alternates between undo and redo directions.
+     *
+     * @param meta Replacement metadata.
+     */
+    setMeta(meta) {
+      this.entries[this.index].meta = meta;
     }
     /**
      * Steps back one entry.
@@ -2453,6 +2577,101 @@ void main( void )
     /** The state the stack started from. */
     get initial() {
       return this.entries[0].state;
+    }
+  }
+  const TILE_SIZE = 256;
+  const MAX_TILES = 96;
+  function tilesCovering(rect, width, height) {
+    if (width < 1 || height < 1 || rect.width <= 0 || rect.height <= 0) {
+      return [];
+    }
+    const left = Math.max(0, Math.floor(rect.x / TILE_SIZE));
+    const top = Math.max(0, Math.floor(rect.y / TILE_SIZE));
+    const right = Math.min(
+      Math.ceil(width / TILE_SIZE),
+      Math.ceil((rect.x + rect.width) / TILE_SIZE)
+    );
+    const bottom = Math.min(
+      Math.ceil(height / TILE_SIZE),
+      Math.ceil((rect.y + rect.height) / TILE_SIZE)
+    );
+    const tiles = [];
+    for (let ty = top; ty < bottom; ty++) {
+      for (let tx = left; tx < right; tx++) {
+        tiles.push({
+          x: tx * TILE_SIZE,
+          y: ty * TILE_SIZE,
+          // Clipped, so the last row and column do not run past the canvas.
+          width: Math.min(TILE_SIZE, width - tx * TILE_SIZE),
+          height: Math.min(TILE_SIZE, height - ty * TILE_SIZE)
+        });
+      }
+    }
+    return tiles;
+  }
+  function tileKey(rect) {
+    return `${Math.floor(rect.x / TILE_SIZE)},${Math.floor(
+      rect.y / TILE_SIZE
+    )}`;
+  }
+  function dabRegion(x, y, size) {
+    const radius = Math.max(1, size / 2) + 1;
+    return {
+      x: Math.floor(x - radius),
+      y: Math.floor(y - radius),
+      width: Math.ceil(radius * 2),
+      height: Math.ceil(radius * 2)
+    };
+  }
+  class TileCollector {
+    /**
+     * @param width  Canvas width.
+     * @param height Canvas height.
+     */
+    constructor(width, height) {
+      this.tiles = /* @__PURE__ */ new Map();
+      this.overflowed = false;
+      this.width = width;
+      this.height = height;
+    }
+    /**
+     * Captures whatever tiles a region touches and has not been captured yet.
+     *
+     * @param rect    Region about to change.
+     * @param capture Reads a tile's current pixels, or returns null when it is empty.
+     */
+    add(rect, capture) {
+      if (this.overflowed) {
+        return;
+      }
+      for (const tile of tilesCovering(rect, this.width, this.height)) {
+        const key = tileKey(tile);
+        if (this.tiles.has(key)) {
+          continue;
+        }
+        if (this.tiles.size >= MAX_TILES) {
+          this.overflowed = true;
+          this.tiles.clear();
+          return;
+        }
+        this.tiles.set(key, { rect: tile, pixels: capture(tile) });
+      }
+    }
+    /** Whether anything has been captured. */
+    get size() {
+      return this.tiles.size;
+    }
+    /**
+     * The finished patch.
+     *
+     * @param layerId Layer the tiles belong to.
+     */
+    toPatch(layerId) {
+      return {
+        layerId,
+        tiles: [...this.tiles.values()],
+        complete: !this.overflowed
+      };
     }
   }
   const SELECTION_SHAPES = [
@@ -3380,6 +3599,18 @@ void main( void )
       window.setTimeout(() => node.remove(), 300);
     }, type === "error" ? 6e3 : 3500);
   }
+  let idCounter = 1;
+  function fieldId(kind) {
+    return `dg-${kind}-${(idCounter++).toString(36)}`;
+  }
+  function nameControl(input, label, kind) {
+    const id = fieldId(kind);
+    input.id = id;
+    input.name = id;
+    if (label) {
+      label.htmlFor = id;
+    }
+  }
   function createSlider(options) {
     const row = document.createElement("div");
     row.className = "dg-adjust";
@@ -3439,7 +3670,7 @@ void main( void )
   function createNativeSlider(options) {
     const wrap = document.createElement("div");
     wrap.className = "dg-slider";
-    const id = `dg-slider-${Math.random().toString(36).slice(2, 9)}`;
+    const id = fieldId("slider");
     const label = document.createElement("label");
     label.className = "dg-slider__label";
     label.htmlFor = id;
@@ -3450,6 +3681,7 @@ void main( void )
     const input = document.createElement("input");
     input.type = "range";
     input.id = id;
+    input.name = id;
     input.className = "dg-slider__input";
     input.min = String(options.min);
     input.max = String(options.max);
@@ -3522,14 +3754,18 @@ void main( void )
     const useWpd = hasComponent("wpd-select");
     const wrap = document.createElement("div");
     wrap.className = "dg-field";
-    const id = `dg-select-${Math.random().toString(36).slice(2, 9)}`;
     const label = document.createElement("label");
     label.className = "dg-field__label";
-    label.htmlFor = id;
     label.textContent = options.label;
     const select = document.createElement(useWpd ? "wpd-select" : "select");
-    select.id = id;
     select.className = "dg-field__control";
+    if (useWpd) {
+      const id = fieldId("select");
+      select.id = id;
+      label.htmlFor = id;
+    } else {
+      nameControl(select, label, "select");
+    }
     for (const option of options.options) {
       const node = document.createElement(useWpd ? "wpd-option" : "option");
       node.setAttribute("value", option.value);
@@ -3605,6 +3841,7 @@ void main( void )
     const input = document.createElement("input");
     input.type = "number";
     input.className = "dg-field__control";
+    nameControl(input, null, "number");
     input.value = String(Math.round(options.value));
     input.min = String(options.min);
     input.max = String(options.max);
@@ -3651,6 +3888,7 @@ void main( void )
     const input = document.createElement("input");
     input.type = "color";
     input.className = "dg-field__control dg-colour";
+    nameControl(input, null, "colour");
     input.value = options.value;
     const onInput = () => options.onChange(input.value);
     input.addEventListener("input", onInput);
@@ -3765,6 +4003,7 @@ void main( void )
     const input = document.createElement("input");
     input.type = "text";
     input.className = "dg-field__control";
+    nameControl(input, null, "text");
     input.value = options.value;
     if (options.placeholder) {
       input.placeholder = options.placeholder;
@@ -3816,6 +4055,7 @@ void main( void )
     }
     const box = document.createElement("input");
     box.type = "checkbox";
+    nameControl(box, null, "check");
     box.checked = options.checked;
     const onChange = () => options.onChange(box.checked);
     box.addEventListener("change", onChange);
@@ -7220,6 +7460,62 @@ void main( void )
       this.options.stage.removeEventListener("pointerdown", this.onPointerDown);
     }
   }
+  const SIZED_TOOLS = [
+    "brush",
+    "eraser",
+    "retouch",
+    "tone",
+    "clone",
+    "history"
+  ];
+  const MIN_RADIUS = 2;
+  class BrushCursor {
+    constructor(options) {
+      this.at = null;
+      this.onMove = (event) => {
+        const rect = this.options.stage.getBoundingClientRect();
+        this.at = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+        this.draw();
+      };
+      this.onLeave = () => {
+        this.at = null;
+        this.el.style.display = "none";
+      };
+      this.draw = () => {
+        const tool = this.options.getTool();
+        const viewport = this.options.getViewport();
+        const canvas = this.options.getCanvas();
+        if (!this.at || !viewport || !SIZED_TOOLS.includes(tool) || canvas.width < 1 || viewport.width < 1) {
+          this.el.style.display = "none";
+          return;
+        }
+        const brush = this.options.getBrush();
+        const scale = viewport.width / canvas.width;
+        const size = Math.max(MIN_RADIUS * 2, brush.size * scale);
+        this.el.style.display = "";
+        this.el.style.inlineSize = `${size}px`;
+        this.el.style.blockSize = `${size}px`;
+        this.el.style.insetInlineStart = `${this.at.x}px`;
+        this.el.style.insetBlockStart = `${this.at.y}px`;
+        this.el.dataset.shape = brush.shape;
+        this.el.classList.toggle("is-soft", brush.hardness < 0.5);
+      };
+      this.options = options;
+      this.el = document.createElement("div");
+      this.el.className = "dg-brush-cursor";
+      this.el.setAttribute("aria-hidden", "true");
+      this.el.style.display = "none";
+      options.stage.appendChild(this.el);
+      options.stage.addEventListener("pointermove", this.onMove);
+      options.stage.addEventListener("pointerleave", this.onLeave);
+    }
+    /** Removes the cursor. */
+    destroy() {
+      this.options.stage.removeEventListener("pointermove", this.onMove);
+      this.options.stage.removeEventListener("pointerleave", this.onLeave);
+      this.el.remove();
+    }
+  }
   const RULER_SIZE = 20;
   const MIN_LABEL_GAP = 56;
   class Rulers {
@@ -7809,12 +8105,15 @@ void main( void )
       this.brushListeners = /* @__PURE__ */ new Set();
       this.view = readViewPrefs();
       this.rulers = null;
+      this.brushCursor = null;
       this.selection = null;
       this.selectionShape = "rect";
       this.quickMask = false;
       this.fullScreen = false;
       this.optionsBar = null;
       this.clipboard = null;
+      this.strokeTiles = null;
+      this.strokeLayer = "";
       this.stageTools = null;
       this.toolRail = null;
       this.selectionBox = null;
@@ -8316,9 +8615,29 @@ void main( void )
         getBrush: () => this.brush,
         setBrush: (patch) => this.setBrush(patch),
         getTargetLayerId: () => this.paintTarget(),
-        stamp: (id, image, x, y, size, colour, opacity, erase) => renderer.stampBrush(id, image, x, y, size, colour, opacity, erase),
-        fillMask: (id, mask, colour, opacity) => renderer.fillWithMask(id, mask, colour, opacity),
-        composite: (id, source, x, y, opacity) => renderer.compositeCanvas(id, source, x, y, opacity),
+        stamp: (id, image, x, y, size, colour, opacity, erase) => {
+          this.captureTiles(id, dabRegion(x, y, size));
+          renderer.stampBrush(id, image, x, y, size, colour, opacity, erase);
+        },
+        fillMask: (id, mask, colour, opacity) => {
+          const canvas = this.history.current.canvas;
+          this.captureTiles(id, {
+            x: 0,
+            y: 0,
+            width: canvas.width,
+            height: canvas.height
+          });
+          renderer.fillWithMask(id, mask, colour, opacity);
+        },
+        composite: (id, source, x, y, opacity) => {
+          this.captureTiles(id, {
+            x,
+            y,
+            width: source.width,
+            height: source.height
+          });
+          renderer.compositeCanvas(id, source, x, y, opacity);
+        },
         readDocument: () => renderer.readDocumentPixels(),
         readPristine: () => renderer.readPristinePixels(),
         getSelectionShape: () => this.selectionShape,
@@ -8327,12 +8646,65 @@ void main( void )
         zoomAt: (factor, x, y) => renderer.zoomAt(factor, x, y),
         onToolStateChange: () => this.optionsBar?.render(),
         onStrokeEnd: () => {
-          this.history.push({ ...this.history.current }, "paint");
-          this.syncToolbar();
+          this.commitStroke();
         }
       });
+      this.brushCursor = new BrushCursor({
+        stage: this.stage,
+        getViewport: () => renderer.getViewport(),
+        getCanvas: () => this.history.current.canvas,
+        getTool: () => this.activeTool,
+        getBrush: () => this.brush
+      });
+      this.detachKeys.push(renderer.onViewportChange(this.brushCursor.draw));
+      this.brushListeners.add(this.brushCursor.draw);
+      this.toolListeners.add(this.brushCursor.draw);
       this.detachKeys.push(renderer.onViewportChange(() => this.syncSelection()));
       this.attachClipboard();
+    }
+    /**
+     * Remembers a region's pixels before a paint operation overwrites them.
+     *
+     * @param layerId Layer about to change.
+     * @param rect    Region about to change, in canvas pixels.
+     */
+    captureTiles(layerId, rect) {
+      const renderer = this.renderer;
+      if (!renderer) {
+        return;
+      }
+      const canvas = this.history.current.canvas;
+      if (!this.strokeTiles || this.strokeLayer !== layerId) {
+        this.strokeTiles = new TileCollector(canvas.width, canvas.height);
+        this.strokeLayer = layerId;
+      }
+      this.strokeTiles.add(
+        rect,
+        (tile) => renderer.extractLayerRegion(layerId, tile)
+      );
+    }
+    /**
+     * Closes the stroke in progress and files it as one undo step.
+     *
+     * Exactly one entry per stroke. The previous version pushed a copy of the current
+     * recipe, which was identical to the entry below it -- so the first undo restored a
+     * state indistinguishable from the one already showing, and it took two presses
+     * before anything happened.
+     */
+    commitStroke() {
+      const collector = this.strokeTiles;
+      const layerId = this.strokeLayer;
+      this.strokeTiles = null;
+      this.strokeLayer = "";
+      if (!collector || collector.size === 0) {
+        return;
+      }
+      this.history.push(
+        { ...this.history.current },
+        "paint",
+        collector.toPatch(layerId)
+      );
+      this.syncToolbar();
     }
     /**
      * The layer a stroke should land on.
@@ -8355,7 +8727,7 @@ void main( void )
       }
       const layer = createRasterLayer(__("Paint"));
       this.renderer?.ensurePaintTexture(layer.id);
-      this.applyLayers([...recipe.layers, layer], layer.id);
+      this.applyLayers([...recipe.layers, layer], layer.id, false);
       return layer.id;
     }
     /**
@@ -8617,10 +8989,16 @@ void main( void )
      *
      * @param layers   New stack.
      * @param activeId Optional. Which layer becomes active.
+     * @param undoable Optional. False folds the change into the current entry, for a
+     *                 layer that exists only because a stroke needed somewhere to go.
      */
-    applyLayers(layers, activeId) {
+    applyLayers(layers, activeId, undoable = true) {
       const next = setLayers(this.history.current, layers, activeId);
-      this.history.push(next, "layers");
+      if (undoable) {
+        this.history.push(next, "layers");
+      } else {
+        this.history.replace(next);
+      }
       this.renderer?.setDocument(next.canvas, next.layers, next.activeLayerId);
       this.notifyRecipe();
       this.syncToolbar();
@@ -8914,15 +9292,52 @@ void main( void )
       window.setTimeout(() => URL.revokeObjectURL(url), 6e4);
       toast(__("Downloaded."), "success");
     }
-    /** Steps back one edit. */
+    /**
+     * Steps back one edit.
+     *
+     * A stroke's pixels are restored *before* the recipe moves, because the patch
+     * describes the layer as it stood in the entry being left behind.
+     */
     undo() {
+      if (!this.history.canUndo) {
+        return;
+      }
+      this.applyPixelPatch();
       this.history.undo();
       this.syncFromRecipe();
     }
     /** Steps forward one edit. */
     redo() {
+      if (!this.history.canRedo) {
+        return;
+      }
       this.history.redo();
+      this.applyPixelPatch();
       this.syncFromRecipe();
+    }
+    /**
+     * Swaps the pixels an entry carries for the ones currently there.
+     *
+     * The entry's patch holds the tiles as they were before the stroke; putting them
+     * back means the tiles as they are *now* become the way forward, so the two are
+     * exchanged in place. That is what makes redo work without storing both directions
+     * of every stroke -- the cost is paid only when someone actually undoes something.
+     */
+    applyPixelPatch() {
+      const patch = this.history.meta;
+      const renderer = this.renderer;
+      if (!patch || !renderer || !patch.complete) {
+        return;
+      }
+      const swapped = [];
+      for (const tile of patch.tiles) {
+        swapped.push({
+          rect: tile.rect,
+          pixels: renderer.extractLayerRegion(patch.layerId, tile.rect)
+        });
+        renderer.restoreLayerRegion(patch.layerId, tile.rect, tile.pixels);
+      }
+      this.history.setMeta({ ...patch, tiles: swapped });
     }
     /** Returns every adjustment to zero. */
     resetAll() {
@@ -8971,6 +9386,7 @@ void main( void )
       this.optionsBar?.destroy();
       this.optionsBar = null;
       this.rulers?.destroy();
+      this.brushCursor?.destroy();
       this.rulers = null;
       this.brushListeners.clear();
       this.panelHost?.destroy();

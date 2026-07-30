@@ -19,6 +19,49 @@
 
 import { hasComponent, pickComponent } from '../platform';
 
+/** Monotonic, so two controls created in the same millisecond cannot collide. */
+let idCounter = 1;
+
+/**
+ * A unique id for a native form control.
+ *
+ * Generated rather than derived from the label, since two panels can legitimately show
+ * a field called "Size".
+ *
+ * @param kind Short prefix describing the control.
+ */
+function fieldId( kind: string ): string {
+	return `dg-${ kind }-${ ( idCounter++ ).toString( 36 ) }`;
+}
+
+/**
+ * Gives a native control an id and a name, and ties its label to it.
+ *
+ * Not decoration. A form field with neither is flagged by the browser's own
+ * accessibility audit, because assistive technology and password managers both key off
+ * them -- and wrapping the control in a `<label>` satisfies neither, which is why every
+ * numeric field in the editor was drawing that warning.
+ *
+ * @param input Control to name.
+ * @param label Its label element, when the association is explicit rather than by
+ *              nesting.
+ * @param kind  Short prefix describing the control.
+ */
+function nameControl(
+	input: HTMLInputElement | HTMLSelectElement,
+	label: HTMLLabelElement | null,
+	kind: string
+): void {
+	const id = fieldId( kind );
+
+	input.id = id;
+	input.name = id;
+
+	if ( label ) {
+		label.htmlFor = id;
+	}
+}
+
 /** Handle on a built control. */
 export interface SliderHandle {
 	/** Row element to insert. */
@@ -138,7 +181,7 @@ function createNativeSlider( options: SliderOptions ): SliderHandle {
 	const wrap = document.createElement( 'div' );
 	wrap.className = 'dg-slider';
 
-	const id = `dg-slider-${ Math.random().toString( 36 ).slice( 2, 9 ) }`;
+	const id = fieldId( 'slider' );
 
 	const label = document.createElement( 'label' );
 	label.className = 'dg-slider__label';
@@ -152,6 +195,7 @@ function createNativeSlider( options: SliderOptions ): SliderHandle {
 	const input = document.createElement( 'input' );
 	input.type = 'range';
 	input.id = id;
+	input.name = id;
 	input.className = 'dg-slider__input';
 	input.min = String( options.min );
 	input.max = String( options.max );
@@ -287,16 +331,23 @@ export function createSelect( options: SelectOptions ): SelectHandle {
 	const wrap = document.createElement( 'div' );
 	wrap.className = 'dg-field';
 
-	const id = `dg-select-${ Math.random().toString( 36 ).slice( 2, 9 ) }`;
-
 	const label = document.createElement( 'label' );
 	label.className = 'dg-field__label';
-	label.htmlFor = id;
 	label.textContent = options.label;
 
 	const select = document.createElement( useWpd ? 'wpd-select' : 'select' );
-	select.id = id;
 	select.className = 'dg-field__control';
+
+	if ( useWpd ) {
+		// A custom element is not a form control, so it needs the id for the label but
+		// not a name -- setting one would be a claim it does not honour.
+		const id = fieldId( 'select' );
+
+		select.id = id;
+		label.htmlFor = id;
+	} else {
+		nameControl( select as HTMLSelectElement, label, 'select' );
+	}
 
 	for ( const option of options.options ) {
 		const node = document.createElement( useWpd ? 'wpd-option' : 'option' );
@@ -431,6 +482,7 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
 	const input = document.createElement( 'input' );
 	input.type = 'number';
 	input.className = 'dg-field__control';
+	nameControl( input, null, 'number' );
 	input.value = String( Math.round( options.value ) );
 	input.min = String( options.min );
 	input.max = String( options.max );
@@ -501,6 +553,7 @@ export function createColourField( options: ColourFieldOptions ): FieldHandle {
 	const input = document.createElement( 'input' );
 	input.type = 'color';
 	input.className = 'dg-field__control dg-colour';
+	nameControl( input, null, 'colour' );
 	input.value = options.value;
 
 	const onInput = () => options.onChange( input.value );
@@ -676,6 +729,7 @@ export function createTextField( options: TextFieldOptions ): FieldHandle {
 	const input = document.createElement( 'input' );
 	input.type = 'text';
 	input.className = 'dg-field__control';
+	nameControl( input, null, 'text' );
 	input.value = options.value;
 
 	if ( options.placeholder ) {
@@ -761,6 +815,7 @@ export function createCheckbox( options: CheckboxOptions ): CheckboxHandle {
 
 	const box = document.createElement( 'input' );
 	box.type = 'checkbox';
+	nameControl( box, null, 'check' );
 	box.checked = options.checked;
 
 	const onChange = () => options.onChange( box.checked );

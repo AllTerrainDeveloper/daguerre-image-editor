@@ -27,12 +27,13 @@ add_action( 'init', 'daguerre_register_assets' );
  */
 function daguerre_register_assets() {
 	$suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+	$script = 'assets/js/daguerre' . $suffix . '.js';
 
 	wp_register_script(
 		'daguerre',
-		DAGUERRE_URL . 'assets/js/daguerre' . $suffix . '.js',
+		DAGUERRE_URL . $script,
 		array( 'wp-i18n' ),
-		DAGUERRE_VERSION,
+		daguerre_asset_version( $script ),
 		true
 	);
 
@@ -42,8 +43,34 @@ function daguerre_register_assets() {
 		'daguerre',
 		DAGUERRE_URL . 'assets/css/daguerre.css',
 		array( 'dashicons' ),
-		DAGUERRE_VERSION
+		daguerre_asset_version( 'assets/css/daguerre.css' )
 	);
+}
+
+/**
+ * Builds the cache-busting version for a bundled asset.
+ *
+ * The plugin version alone is not enough during development: it stays at 0.1.0 across
+ * every rebuild, so the browser keeps serving the bundle it already has and a change
+ * appears not to have worked. The file's modification time changes whenever the build
+ * writes it, which is exactly the signal wanted. Falls back to the plugin version when
+ * the file cannot be read, so a packaged install still gets a sensible value.
+ *
+ * @since 0.1.0
+ *
+ * @param string $relative Path within the plugin directory.
+ * @return string Version string for `wp_register_script()`.
+ */
+function daguerre_asset_version( $relative ) {
+	$path = DAGUERRE_DIR . $relative;
+
+	if ( ! file_exists( $path ) ) {
+		return DAGUERRE_VERSION;
+	}
+
+	$modified = filemtime( $path );
+
+	return $modified ? DAGUERRE_VERSION . '.' . $modified : DAGUERRE_VERSION;
 }
 
 /**

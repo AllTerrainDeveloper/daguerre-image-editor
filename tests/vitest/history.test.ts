@@ -161,3 +161,86 @@ describe( 'History', () => {
 		expect( h.initial ).toBe( 'a' );
 	} );
 } );
+
+describe( 'entry metadata', () => {
+	it( 'carries a payload a snapshot cannot express', () => {
+		// Painted pixels are not describable by the recipe, so an entry can hold the
+		// patch that puts them back.
+		const history = new History( { v: 0 } );
+
+		history.push( { v: 1 }, 'paint', { tiles: 3 } );
+
+		expect( history.meta ).toEqual( { tiles: 3 } );
+	} );
+
+	it( 'reports no metadata for entries that carry none', () => {
+		const history = new History( { v: 0 } );
+
+		history.push( { v: 1 }, 'exposure' );
+
+		expect( history.meta ).toBeUndefined();
+	} );
+
+	it( 'follows undo and redo to the right entry', () => {
+		const history = new History( { v: 0 } );
+
+		history.push( { v: 1 }, 'paint', 'first' );
+		history.push( { v: 2 }, 'paint', 'second' );
+
+		expect( history.meta ).toBe( 'second' );
+
+		history.undo();
+		expect( history.meta ).toBe( 'first' );
+
+		history.redo();
+		expect( history.meta ).toBe( 'second' );
+	} );
+
+	it( 'can be swapped in place, which is how redo gets its pixels', () => {
+		// Undoing a stroke needs the pixels it produced in order to redo it, and those
+		// only exist once it has happened -- so the patch is exchanged as it is applied.
+		const history = new History( { v: 0 } );
+
+		history.push( { v: 1 }, 'paint', 'before' );
+		history.setMeta( 'after' );
+
+		expect( history.meta ).toBe( 'after' );
+	} );
+
+	it( 'exposes the label of the entry in effect', () => {
+		const history = new History( { v: 0 } );
+
+		history.push( { v: 1 }, 'paint' );
+
+		expect( history.label ).toBe( 'paint' );
+	} );
+
+	it( 'never coalesces entries that carry a payload', () => {
+		// Two brush strokes in quick succession share a label and a time window, which
+		// is exactly what coalescing looks for -- but the first stroke's patch holds
+		// pixels that exist nowhere else. Merging would discard them.
+		let clock = 1000;
+		const history = new History( { v: 0 }, () => clock );
+
+		history.push( { v: 1 }, 'paint', 'first' );
+		clock += 10;
+		history.push( { v: 2 }, 'paint', 'second' );
+
+		expect( history.meta ).toBe( 'second' );
+
+		history.undo();
+		expect( history.meta ).toBe( 'first' );
+	} );
+
+	it( 'still coalesces a drag, which carries no payload', () => {
+		let clock = 1000;
+		const history = new History( { v: 0 }, () => clock );
+
+		history.push( { v: 1 }, 'exposure' );
+		clock += 10;
+		history.push( { v: 2 }, 'exposure' );
+
+		history.undo();
+		expect( history.current ).toEqual( { v: 0 } );
+	} );
+} );
