@@ -124,7 +124,12 @@ Sixteen tools, but only four gestures, and each one is a single method:
 - **Dragging a region** — select, gradient, shape. A dashed screen-space outline follows the drag and
   the pixels are only committed on release: allocating and uploading a canvas-sized bitmap on every
   pointer move would stall a 20-megapixel document to show what an outline conveys perfectly.
-- **Clicking a point** — fill, wand, eyedropper, text, zoom.
+- **Clicking a point** — fill, wand, eyedropper, zoom.
+- **Typing on the canvas** — text. Clicking opens a caret where the glyphs will land,
+  styled with the same font, size and colour the render will use and scaled to the current zoom, so
+  what you type is what appears. It rasterises through the same `textCanvas()` the caret is styled
+  from, which is what stops the editing surface and the output drifting apart. A `<textarea>` rather
+  than a contenteditable div, for a native caret, native selection and plain text on paste.
 - **Panning** — hand, which moves the view rather than the pixels.
 
 Three shared engines do the actual work, and each is reused by several tools rather than owned by

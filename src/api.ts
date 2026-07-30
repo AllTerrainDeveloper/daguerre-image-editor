@@ -50,6 +50,8 @@ import type { ButtonHandle } from './ui/controls';
 import { StageTools, defaultBrush } from './ui/stage-tools';
 import type { BrushSettings } from './ui/stage-tools';
 import { BrushCursor } from './ui/brush-cursor';
+import { TextEditor } from './ui/text-editor';
+import { textCanvas } from './engine/paint-shapes';
 import { Rulers } from './ui/rulers';
 import { ToolRail } from './ui/tool-rail';
 import { PanelHost } from './ui/panels';
@@ -168,6 +170,9 @@ class Editor implements EditorInstance {
 
 	/** The ring showing how big the brush actually is. */
 	private brushCursor: BrushCursor | null = null;
+
+	/** The caret, when text is being typed onto the canvas. */
+	private textEditor: TextEditor | null = null;
 
 	/** The marquee. */
 	private selection: Selection | null = null;
@@ -830,6 +835,7 @@ class Editor implements EditorInstance {
 				} ),
 			hasCloneSource: () => !! this.stageTools?.getCloneSource(),
 			clearCloneSource: () => this.stageTools?.clearCloneSource(),
+			isTypingText: () => this.textEditor?.isEditing === true,
 			setZoom: ( mode ) => {
 				if ( mode === 'fit' ) {
 					renderer.resetView();
@@ -882,6 +888,7 @@ class Editor implements EditorInstance {
 			pan: ( dx, dy ) => renderer.pan( dx, dy ),
 			zoomAt: ( factor, x, y ) => renderer.zoomAt( factor, x, y ),
 			onToolStateChange: () => this.optionsBar?.render(),
+			onPlaceText: ( point ) => this.textEditor?.open( point ),
 			onStrokeEnd: () => {
 				// One history entry per stroke, not per dab -- and it carries the tiles
 				// the stroke overwrote, so undoing it puts the pixels back rather than
@@ -889,6 +896,25 @@ class Editor implements EditorInstance {
 				this.commitStroke();
 			},
 		} );
+
+		this.textEditor = new TextEditor( {
+			stage: this.stage,
+			getViewport: () => renderer.getViewport(),
+			getCanvas: () => this.history.current.canvas,
+			getStyle: () => ( {
+				size: this.brush.fontSize,
+				family: this.brush.fontFamily,
+				colour: this.brush.colour,
+				bold: this.brush.bold,
+				italic: this.brush.italic,
+			} ),
+			onCommit: ( text, point ) => this.drawText( text, point ),
+			onStateChange: () => this.optionsBar?.render(),
+		} );
+
+		// The caret follows the same style and the same zoom as the render will.
+		this.brushListeners.add( this.textEditor.restyle );
+		this.detachKeys.push( renderer.onViewportChange( this.textEditor.restyle ) );
 
 		this.brushCursor = new BrushCursor( {
 			stage: this.stage,
@@ -958,6 +984,53 @@ class Editor implements EditorInstance {
 			collector.toPatch( layerId )
 		);
 		this.syncToolbar();
+	}
+
+	/**
+	 * Rasterises typed text onto the canvas.
+	 *
+	 * Through the same `textCanvas()` the caret is styled from, so what was on screen
+	 * while typing and what lands in the layer cannot disagree.
+	 *
+	 * @param text  What was typed.
+	 * @param point Canvas coordinates of the first line's top-left corner.
+	 */
+	private drawText( text: string, point: { x: number; y: number } ): void {
+		const renderer = this.renderer;
+		const rendered = textCanvas( {
+			text,
+			size: this.brush.fontSize,
+			family: this.brush.fontFamily,
+			colour: this.brush.colour,
+			bold: this.brush.bold,
+			italic: this.brush.italic,
+			strokeWidth: this.brush.shapeStyle === 'stroke' ? this.brush.strokeWidth : 0,
+		} );
+
+		if ( ! renderer || ! rendered ) {
+			return;
+		}
+
+		const layerId = this.paintTarget();
+		const at = {
+			x: point.x + rendered.offsetX,
+			y: point.y + rendered.offsetY,
+		};
+
+		this.captureTiles( layerId, {
+			x: at.x,
+			y: at.y,
+			width: rendered.canvas.width,
+			height: rendered.canvas.height,
+		} );
+		renderer.compositeCanvas(
+			layerId,
+			rendered.canvas,
+			at.x,
+			at.y,
+			this.brush.opacity
+		);
+		this.commitStroke();
 	}
 
 	/**
@@ -1255,6 +1328,12 @@ class Editor implements EditorInstance {
 	private setActiveTool( tool: ActiveTool ): void {
 		if ( this.activeTool === tool ) {
 			return;
+		}
+
+		// Leaving the text tool finishes the text, rather than abandoning a caret that
+		// would then be typing into nothing.
+		if ( this.activeTool === 'text' ) {
+			this.textEditor?.commit();
 		}
 
 		this.activeTool = tool;
@@ -1825,6 +1904,7 @@ class Editor implements EditorInstance {
 		this.optionsBar = null;
 		this.rulers?.destroy();
 		this.brushCursor?.destroy();
+		this.textEditor?.destroy();
 		this.rulers = null;
 		this.brushListeners.clear();
 		this.panelHost?.destroy();

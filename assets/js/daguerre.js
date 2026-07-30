@@ -4527,14 +4527,6 @@ void main( void )
     renderTextOptions() {
       const brush = this.options.ctx.getBrush();
       this.add(
-        createTextField({
-          label: __("Text"),
-          value: brush.text,
-          placeholder: __("Type something"),
-          onChange: (value) => this.options.ctx.setBrush({ text: value })
-        })
-      );
-      this.add(
         createSelect({
           label: __("Font"),
           value: brush.fontFamily,
@@ -4571,7 +4563,9 @@ void main( void )
       );
       this.divider();
       this.addColourField();
-      this.hint(__("Click where the text should start."));
+      this.hint(
+        this.options.isTypingText() ? __("Enter for a new line. Cmd/Ctrl+Enter finishes, Escape cancels.") : __("Click on the image and type.")
+      );
     }
     /** Fit and actual-size buttons. */
     renderZoomOptions() {
@@ -6774,7 +6768,6 @@ void main( void )
       shapeKind: "rect",
       shapeStyle: "fill",
       strokeWidth: 4,
-      text: "",
       fontSize: 72,
       fontFamily: "system-ui, sans-serif",
       bold: false,
@@ -6834,7 +6827,7 @@ void main( void )
             this.wand(point);
             return;
           case "text":
-            this.placeText(point);
+            this.options.onPlaceText(point);
             return;
           case "path":
             this.path = appendPathPoint(this.path, this.normalise(point), 0);
@@ -7073,34 +7066,6 @@ void main( void )
         event.clientX - rect.left,
         event.clientY - rect.top
       );
-    }
-    /**
-     * Draws the current text at a point.
-     *
-     * @param point Canvas coordinates of the baseline start.
-     */
-    placeText(point) {
-      const brush = this.options.getBrush();
-      const rendered = textCanvas({
-        text: brush.text,
-        size: brush.fontSize,
-        family: brush.fontFamily,
-        colour: brush.colour,
-        bold: brush.bold,
-        italic: brush.italic,
-        strokeWidth: brush.shapeStyle === "stroke" ? brush.strokeWidth : 0
-      });
-      if (!rendered) {
-        return;
-      }
-      this.options.composite(
-        this.options.getTargetLayerId(),
-        rendered.canvas,
-        point.x + rendered.offsetX,
-        point.y + rendered.offsetY,
-        brush.opacity
-      );
-      this.options.onStrokeEnd();
     }
     /**
      * Floods the region matching the colour under the pointer.
@@ -7514,6 +7479,120 @@ void main( void )
       this.options.stage.removeEventListener("pointermove", this.onMove);
       this.options.stage.removeEventListener("pointerleave", this.onLeave);
       this.el.remove();
+    }
+  }
+  class TextEditor {
+    constructor(options) {
+      this.field = null;
+      this.anchor = null;
+      this.onInput = () => {
+        this.resize();
+      };
+      this.onKeyDown = (event) => {
+        event.stopPropagation();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          this.cancel();
+          return;
+        }
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          this.commit();
+        }
+      };
+      this.restyle = () => {
+        const field = this.field;
+        const viewport = this.options.getViewport();
+        const canvas = this.options.getCanvas();
+        if (!field || !this.anchor || !viewport || canvas.width < 1) {
+          return;
+        }
+        const style = this.options.getStyle();
+        const scale = viewport.width / canvas.width;
+        field.style.font = cssFont({
+          size: Math.max(1, style.size * scale),
+          family: style.family,
+          colour: style.colour,
+          bold: style.bold,
+          italic: style.italic
+        });
+        field.style.lineHeight = "1.25";
+        field.style.color = style.colour;
+        field.style.insetInlineStart = `${viewport.x + this.anchor.x / canvas.width * viewport.width}px`;
+        field.style.insetBlockStart = `${viewport.y + this.anchor.y / canvas.height * viewport.height}px`;
+        this.resize();
+      };
+      this.options = options;
+    }
+    /** Whether something is being typed right now. */
+    get isEditing() {
+      return this.field !== null;
+    }
+    /**
+     * Opens a caret at a point on the canvas.
+     *
+     * Anything already being typed is committed first, which is what clicking elsewhere
+     * with the text tool means in every editor.
+     *
+     * @param point Canvas coordinates for the top-left of the first line.
+     */
+    open(point) {
+      this.commit();
+      const field = document.createElement("textarea");
+      field.className = "dg-text-editor";
+      field.rows = 1;
+      field.spellcheck = false;
+      field.setAttribute("aria-label", "Text");
+      field.addEventListener("pointerdown", (event) => event.stopPropagation());
+      field.addEventListener("input", this.onInput);
+      field.addEventListener("keydown", this.onKeyDown);
+      field.addEventListener("blur", () => this.commit());
+      this.anchor = point;
+      this.field = field;
+      this.options.stage.appendChild(field);
+      this.restyle();
+      field.focus();
+      this.options.onStateChange?.();
+    }
+    /** Sizes the field to its contents, in both directions. */
+    resize() {
+      const field = this.field;
+      if (!field) {
+        return;
+      }
+      field.style.blockSize = "auto";
+      field.style.inlineSize = "0";
+      field.style.inlineSize = `${field.scrollWidth + 4}px`;
+      field.style.blockSize = `${field.scrollHeight}px`;
+    }
+    /** Rasterises what was typed and closes the caret. */
+    commit() {
+      const field = this.field;
+      const anchor = this.anchor;
+      if (!field || !anchor) {
+        return;
+      }
+      const text = field.value;
+      this.close();
+      if (text.trim()) {
+        this.options.onCommit(text, anchor);
+      }
+    }
+    /** Closes the caret, discarding what was typed. */
+    cancel() {
+      this.close();
+    }
+    /** Removes the field. */
+    close() {
+      const field = this.field;
+      this.field = null;
+      this.anchor = null;
+      field?.remove();
+      this.options.onStateChange?.();
+    }
+    /** Removes the editor entirely. */
+    destroy() {
+      this.close();
     }
   }
   const RULER_SIZE = 20;
@@ -8106,6 +8185,7 @@ void main( void )
       this.view = readViewPrefs();
       this.rulers = null;
       this.brushCursor = null;
+      this.textEditor = null;
       this.selection = null;
       this.selectionShape = "rect";
       this.quickMask = false;
@@ -8598,6 +8678,7 @@ void main( void )
         }),
         hasCloneSource: () => !!this.stageTools?.getCloneSource(),
         clearCloneSource: () => this.stageTools?.clearCloneSource(),
+        isTypingText: () => this.textEditor?.isEditing === true,
         setZoom: (mode) => {
           if (mode === "fit") {
             renderer.resetView();
@@ -8645,10 +8726,27 @@ void main( void )
         pan: (dx, dy) => renderer.pan(dx, dy),
         zoomAt: (factor, x, y) => renderer.zoomAt(factor, x, y),
         onToolStateChange: () => this.optionsBar?.render(),
+        onPlaceText: (point) => this.textEditor?.open(point),
         onStrokeEnd: () => {
           this.commitStroke();
         }
       });
+      this.textEditor = new TextEditor({
+        stage: this.stage,
+        getViewport: () => renderer.getViewport(),
+        getCanvas: () => this.history.current.canvas,
+        getStyle: () => ({
+          size: this.brush.fontSize,
+          family: this.brush.fontFamily,
+          colour: this.brush.colour,
+          bold: this.brush.bold,
+          italic: this.brush.italic
+        }),
+        onCommit: (text, point) => this.drawText(text, point),
+        onStateChange: () => this.optionsBar?.render()
+      });
+      this.brushListeners.add(this.textEditor.restyle);
+      this.detachKeys.push(renderer.onViewportChange(this.textEditor.restyle));
       this.brushCursor = new BrushCursor({
         stage: this.stage,
         getViewport: () => renderer.getViewport(),
@@ -8705,6 +8803,49 @@ void main( void )
         collector.toPatch(layerId)
       );
       this.syncToolbar();
+    }
+    /**
+     * Rasterises typed text onto the canvas.
+     *
+     * Through the same `textCanvas()` the caret is styled from, so what was on screen
+     * while typing and what lands in the layer cannot disagree.
+     *
+     * @param text  What was typed.
+     * @param point Canvas coordinates of the first line's top-left corner.
+     */
+    drawText(text, point) {
+      const renderer = this.renderer;
+      const rendered = textCanvas({
+        text,
+        size: this.brush.fontSize,
+        family: this.brush.fontFamily,
+        colour: this.brush.colour,
+        bold: this.brush.bold,
+        italic: this.brush.italic,
+        strokeWidth: this.brush.shapeStyle === "stroke" ? this.brush.strokeWidth : 0
+      });
+      if (!renderer || !rendered) {
+        return;
+      }
+      const layerId = this.paintTarget();
+      const at = {
+        x: point.x + rendered.offsetX,
+        y: point.y + rendered.offsetY
+      };
+      this.captureTiles(layerId, {
+        x: at.x,
+        y: at.y,
+        width: rendered.canvas.width,
+        height: rendered.canvas.height
+      });
+      renderer.compositeCanvas(
+        layerId,
+        rendered.canvas,
+        at.x,
+        at.y,
+        this.brush.opacity
+      );
+      this.commitStroke();
     }
     /**
      * The layer a stroke should land on.
@@ -8933,6 +9074,9 @@ void main( void )
     setActiveTool(tool) {
       if (this.activeTool === tool) {
         return;
+      }
+      if (this.activeTool === "text") {
+        this.textEditor?.commit();
       }
       this.activeTool = tool;
       this.toolRail?.sync(tool);
@@ -9387,6 +9531,7 @@ void main( void )
       this.optionsBar = null;
       this.rulers?.destroy();
       this.brushCursor?.destroy();
+      this.textEditor?.destroy();
       this.rulers = null;
       this.brushListeners.clear();
       this.panelHost?.destroy();

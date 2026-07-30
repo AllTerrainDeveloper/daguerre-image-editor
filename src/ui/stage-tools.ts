@@ -32,7 +32,6 @@ import {
 	rgbToHex,
 	shapeCanvas,
 	squareDrag,
-	textCanvas,
 } from '../engine/paint-shapes';
 import type { GradientKind, ShapeKind, ShapeStyle } from '../engine/paint-shapes';
 import { applyPixelDab } from '../engine/pixel-tools';
@@ -79,8 +78,6 @@ export interface BrushSettings {
 	shapeStyle: ShapeStyle;
 	/** Outline width in canvas pixels. */
 	strokeWidth: number;
-	/** What the text tool types. */
-	text: string;
 	/** Text size in canvas pixels. */
 	fontSize: number;
 	fontFamily: string;
@@ -111,7 +108,6 @@ export function defaultBrush(): BrushSettings {
 		shapeKind: 'rect',
 		shapeStyle: 'fill',
 		strokeWidth: 4,
-		text: '',
 		fontSize: 72,
 		fontFamily: 'system-ui, sans-serif',
 		bold: false,
@@ -171,6 +167,13 @@ export interface StageToolsOptions {
 	onStrokeEnd: () => void;
 	/** Called when a tool wants the options bar redrawn -- a clone source, say. */
 	onToolStateChange?: () => void;
+	/**
+	 * Called when the text tool is clicked.
+	 *
+	 * The caret belongs on the canvas, so placing text is opening an editor at a point
+	 * rather than stamping a string held elsewhere.
+	 */
+	onPlaceText: ( point: { x: number; y: number } ) => void;
 }
 
 /** How much of a dab's width a retouching stroke advances before the next one. */
@@ -306,7 +309,7 @@ export class StageTools {
 				return;
 
 			case 'text':
-				this.placeText( point );
+				this.options.onPlaceText( point );
 
 				return;
 
@@ -592,38 +595,6 @@ export class StageTools {
 			event.clientX - rect.left,
 			event.clientY - rect.top
 		);
-	}
-
-	/**
-	 * Draws the current text at a point.
-	 *
-	 * @param point Canvas coordinates of the baseline start.
-	 */
-	private placeText( point: { x: number; y: number } ): void {
-		const brush = this.options.getBrush();
-		const rendered = textCanvas( {
-			text: brush.text,
-			size: brush.fontSize,
-			family: brush.fontFamily,
-			colour: brush.colour,
-			bold: brush.bold,
-			italic: brush.italic,
-			strokeWidth: brush.shapeStyle === 'stroke' ? brush.strokeWidth : 0,
-		} );
-
-		if ( ! rendered ) {
-			return;
-		}
-
-		this.options.composite(
-			this.options.getTargetLayerId(),
-			rendered.canvas,
-			point.x + rendered.offsetX,
-			point.y + rendered.offsetY,
-			brush.opacity
-		);
-
-		this.options.onStrokeEnd();
 	}
 
 	/**

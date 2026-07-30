@@ -1882,3 +1882,36 @@ svg.dg-selection {
 .dg-brush-cursor.is-soft {
 	border-style: dashed;
 }
+
+/* -- On-canvas text --------------------------------------------------------- */
+
+/*
+ * The caret sits exactly where the glyphs will land, with the same font, size and
+ * colour the render will use. Transparent and unpadded so nothing shifts between what
+ * is typed and what is rasterised -- the dashed outline is the only thing added, and it
+ * is outside the box.
+ */
+.dg-text-editor {
+	position: absolute;
+	z-index: 6;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: 1px dashed rgba( 255, 255, 255, 0.8 );
+	outline-offset: 2px;
+	background: transparent;
+	box-shadow: 0 0 0 1px rgba( 0, 0, 0, 0.55 );
+	overflow: hidden;
+	resize: none;
+	white-space: pre;
+	/* Legible over any photograph without tinting the glyphs themselves. */
+	text-shadow: 0 0 3px rgba( 0, 0, 0, 0.45 );
+	caret-color: currentColor;
+}
+
+.dg-text-editor:focus {
+	outline: 1px dashed rgba( 255, 255, 255, 0.95 );
+}
+
+/* The text tool's own cursor, so it is obvious where a click will put the caret. */
+.dg-stage[ data-tool='text' ] { cursor: text; }

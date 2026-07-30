@@ -30,7 +30,6 @@ import {
 	createNumberField,
 	createSegmented,
 	createSelect,
-	createTextField,
 } from './controls';
 import { SELECTION_SHAPES } from '../model/selection';
 import type { SelectionShape } from '../model/selection';
@@ -50,6 +49,8 @@ export interface OptionsBarOptions {
 	clearCloneSource: () => void;
 	/** Zooms to a ratio of 1 canvas pixel per screen pixel, or fits the window. */
 	setZoom: ( mode: 'fit' | 'actual' ) => void;
+	/** Whether a caret is open on the canvas. */
+	isTypingText: () => boolean;
 }
 
 /** A control this bar can tear down. */
@@ -506,15 +507,6 @@ export class OptionsBar {
 	private renderTextOptions(): void {
 		const brush = this.options.ctx.getBrush();
 
-		this.add(
-			createTextField( {
-				label: __( 'Text' ),
-				value: brush.text,
-				placeholder: __( 'Type something' ),
-				onChange: ( value ) => this.options.ctx.setBrush( { text: value } ),
-			} )
-		);
-
 
 		this.add(
 			createSelect( {
@@ -558,7 +550,13 @@ export class OptionsBar {
 		this.divider();
 		this.addColourField();
 
-		this.hint( __( 'Click where the text should start.' ) );
+		// The font controls restyle the caret live, so the hint is about the gesture
+		// rather than about a field that no longer exists.
+		this.hint(
+			this.options.isTypingText()
+				? __( 'Enter for a new line. Cmd/Ctrl+Enter finishes, Escape cancels.' )
+				: __( 'Click on the image and type.' )
+		);
 	}
 
 	/** Fit and actual-size buttons. */
