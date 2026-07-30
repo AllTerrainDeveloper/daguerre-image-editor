@@ -9,8 +9,7 @@
 		"node": ">=20"
 	},
 	"scripts": {
-		"vendor:pixi": "node bin/vendor-pixi.mjs",
-		"build": "npm run vendor:pixi && npm run build:bundle && npm run deploy",
+		"build": "npm run build:bundle && npm run deploy",
 		"build:bundle": "vite build --mode development && vite build --mode production",
 		"dev": "vite build --mode development --watch",
 		"typecheck": "tsc --noEmit",

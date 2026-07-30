@@ -415,6 +415,7 @@ class Tests_Daguerre_Render extends WP_UnitTestCase {
 		// Reported from stored metadata, not from what the client claimed.
 		$this->assertGreaterThan( 0, $data['width'] );
 		$this->assertGreaterThan( 0, $data['height'] );
-		$this->assertStringContainsString( 'page=daguerre', $data['editUrl'] );
+		// No edit URL: there is no page to link to, only a window to open.
+		$this->assertArrayNotHasKey( 'editUrl', $data );
 	}
 }

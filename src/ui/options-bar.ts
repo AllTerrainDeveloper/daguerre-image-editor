@@ -344,6 +344,7 @@ export class OptionsBar {
 		if ( brush.shapeStyle === 'stroke' ) {
 			this.add(
 				createNumberField( {
+					compact: true,
 					label: __( 'Width' ),
 					value: brush.strokeWidth,
 					min: 1,
@@ -485,6 +486,7 @@ export class OptionsBar {
 		if ( brush.shapeKind === 'line' || brush.shapeStyle === 'stroke' ) {
 			this.add(
 				createNumberField( {
+					compact: true,
 					label: __( 'Width' ),
 					value: brush.strokeWidth,
 					min: 1,
@@ -522,6 +524,7 @@ export class OptionsBar {
 
 		this.add(
 			createNumberField( {
+				compact: true,
 				label: __( 'Size' ),
 				value: brush.fontSize,
 				min: 6,
@@ -583,6 +586,7 @@ export class OptionsBar {
 	/** The brush diameter, shared by every stroking tool. */
 	private addSizeField(): void {
 		const field = createNumberField( {
+			compact: true,
 			label: __( 'Size' ),
 			value: this.options.ctx.getBrush().size,
 			min: 1,
@@ -597,6 +601,7 @@ export class OptionsBar {
 	/** Flood fill and wand match tolerance. */
 	private addToleranceField(): void {
 		const field = createNumberField( {
+			compact: true,
 			label: __( 'Tolerance' ),
 			value: this.options.ctx.getBrush().tolerance,
 			min: 0,
@@ -620,6 +625,7 @@ export class OptionsBar {
 		floorOne: number
 	): void {
 		const field = createNumberField( {
+			compact: true,
 			label,
 			value: Math.round( this.options.ctx.getBrush()[ key ] * 100 ),
 			min: floorOne === 0 ? 0 : 1,

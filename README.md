@@ -8,15 +8,16 @@ action hooks inside, so it cannot be extended, only replaced. Daguerre replaces 
 
 ## Status
 
-**All six phases complete, plus layers, selections and a sixteen-tool rail.** Colour and tone, a live
-per-frame histogram, crop/straighten/rotate/flip, curves and levels, sharpen/blur/vignette/grain and
-saved presets; then a layer stack, four selection shapes, brushes, a magic wand, retouching and
-toning brushes, a clone stamp, gradients, shapes and text. Adjustments stay non-destructive — always
-written as a new attachment with the edit stored as a re-openable recipe.
+**All six phases complete, plus layers, selections and an eighteen-tool rail.** Colour and tone, a
+live per-frame histogram, crop/straighten/rotate/flip, curves and levels, sharpen/blur/vignette/grain
+and saved presets; then a layer stack, four selection shapes, brushes, a magic wand, retouching and
+toning brushes, a clone stamp, gradients, shapes, paths and on-canvas text. Adjustments stay
+non-destructive — always written as a new attachment with the edit stored as a re-openable recipe.
 
-Reachable from five surfaces: Media → Edit Photos, the list-mode row action, the attachment edit
-screen, the media modal, and the `core/image` block toolbar — plus a native Desktop Mode window when
-that plugin is active.
+Daguerre runs as a **native window inside [Desktop Mode](../alcazaba-plugin)**, which it requires.
+Opened from the dock, a desktop icon, a double-clicked image, the Media Library row action, the
+attachment screen, the media modal or the `core/image` block toolbar — every one of those opens the
+same window.
 
 ## Design in one page
 
@@ -24,7 +25,7 @@ that plugin is active.
 adjustments. The browser renders via WebGL, and the server's only job is to accept the result and
 create an attachment.
 
-**One editor, five hosts.** The editor is a single mountable component:
+**One editor, one surface.** The editor is a single mountable component:
 
 ```js
 const editor = window.daguerre.mount( element, {
@@ -35,9 +36,9 @@ const editor = window.daguerre.mount( element, {
 // editor.getRecipe() / editor.setRecipe() / editor.destroy()
 ```
 
-The admin page, the media modal, the block editor, a Desktop Mode window and anything a third party
-builds are all thin adapters over that one call. Nothing outside `src/api.ts` touches Pixi, the
-recipe model, or REST.
+The Desktop Mode native window is the only thing that calls it. The row action, the media modal
+button and the block editor button all ask for that window instead of mounting an editor of their
+own. Nothing outside `src/api.ts` touches Pixi, the recipe model, or REST.
 
 **One GPU pass, not six.** Exposure, contrast, temperature, tint, saturation and hue are all affine
 transforms of RGB, so they are multiplied into a single colour matrix and applied in one shader
@@ -178,72 +179,86 @@ Results land on a raster layer above the image, exactly like a brush stroke, so 
 are never touched. Their extent is in canvas pixels, so a wide blur on a 5000-pixel photo is
 invisible at fit zoom and obvious at 100% — that is arithmetic, not a bug.
 
-## Standalone first, Desktop Mode when present
+## A Desktop Mode application
 
-Daguerre is a standalone plugin. It requires nothing else, and there is deliberately no
-`Requires Plugins:` header. When the [Desktop Mode](../alcazaba-plugin) plugin is also active,
-Daguerre notices and adapts.
+Daguerre requires the [Desktop Mode](../alcazaba-plugin) plugin and runs as a **native window** in
+the desktop shell, rendering into the shell's own DOM. That is the whole design, not a preference:
+the shell's `<wpd-*>` components, its drag bridge and its PixiJS all live in the parent frame, and a
+chromeless iframe can reach none of them — no component is registered there at all. There is
+therefore one editing surface, and the row action, the media modal button and the block editor button
+are all ways of asking for it rather than places the editor mounts.
 
-Adaptation is **per capability, never per plugin**. `src/platform.ts` funnels every difference
-through feature-detected adapters — `request()`, `toast()`, `confirmAction()` — so no other module
-branches on whether Desktop Mode is running.
+The requirement is checked by **capability, not by plugin slug** — do the functions being called
+exist — so a fork, a rename or a bundled copy all work. It is checked on `plugins_loaded`, and that
+detail is load-bearing: plugins load alphabetically, so `daguerre` runs *before* `desktop-mode` and
+none of its functions exist yet at file scope. Checking there would fail on every site, every time,
+and the plugin would silently never load. `Requires Plugins:` governs activation, not load order.
 
-Controls do the same, per tag rather than per plugin:
+With Desktop Mode absent or switched off, nothing registers but a notice on the plugins screen
+saying why. Classic admin therefore has no editor — the deliberate cost of running natively.
+
+### The controls come from the shell
+
+Per tag, never per plugin:
 
 ```ts
 hasComponent( 'wpd-range-field' ) ? createWpdSlider( … ) : createNativeSlider( … )
 ```
 
-The shell registers a core subset of `<wpd-*>` eagerly and the rest only when a bundle importing
-them loads, so "is Desktop Mode running" is the wrong question — the only trustworthy one is whether
-*this* tag is in the custom element registry right now. An unregistered tag renders as inert markup
-with no error, which is why this is a hard gate.
+The shell registers a core subset of `<wpd-*>` eagerly and the rest only when a bundle importing them
+loads, so "is Desktop Mode running" is the wrong question — the only trustworthy one is whether *this*
+tag is in the registry right now. An unregistered tag renders as inert markup with no error, which is
+why this is a hard gate, and it is a *layered* one: `createNumberField()` asks for
+`<wpd-number-field>` first, then `<wpd-text-field type="number">`, then a bare input. That middle tier
+is what actually runs most of the time, because the shell does not register the number field until
+some bundle imports it. On the QA site `wpd-range-field`, `wpd-select`, `wpd-segmented`,
+`wpd-color-field`, `wpd-text-field` and `wpd-checkbox-label` are all registered while
+`wpd-number-field` and `wpd-section` are not — a per-plugin check would have rendered two inert tags.
 
-It is a *layered* gate, not a binary one. `createNumberField()` asks for `<wpd-number-field>` first,
-then `<wpd-text-field type="number">`, then a bare input — and that middle tier is the one that
-actually runs most of the time, because the shell does not register the number field until some
-bundle imports it. A text field in numeric mode is still the shell's own control with the shell's own
-styling; only the clamping has to be done here.
+Adapters do the same for behaviour. `src/platform.ts` funnels `request()`, `toast()` and
+`confirmAction()` through feature detection, so no other module branches on the shell.
 
-Whether Desktop Mode is *enabled* is a separate question from whether its components are present, so
-PHP answers it directly: `desktop_mode_is_enabled()` — a **per-user** preference, not a plugin check
-— travels in the config as `desktopMode` and puts `is-desktop-mode` on the editor root. That is what
-the fallback controls key their house style off, since inside a chromeless iframe no component is
-registered at all.
+### Theming
 
-The editor does **not** adopt Desktop Mode's window palette. That palette is light
-(`--desktop-mode-window-bg: #fff`) because it dresses the frame; judging an exposure against a white
-panel is judging the panel, which is why every serious photo editor is dark. What it does adopt is
-the accent and the corner radius: `--desktop-mode-window-link-accent`, falling back to
-`--wp-admin-theme-color`, so with Desktop Mode off the editor still follows the user's chosen admin
-colour scheme. An earlier version of that chain read `--wpd-accent`, which nothing in either plugin
-defines — it fell through to a hardcoded blue every time and ignored the colour scheme entirely.
+The editor **defines** Desktop Mode's component palette on its own root, and this is not optional
+polish: nothing in either plugin declares `--wpd-fg`, `--wpd-fg-muted`, `--wpd-border` or the rest, so
+every component was falling back to its light-theme literals and painting `#646970` labels and white
+input backgrounds onto a dark panel. Labels measured about 2:1. One block of variables on
+`.dg-editor` themes every `<wpd-*>` the editor will ever mount, including ones added later, and takes
+those labels to 5.5:1.
 
-Verified in both worlds. With Desktop Mode inactive the editor runs on the admin page with native
-controls. With it active, the admin page loads inside a Desktop Mode *iframe* window and still works
-— on native controls, because a chromeless iframe has no `wpd-*` registry at all and the shell's
-components live in the parent frame. The registered **native** window renders into that parent frame,
-which is where the adaptive kit actually reaches the components.
+The surround stays dark in every host, deliberately: judging an exposure against a white panel is
+judging the panel. So the editor does *not* adopt Desktop Mode's window palette, which is light
+(`--desktop-mode-window-bg: #fff`) because it dresses the frame rather than the content. What it does
+adopt is the accent and the corner radius — `--desktop-mode-window-link-accent`, falling back to
+`--wp-admin-theme-color` — so the editor follows the user's desktop theme and their admin colour
+scheme. An earlier version of that chain read `--wpd-accent`, which nothing defines; it fell through
+to a hardcoded blue every time.
 
-The per-tag gate earns its keep there rather than being defensive dressing: on the QA site
-`wpd-range-field`, `wpd-select`, `wpd-segmented`, `wpd-color-field`, `wpd-text-field` and
-`wpd-checkbox-label` are all registered while `wpd-number-field` and `wpd-section` are not — that
-build simply predates them. A per-plugin check would have rendered two inert tags; the per-tag check
-falls back on exactly those two and uses the components for the rest.
+### The bundle is evaluated twice
 
-## PixiJS is vendored, never fetched
+WordPress enqueues the script, and the shell's lazy-load payload injects the same URL again when a
+native window first opens. Two IIFE evaluations, two module scopes — so `window.daguerre` belongs to
+one copy and the live window's loader to the other, and a request to open an image reached a set of
+window loaders the live window had never been added to. It reported success and did nothing.
 
-`assets/vendor/pixi.min.js` (v8, MIT) ships inside the plugin and is committed to the repository.
-WordPress.org forbids loading code from a CDN, and the plugin must be installable straight from a
-checkout without an `npm install`.
+Mutable desktop state therefore lives on a single `window.__daguerreDesktop` singleton, and the
+one-time registrations are guarded. **Anything in `src/hosts/desktop-mode.ts` that must be singular
+has to live there**, not in a module-level variable.
 
-It is **not bundled**. `src/engine/pixi-loader.ts` checks `window.PIXI` first and only injects the
-vendored script when nothing is there, because Desktop Mode ships its own copy and two Pixi 8
-instances in one frame share GPU resource registries through globals — tearing one down can
-invalidate the other's textures. For the same reason the renderer never calls `app.destroy( true )`,
-which would release those global registries out from under unrelated Pixi apps on the page.
+## PixiJS comes from the shell
 
-Refresh the vendored copy with `npm run vendor:pixi`.
+Daguerre ships no rendering library. Desktop Mode vendors PixiJS v8 (MIT) and registers it in its
+module registry, so `src/engine/pixi-loader.ts` asks for it with
+`wp.desktop.loadModules( [ 'pixijs' ] )` and reads `window.PIXI`.
+
+That is smaller and safer than carrying a second copy: two Pixi 8 instances on a page share GPU
+resource registries through globals, and tearing one down can invalidate textures belonging to the
+other. There is no version to keep in step and nothing to go stale. For the same reason the renderer
+never calls `app.destroy( true )`, which would release those global registries out from under
+unrelated Pixi apps on the page.
+
+`pixi.js` stays in `devDependencies` for its TypeScript types only, and is never bundled.
 
 ## Layout
 
@@ -325,8 +340,8 @@ contain `daguerre.php`. When no WordPress checkout is present it prints a note a
 than failing the build. Override with `DAGUERRE_DEPLOY_TARGET`, or skip with `DAGUERRE_SKIP_DEPLOY=1`.
 
 `npm run env:start` maps Desktop Mode in from `../alcazaba-plugin` but leaves it **inactive**, so the
-default QA state is standalone. Activate it to exercise the integration; deactivating it again and
-re-running the manual checks is the load-bearing test.
+default QA state has it off — which is now a state in which Daguerre does nothing but explain why.
+Activate it to use the editor at all.
 
 Lint PHP with `vendor/bin/phpcs` inside the container:
 
@@ -380,8 +395,8 @@ browser implementation gives you a slider that validates and then does nothing.
 
 | Phase | Scope | State |
 |---|---|---|
-| 0 | Skeleton, build, vendored Pixi, read routes, test harness | ✅ |
-| 1 | Engine, colour and tone, live histogram, admin page | ✅ |
+| 0 | Skeleton, build, read routes, test harness | ✅ |
+| 1 | Engine, colour and tone, live histogram | ✅ |
 | 2 | Save: full-res render, `POST /render`, recipe persistence, re-open | ✅ |
 | 3 | Media modal, row actions, block editor toolbar | ✅ |
 | 4 | Desktop Mode native window, icon, file opener, drag in/out | ✅ |

@@ -48,8 +48,6 @@ const HISTOGRAM_MAX_SKIP = 4;
 export interface RendererOptions {
 	/** Element the canvas fills. */
 	host: HTMLElement;
-	/** URL of the vendored Pixi build. */
-	pixiUrl: string;
 	/**
 	 * Refuse to render more than this many pixels in one pass.
 	 *
@@ -194,7 +192,7 @@ export class EditorRenderer {
 	 * @param options Renderer options.
 	 */
 	static async create( options: RendererOptions ): Promise< EditorRenderer > {
-		const pixi = await loadPixi( options.pixiUrl );
+		const pixi = await loadPixi();
 		const app = new pixi.Application();
 
 		await app.init( {

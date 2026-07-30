@@ -118,7 +118,6 @@ function daguerre_get_config() {
 		'restUrl'         => esc_url_raw( trailingslashit( rest_url( DAGUERRE_REST_NAMESPACE ) ) ),
 		'restNonce'       => wp_create_nonce( 'wp_rest' ),
 		'pluginUrl'       => esc_url_raw( DAGUERRE_URL ),
-		'pixiUrl'         => esc_url_raw( DAGUERRE_URL . 'assets/vendor/pixi.min.js' ),
 		'mediaUrl'        => esc_url_raw( rest_url( 'wp/v2/media' ) ),
 		'supportedMimes'  => daguerre_supported_mime_types(),
 		'maxRenderPixels' => daguerre_max_render_pixels(),

@@ -442,9 +442,9 @@ var daguerre = function(exports) {
       })
     };
   }
-  function setLayers(recipe, layers, active2) {
+  function setLayers(recipe, layers, active) {
     const stack = layers.length > 0 ? layers : recipe.layers;
-    const activeLayerId = active2 && stack.some((layer) => layer.id === active2) ? active2 : stack.some((layer) => layer.id === recipe.activeLayerId) ? recipe.activeLayerId : stack[stack.length - 1].id;
+    const activeLayerId = active && stack.some((layer) => layer.id === active) ? active : stack.some((layer) => layer.id === recipe.activeLayerId) ? recipe.activeLayerId : stack[stack.length - 1].id;
     return { ...recipe, layers: stack, activeLayerId };
   }
   function activeLayer(recipe) {
@@ -476,11 +476,11 @@ var daguerre = function(exports) {
     return recipe.ops.length === 0 && untouchedCanvas && recipe.layers.length === 1 && recipe.layers[0].kind === "image" && isIdentityTransform(recipe.layers[0].transform) && isIdentityCurves(recipe.curves) && isIdentityLevels(recipe.levels);
   }
   function migrateRecipe(raw) {
-    const version = Number(raw.version ?? 1);
-    if (version >= RECIPE_VERSION) {
+    const version2 = Number(raw.version ?? 1);
+    if (version2 >= RECIPE_VERSION) {
       return raw;
     }
-    if (version >= 3) {
+    if (version2 >= 3) {
       const single = raw;
       return {
         ...raw,
@@ -963,53 +963,27 @@ var daguerre = function(exports) {
       peak: 0
     };
   }
-  const pending = /* @__PURE__ */ new Map();
-  function loadPixi(url) {
+  const MODULE_ID = "pixijs";
+  function shell() {
+    return window.wp?.desktop;
+  }
+  async function loadPixi() {
     if (window.PIXI) {
-      return Promise.resolve(window.PIXI);
+      return window.PIXI;
     }
-    const existing = pending.get(url);
-    if (existing) {
-      return existing;
-    }
-    const load = new Promise((resolve, reject) => {
-      const selector = `script[data-daguerre-vendor="${CSS.escape(url)}"]`;
-      let script = document.querySelector(selector);
-      const settle = () => {
-        if (window.PIXI) {
-          resolve(window.PIXI);
-        } else {
-          reject(
-            new Error(
-              "PixiJS loaded but did not define window.PIXI. The vendored bundle may be corrupt."
-            )
-          );
-        }
-      };
-      if (script) {
-        script.addEventListener("load", settle, { once: true });
-        script.addEventListener(
-          "error",
-          () => reject(new Error(`Could not load PixiJS from ${url}`)),
-          { once: true }
-        );
-        return;
-      }
-      script = document.createElement("script");
-      script.src = url;
-      script.async = true;
-      script.dataset.daguerreVendor = url;
-      script.addEventListener("load", settle, { once: true });
-      script.addEventListener(
-        "error",
-        () => reject(new Error(`Could not load PixiJS from ${url}`)),
-        { once: true }
+    const desktop2 = shell();
+    if (!desktop2?.loadModules) {
+      throw new Error(
+        "Daguerre needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page."
       );
-      document.head.appendChild(script);
-    });
-    load.catch(() => pending.delete(url));
-    pending.set(url, load);
-    return load;
+    }
+    await desktop2.loadModules([MODULE_ID]);
+    if (!window.PIXI) {
+      throw new Error(
+        "Desktop Mode loaded its PixiJS module but window.PIXI is still undefined."
+      );
+    }
+    return window.PIXI;
   }
   const ADJUST_VERT = (
     /* glsl */
@@ -1252,7 +1226,7 @@ void main( void )
      * @param options Renderer options.
      */
     static async create(options) {
-      const pixi = await loadPixi(options.pixiUrl);
+      const pixi = await loadPixi();
       const app = new pixi.Application();
       await app.init({
         preference: "webgl",
@@ -2500,7 +2474,7 @@ void main( void )
      * @param label Groups related changes. Use the op name for slider drags.
      * @param meta  Optional. Carried alongside, for changes a snapshot cannot express.
      */
-    push(state, label, meta) {
+    push(state2, label, meta) {
       const at = this.now();
       const top = this.entries[this.index];
       if (this.index > 0 && top.label === label && at - top.at < COALESCE_MS && !this.canRedo && // Never merge entries carrying a payload. Coalescing exists for slider
@@ -2509,11 +2483,11 @@ void main( void )
       // quick strokes would discard the first stroke's only copy of them and
       // leave undo restoring half of what it claimed to.
       meta === void 0 && top.meta === void 0) {
-        this.entries[this.index] = { state, label, at, meta };
+        this.entries[this.index] = { state: state2, label, at, meta };
         return;
       }
       this.entries = this.entries.slice(0, this.index + 1);
-      this.entries.push({ state, label, at, meta });
+      this.entries.push({ state: state2, label, at, meta });
       if (this.entries.length > MAX_ENTRIES) {
         this.entries.shift();
       }
@@ -2529,8 +2503,8 @@ void main( void )
      *
      * @param state Replacement state.
      */
-    replace(state) {
-      this.entries[this.index] = { ...this.entries[this.index], state };
+    replace(state2) {
+      this.entries[this.index] = { ...this.entries[this.index], state: state2 };
     }
     /** Whatever was attached to the entry currently in effect. */
     get meta() {
@@ -3544,8 +3518,8 @@ void main( void )
     { value: "saturate", label: "Saturate" }
   ];
   function desktop$1() {
-    const api2 = window.wp?.desktop;
-    return api2?.isActive?.() ? api2 : void 0;
+    const api = window.wp?.desktop;
+    return api?.isActive?.() ? api : void 0;
   }
   function isDesktopMode() {
     return desktop$1() !== void 0;
@@ -3567,16 +3541,16 @@ void main( void )
     return typeof customElements !== "undefined" && customElements.get(tag) !== void 0;
   }
   function request(input, init) {
-    const api2 = desktop$1();
-    if (api2?.fetch) {
-      return api2.fetch(input, init);
+    const api = desktop$1();
+    if (api?.fetch) {
+      return api.fetch(input, init);
     }
     return window.fetch(input, init);
   }
   function toast(message, type = "info") {
-    const api2 = desktop$1();
-    if (api2?.showToast) {
-      api2.showToast({ message, type });
+    const api = desktop$1();
+    if (api?.showToast) {
+      api.showToast({ message, type });
       return;
     }
     fallbackToast(message, type);
@@ -3796,7 +3770,11 @@ void main( void )
     if (tag) {
       const numeric = tag === "wpd-number-field";
       const field = document.createElement(tag);
-      field.setAttribute("label", options.label);
+      if (!options.compact) {
+        field.setAttribute("label", options.label);
+      } else {
+        field.setAttribute("aria-label", options.label);
+      }
       field.setAttribute("value", String(Math.round(options.value)));
       field.classList.add("dg-field--compact");
       if (numeric) {
@@ -3824,7 +3802,7 @@ void main( void )
       };
       field.addEventListener("wpd-input-change", onChange);
       field.addEventListener("wpd-input-commit", onChange);
-      return {
+      const handle = {
         el: field,
         setValue: (value) => field.setAttribute("value", String(value)),
         destroy: () => {
@@ -3832,9 +3810,22 @@ void main( void )
           field.removeEventListener("wpd-input-commit", onChange);
         }
       };
+      if (!options.compact) {
+        return handle;
+      }
+      const row = document.createElement("div");
+      const text2 = document.createElement("span");
+      row.className = "dg-field dg-field--compact dg-field--narrow";
+      text2.className = "dg-field__label";
+      text2.textContent = options.label;
+      row.append(text2, field);
+      return { ...handle, el: row };
     }
     const wrap = document.createElement("label");
     wrap.className = "dg-field dg-field--compact";
+    if (options.compact) {
+      wrap.classList.add("dg-field--narrow");
+    }
     const text = document.createElement("span");
     text.className = "dg-field__label";
     text.textContent = options.label;
@@ -4391,6 +4382,7 @@ void main( void )
       if (brush.shapeStyle === "stroke") {
         this.add(
           createNumberField({
+            compact: true,
             label: __("Width"),
             value: brush.strokeWidth,
             min: 1,
@@ -4509,6 +4501,7 @@ void main( void )
       if (brush.shapeKind === "line" || brush.shapeStyle === "stroke") {
         this.add(
           createNumberField({
+            compact: true,
             label: __("Width"),
             value: brush.strokeWidth,
             min: 1,
@@ -4539,6 +4532,7 @@ void main( void )
       );
       this.add(
         createNumberField({
+          compact: true,
           label: __("Size"),
           value: brush.fontSize,
           min: 6,
@@ -4588,6 +4582,7 @@ void main( void )
     /** The brush diameter, shared by every stroking tool. */
     addSizeField() {
       const field = createNumberField({
+        compact: true,
         label: __("Size"),
         value: this.options.ctx.getBrush().size,
         min: 1,
@@ -4600,6 +4595,7 @@ void main( void )
     /** Flood fill and wand match tolerance. */
     addToleranceField() {
       const field = createNumberField({
+        compact: true,
         label: __("Tolerance"),
         value: this.options.ctx.getBrush().tolerance,
         min: 0,
@@ -4617,6 +4613,7 @@ void main( void )
      */
     addPercentField(key, label, floorOne) {
       const field = createNumberField({
+        compact: true,
         label,
         value: Math.round(this.options.ctx.getBrush()[key] * 100),
         min: floorOne === 0 ? 0 : 1,
@@ -5647,9 +5644,9 @@ void main( void )
       return {};
     }
   }
-  function writeState(state) {
+  function writeState(state2) {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state2));
     } catch {
     }
   }
@@ -7425,6 +7422,323 @@ void main( void )
       this.options.stage.removeEventListener("pointerdown", this.onPointerDown);
     }
   }
+  const PAGE_SIZE = 60;
+  function thumbnailFor(item) {
+    const sizes = item.media_details?.sizes ?? {};
+    for (const name of ["thumbnail", "medium", "medium_large", "large"]) {
+      const url = sizes[name]?.source_url;
+      if (url) {
+        return url;
+      }
+    }
+    return item.source_url ?? "";
+  }
+  async function renderPicker(root, config, onPick, isStale) {
+    if (isStale?.()) {
+      return;
+    }
+    root.classList.add("dg-picker");
+    const heading = document.createElement("h2");
+    heading.className = "dg-picker__heading";
+    heading.textContent = __("Choose a photo to edit");
+    const status = document.createElement("p");
+    status.className = "dg-picker__status";
+    status.textContent = __("Loading your photos…");
+    root.replaceChildren(heading, status);
+    let items;
+    try {
+      const url = new URL(config.mediaUrl);
+      url.searchParams.set("media_type", "image");
+      url.searchParams.set("per_page", String(PAGE_SIZE));
+      url.searchParams.set("orderby", "date");
+      url.searchParams.set("order", "desc");
+      url.searchParams.set("_fields", "id,mime_type,title,source_url,media_details");
+      const response = await request(url.toString(), {
+        credentials: "same-origin",
+        headers: { "X-WP-Nonce": config.restNonce }
+      });
+      if (!response.ok) {
+        throw new Error(__("Your media library could not be loaded."));
+      }
+      items = await response.json();
+    } catch (error) {
+      status.classList.add("dg-picker__status--error");
+      status.textContent = error instanceof Error ? error.message : __("Your media library could not be loaded.");
+      return;
+    }
+    if (isStale?.()) {
+      return;
+    }
+    const editable = items.filter(
+      (item) => config.supportedMimes.includes(item.mime_type)
+    );
+    if (editable.length === 0) {
+      status.textContent = __(
+        "No editable images yet. Upload a JPEG, PNG, WebP or AVIF to get started."
+      );
+      const link = document.createElement("a");
+      link.className = "button button-primary";
+      link.href = "media-new.php";
+      link.textContent = __("Upload a photo");
+      root.appendChild(link);
+      return;
+    }
+    status.remove();
+    const grid = document.createElement("div");
+    grid.className = "dg-picker__grid";
+    grid.setAttribute("role", "list");
+    for (const item of editable) {
+      grid.appendChild(renderTile(item, onPick));
+    }
+    root.appendChild(grid);
+  }
+  function renderTile(item, onPick) {
+    const title = item.title?.rendered?.replace(/<[^>]*>/g, "") || __("Untitled image");
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "dg-picker__tile";
+    tile.setAttribute("role", "listitem");
+    const image = document.createElement("img");
+    image.className = "dg-picker__thumb";
+    image.src = thumbnailFor(item);
+    image.alt = "";
+    image.loading = "lazy";
+    image.decoding = "async";
+    const caption = document.createElement("span");
+    caption.className = "dg-picker__caption";
+    caption.textContent = title;
+    const { width, height } = item.media_details ?? {};
+    tile.title = width && height ? sprintf("%s — %d × %d", title, width, height) : title;
+    tile.addEventListener("click", () => onPick?.(item.id));
+    tile.append(image, caption);
+    return tile;
+  }
+  const WINDOW_ID = "daguerre";
+  function desktop() {
+    const api = window.wp?.desktop;
+    return api?.isActive?.() ? api : void 0;
+  }
+  function takePending() {
+    const shared = state();
+    const id = shared.pending;
+    shared.pending = 0;
+    return id;
+  }
+  function state() {
+    const holder = window;
+    holder.__daguerreDesktop ?? (holder.__daguerreDesktop = {
+      openers: /* @__PURE__ */ new Set(),
+      pending: 0,
+      previewUrl: "",
+      previewTitle: "",
+      peekRegistered: false,
+      listenerRegistered: false
+    });
+    return holder.__daguerreDesktop;
+  }
+  const OPEN_MESSAGE = "daguerre-open";
+  function openInDesktop(attachmentId) {
+    const id = Number(attachmentId) || 0;
+    if (!id) {
+      return false;
+    }
+    if (desktop()?.openWindow) {
+      const live = [...state().openers].pop();
+      if (live) {
+        live(id);
+      } else {
+        state().pending = id;
+      }
+      desktop()?.openWindow?.(WINDOW_ID, { source: "daguerre" });
+      return true;
+    }
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        { type: OPEN_MESSAGE, attachmentId: id },
+        window.location.origin
+      );
+      return true;
+    }
+    return false;
+  }
+  function listenForOpenRequests() {
+    if (state().listenerRegistered) {
+      return;
+    }
+    state().listenerRegistered = true;
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      const data = event.data;
+      if (!data || data.type !== OPEN_MESSAGE) {
+        return;
+      }
+      openInDesktop(Number(data.attachmentId) || 0);
+    });
+  }
+  function bootDesktopMode() {
+    if (!desktop()) {
+      return;
+    }
+    registerPeekThumbnail();
+    try {
+      registerFileOpener();
+    } catch (error) {
+      console.warn("[daguerre] file opener unavailable:", error);
+    }
+    listenForOpenRequests();
+  }
+  function registerPeekThumbnail() {
+    const hooks = window.wp?.hooks;
+    if (!hooks?.addFilter || state().peekRegistered) {
+      return;
+    }
+    state().peekRegistered = true;
+    hooks.addFilter(
+      "desktop-mode.dock.peek-card-content",
+      "daguerre/thumbnail",
+      (body, context) => {
+        const win = context?.window;
+        const shared = state();
+        if (!win?.id?.startsWith(WINDOW_ID) || !shared.previewUrl) {
+          return body;
+        }
+        const image = document.createElement("img");
+        image.className = "dg-peek-thumb";
+        image.src = shared.previewUrl;
+        image.alt = shared.previewTitle;
+        image.loading = "lazy";
+        image.decoding = "async";
+        return image;
+      }
+    );
+  }
+  function registerNativeWindow() {
+    const registry2 = window.desktopModeNativeWindows ?? (window.desktopModeNativeWindows = {});
+    registry2[WINDOW_ID] = (body, ctx) => renderWindow(body, ctx);
+  }
+  function renderWindow(body, ctx) {
+    const root = body.querySelector("[data-daguerre-root]") ?? body;
+    const config = window.daguerreConfig;
+    let editor = null;
+    let releaseDrop = null;
+    let session = 0;
+    const open = (attachmentId2) => {
+      session++;
+      editor?.destroy();
+      root.replaceChildren();
+      ctx?.markLoading?.();
+      editor = mount(root, {
+        attachmentId: attachmentId2,
+        host: "window",
+        onSave: (result) => {
+          attachDragOut(root, result);
+          state().previewUrl = result.url;
+        },
+        onReady: (payload) => {
+          state().previewUrl = payload?.url ?? "";
+          state().previewTitle = payload?.title ?? "";
+          ctx?.markReady?.();
+        }
+      });
+    };
+    state().openers.add(open);
+    const attachmentId = takePending();
+    if (attachmentId) {
+      open(attachmentId);
+    } else if (config) {
+      const mine = session;
+      void renderPicker(
+        root,
+        config,
+        (id) => open(id),
+        () => session !== mine
+      );
+    }
+    try {
+      releaseDrop = registerDropTarget(root, open);
+    } catch (error) {
+      console.warn("[daguerre] drag-and-drop unavailable:", error);
+    }
+    return () => {
+      state().openers.delete(open);
+      state().previewUrl = "";
+      state().previewTitle = "";
+      releaseDrop?.();
+      editor?.destroy();
+    };
+  }
+  function registerDropTarget(element, open) {
+    const manager = desktop()?.dragManager;
+    if (!manager?.registerDropTarget) {
+      return null;
+    }
+    const attachmentOf = (payload) => {
+      const bridge = payload.data?.bridgePayload;
+      if (bridge?.kind !== "attachment") {
+        return 0;
+      }
+      if (bridge.mime && !window.daguerreConfig?.supportedMimes.includes(bridge.mime)) {
+        return 0;
+      }
+      return Number(bridge.id ?? 0);
+    };
+    return manager.registerDropTarget({
+      id: "daguerre-window",
+      element,
+      accept: (payload) => attachmentOf(payload) > 0,
+      acceptLabel: __("Open in Daguerre"),
+      onDrop: (session) => {
+        const id = attachmentOf(session.payload);
+        if (id) {
+          open(id);
+        }
+      }
+    });
+  }
+  function attachDragOut(root, result) {
+    const bridge = desktop()?.dragBridge;
+    if (!bridge?.start) {
+      return;
+    }
+    const banner = root.querySelector(".dg-saved a");
+    if (!banner) {
+      return;
+    }
+    banner.draggable = true;
+    banner.title = __("Drag into another window to insert it");
+    banner.addEventListener("dragstart", () => {
+      bridge.start?.({
+        kind: "attachment",
+        id: result.id,
+        url: result.url,
+        title: __("Edited image"),
+        alt: "",
+        mime: result.mime,
+        thumbnailUrl: result.url
+      });
+    });
+    banner.addEventListener("dragend", () => bridge.end?.());
+  }
+  function registerFileOpener() {
+    const files = desktop()?.files;
+    if (!files?.registerOpener) {
+      return;
+    }
+    files.registerOpener({
+      id: "daguerre",
+      label: __("Edit in Daguerre"),
+      types: ["attachment"],
+      isDefault: false,
+      sort: 15,
+      handler: {
+        kind: "js",
+        open: (file) => openInDesktop(Number(file.ref()) || 0)
+      }
+    });
+  }
+  registerNativeWindow();
   const SIZED_TOOLS = [
     "brush",
     "eraser",
@@ -8058,9 +8372,9 @@ void main( void )
      *
      * @param active Tool now in use.
      */
-    sync(active2) {
+    sync(active) {
       for (const [id, button] of this.buttons) {
-        button.setPressed(id === active2);
+        button.setPressed(id === active);
       }
       this.swatches.sync();
       this.syncModes();
@@ -8423,7 +8737,6 @@ void main( void )
         this.setStatus(__("Starting the renderer…"));
         this.renderer = await EditorRenderer.create({
           host: this.stage,
-          pixiUrl: this.config.pixiUrl,
           maxRenderPixels: this.config.maxRenderPixels,
           schema: this.payload.schema
         });
@@ -8449,6 +8762,8 @@ void main( void )
         this.setTitle();
       } catch (error) {
         this.fail(error);
+      } finally {
+        this.options.onReady?.(this.payload);
       }
     }
     /** Shows a message in the stage area. */
@@ -8861,11 +9176,11 @@ void main( void )
      */
     paintTarget() {
       const recipe = this.history.current;
-      const active2 = recipe.layers.find(
+      const active = recipe.layers.find(
         (layer2) => layer2.id === recipe.activeLayerId
       );
-      if (active2 && this.isPaintSheet(active2.id)) {
-        return active2.id;
+      if (active && this.isPaintSheet(active.id)) {
+        return active.id;
       }
       const existing = recipe.layers.find(
         (layer2) => layer2.kind === "raster" && this.isPaintSheet(layer2.id)
@@ -9434,10 +9749,13 @@ void main( void )
       existing?.remove();
       const banner = document.createElement("p");
       banner.className = "dg-saved";
-      const link = document.createElement("a");
-      link.href = result.editUrl;
-      link.textContent = __("Open the saved copy");
-      banner.append(document.createTextNode(__("Saved a copy. ")), link);
+      const open = createButton({
+        label: __("Open the saved copy"),
+        variant: "secondary",
+        onClick: () => openInDesktop(result.id)
+      });
+      this.buttons.push(open);
+      banner.append(document.createTextNode(__("Saved a copy. ")), open.el);
       this.sidebar.prepend(banner);
     }
     /**
@@ -9619,210 +9937,6 @@ void main( void )
     }
     return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
   }
-  const PAGE_SIZE = 60;
-  function thumbnailFor(item) {
-    const sizes = item.media_details?.sizes ?? {};
-    for (const name of ["thumbnail", "medium", "medium_large", "large"]) {
-      const url = sizes[name]?.source_url;
-      if (url) {
-        return url;
-      }
-    }
-    return item.source_url ?? "";
-  }
-  async function renderPicker(root, config, onPick) {
-    root.classList.add("dg-picker");
-    const heading = document.createElement("h2");
-    heading.className = "dg-picker__heading";
-    heading.textContent = __("Choose a photo to edit");
-    const status = document.createElement("p");
-    status.className = "dg-picker__status";
-    status.textContent = __("Loading your photos…");
-    root.replaceChildren(heading, status);
-    let items;
-    try {
-      const url = new URL(config.mediaUrl);
-      url.searchParams.set("media_type", "image");
-      url.searchParams.set("per_page", String(PAGE_SIZE));
-      url.searchParams.set("orderby", "date");
-      url.searchParams.set("order", "desc");
-      url.searchParams.set("_fields", "id,mime_type,title,source_url,media_details");
-      const response = await request(url.toString(), {
-        credentials: "same-origin",
-        headers: { "X-WP-Nonce": config.restNonce }
-      });
-      if (!response.ok) {
-        throw new Error(__("Your media library could not be loaded."));
-      }
-      items = await response.json();
-    } catch (error) {
-      status.classList.add("dg-picker__status--error");
-      status.textContent = error instanceof Error ? error.message : __("Your media library could not be loaded.");
-      return;
-    }
-    const editable = items.filter(
-      (item) => config.supportedMimes.includes(item.mime_type)
-    );
-    if (editable.length === 0) {
-      status.textContent = __(
-        "No editable images yet. Upload a JPEG, PNG, WebP or AVIF to get started."
-      );
-      const link = document.createElement("a");
-      link.className = "button button-primary";
-      link.href = "media-new.php";
-      link.textContent = __("Upload a photo");
-      root.appendChild(link);
-      return;
-    }
-    status.remove();
-    const grid = document.createElement("div");
-    grid.className = "dg-picker__grid";
-    grid.setAttribute("role", "list");
-    for (const item of editable) {
-      grid.appendChild(renderTile(item, onPick));
-    }
-    root.appendChild(grid);
-  }
-  function renderTile(item, onPick) {
-    const title = item.title?.rendered?.replace(/<[^>]*>/g, "") || __("Untitled image");
-    const link = document.createElement("a");
-    link.className = "dg-picker__tile";
-    link.href = `upload.php?page=daguerre&attachment=${item.id}`;
-    link.setAttribute("role", "listitem");
-    const image = document.createElement("img");
-    image.className = "dg-picker__thumb";
-    image.src = thumbnailFor(item);
-    image.alt = "";
-    image.loading = "lazy";
-    image.decoding = "async";
-    const caption = document.createElement("span");
-    caption.className = "dg-picker__caption";
-    caption.textContent = title;
-    const { width, height } = item.media_details ?? {};
-    if (width && height) {
-      link.title = sprintf("%s — %d × %d", title, width, height);
-    } else {
-      link.title = title;
-    }
-    if (onPick) {
-      link.addEventListener("click", (event) => {
-        event.preventDefault();
-        onPick(item.id);
-      });
-    }
-    link.append(image, caption);
-    return link;
-  }
-  let instance = null;
-  function bootAdminPage() {
-    const root = document.querySelector(
-      '[data-daguerre-root][data-host="page"]'
-    );
-    if (!root) {
-      return;
-    }
-    const attachmentId = Number(root.dataset.attachment ?? 0);
-    if (!attachmentId) {
-      renderEmptyState(root);
-      return;
-    }
-    instance?.destroy();
-    instance = mount(root, { attachmentId, host: "page" });
-    window.daguerreEditor = instance;
-    window.addEventListener(
-      "pagehide",
-      () => {
-        instance?.destroy();
-        instance = null;
-      },
-      { once: true }
-    );
-  }
-  function renderEmptyState(root) {
-    const config = window.daguerreConfig;
-    if (!config) {
-      root.textContent = __("Daguerre could not load its configuration.");
-      return;
-    }
-    void renderPicker(root, config);
-  }
-  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  let active = null;
-  function openEditorOverlay(options) {
-    active?.close();
-    const previousFocus = document.activeElement;
-    const backdrop = document.createElement("div");
-    backdrop.className = "dg-overlay";
-    const dialog = document.createElement("div");
-    dialog.className = "dg-overlay__dialog";
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
-    dialog.setAttribute("aria-label", __("Edit image with Daguerre"));
-    const mountPoint = document.createElement("div");
-    mountPoint.className = "dg-overlay__editor";
-    dialog.appendChild(mountPoint);
-    backdrop.appendChild(dialog);
-    let editor = null;
-    let closed = false;
-    const close = () => {
-      if (closed) {
-        return;
-      }
-      closed = true;
-      active = null;
-      document.removeEventListener("keydown", onKeyDown, true);
-      editor?.destroy();
-      backdrop.remove();
-      document.body.classList.remove("dg-overlay-open");
-      previousFocus?.focus?.();
-      options.onClose?.();
-    };
-    function onKeyDown(event) {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        event.preventDefault();
-        close();
-        return;
-      }
-      if (event.key !== "Tab") {
-        return;
-      }
-      const focusable = Array.from(
-        dialog.querySelectorAll(FOCUSABLE)
-      ).filter((el) => el.offsetParent !== null);
-      if (focusable.length === 0) {
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    backdrop.addEventListener("pointerdown", (event) => {
-      if (event.target === backdrop) {
-        close();
-      }
-    });
-    document.addEventListener("keydown", onKeyDown, true);
-    document.body.appendChild(backdrop);
-    document.body.classList.add("dg-overlay-open");
-    editor = mount(mountPoint, {
-      attachmentId: options.attachmentId,
-      host: "modal",
-      onClose: close,
-      onSave: options.onSave
-    });
-    window.requestAnimationFrame(() => {
-      dialog.querySelector(FOCUSABLE)?.focus();
-    });
-    active = { close };
-    return { close };
-  }
   function bootBlockEditor() {
     const element = window.wp?.element;
     const hooks = window.wp?.hooks;
@@ -9856,17 +9970,7 @@ void main( void )
               ToolbarButton,
               {
                 label: __("Edit with Daguerre"),
-                onClick: () => openEditorOverlay({
-                  attachmentId: id,
-                  onSave: (result) => {
-                    props.setAttributes({
-                      id: result.id,
-                      url: result.url,
-                      width: void 0,
-                      height: void 0
-                    });
-                  }
-                })
+                onClick: () => openInDesktop(id)
               },
               __("Daguerre")
             )
@@ -9876,126 +9980,6 @@ void main( void )
       },
       20
     );
-  }
-  const WINDOW_ID = "daguerre";
-  function desktop() {
-    const api2 = window.wp?.desktop;
-    return api2?.isActive?.() ? api2 : void 0;
-  }
-  let pendingAttachment = 0;
-  function takePending() {
-    const id = pendingAttachment;
-    pendingAttachment = 0;
-    return id;
-  }
-  function bootDesktopMode() {
-    registerNativeWindow();
-    if (!desktop()) {
-      return;
-    }
-    registerFileOpener();
-  }
-  function registerNativeWindow() {
-    const registry2 = window.desktopModeNativeWindows ?? (window.desktopModeNativeWindows = {});
-    registry2[WINDOW_ID] = (body) => renderWindow(body);
-  }
-  function renderWindow(body) {
-    const root = body.querySelector("[data-daguerre-root]") ?? body;
-    const config = window.daguerreConfig;
-    let editor = null;
-    let releaseDrop = null;
-    const open = (attachmentId2) => {
-      editor?.destroy();
-      root.replaceChildren();
-      editor = mount(root, {
-        attachmentId: attachmentId2,
-        host: "window",
-        onSave: (result) => attachDragOut(root, result)
-      });
-    };
-    const attachmentId = takePending();
-    if (attachmentId) {
-      open(attachmentId);
-    } else if (config) {
-      void renderPicker(root, config, (id) => open(id));
-    }
-    releaseDrop = registerDropTarget(root, open);
-    return () => {
-      releaseDrop?.();
-      editor?.destroy();
-    };
-  }
-  function registerDropTarget(element, open) {
-    const register = desktop()?.dragManager?.registerDropTarget;
-    if (!register) {
-      return null;
-    }
-    const attachmentOf = (payload) => {
-      const bridge = payload.data?.bridgePayload;
-      if (bridge?.kind !== "attachment") {
-        return 0;
-      }
-      if (bridge.mime && !window.daguerreConfig?.supportedMimes.includes(bridge.mime)) {
-        return 0;
-      }
-      return Number(bridge.id ?? 0);
-    };
-    return register({
-      id: "daguerre-window",
-      element,
-      accept: (payload) => attachmentOf(payload) > 0,
-      acceptLabel: __("Open in Daguerre"),
-      onDrop: (session) => {
-        const id = attachmentOf(session.payload);
-        if (id) {
-          open(id);
-        }
-      }
-    });
-  }
-  function attachDragOut(root, result) {
-    const bridge = desktop()?.dragBridge;
-    if (!bridge?.start) {
-      return;
-    }
-    const banner = root.querySelector(".dg-saved a");
-    if (!banner) {
-      return;
-    }
-    banner.draggable = true;
-    banner.title = __("Drag into another window to insert it");
-    banner.addEventListener("dragstart", () => {
-      bridge.start?.({
-        kind: "attachment",
-        id: result.id,
-        url: result.url,
-        title: __("Edited image"),
-        alt: "",
-        mime: result.mime,
-        thumbnailUrl: result.url
-      });
-    });
-    banner.addEventListener("dragend", () => bridge.end?.());
-  }
-  function registerFileOpener() {
-    const register = desktop()?.files?.registerOpener;
-    if (!register) {
-      return;
-    }
-    register({
-      id: "daguerre",
-      label: __("Edit in Daguerre"),
-      types: ["attachment"],
-      isDefault: false,
-      sort: 15,
-      handler: {
-        kind: "js",
-        open: (file) => {
-          pendingAttachment = Number(file.ref()) || 0;
-          desktop()?.openWindow?.(WINDOW_ID, { source: "file-opener" });
-        }
-      }
-    });
   }
   const patched = /* @__PURE__ */ new WeakSet();
   function bootMediaModal() {
@@ -10048,30 +10032,35 @@ void main( void )
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      openEditorOverlay({
-        attachmentId: id,
-        onSave: () => {
-          const collection = view.collection ?? null;
-          collection?.props?.trigger("change");
-        }
-      });
+      openInDesktop(id);
     });
     host.appendChild(button);
   }
-  const api = {
-    mount,
-    openOverlay: openEditorOverlay,
-    registerPanel,
-    unregisterPanel,
-    listPanels,
-    version: window.daguerreConfig?.version ?? "0.0.0"
-  };
-  window.daguerre = api;
+  const ATTRIBUTE = "data-daguerre-open";
+  function bootOpenButtons() {
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const control = target.closest(`[${ATTRIBUTE}]`);
+      if (!(control instanceof HTMLElement)) {
+        return;
+      }
+      const attachmentId = Number(control.getAttribute(ATTRIBUTE)) || 0;
+      if (!attachmentId) {
+        return;
+      }
+      event.preventDefault();
+      openInDesktop(attachmentId);
+    });
+  }
+  const version = window.daguerreConfig?.version ?? "0.0.0";
   function boot() {
-    bootAdminPage();
+    bootDesktopMode();
+    bootOpenButtons();
     bootMediaModal();
     bootBlockEditor();
-    bootDesktopMode();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot, { once: true });
@@ -10080,9 +10069,10 @@ void main( void )
   }
   exports.listPanels = listPanels;
   exports.mount = mount;
-  exports.openEditorOverlay = openEditorOverlay;
+  exports.openInDesktop = openInDesktop;
   exports.registerPanel = registerPanel;
   exports.unregisterPanel = unregisterPanel;
+  exports.version = version;
   Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
   return exports;
 }({});

@@ -1,12 +1,14 @@
 /**
- * Loads the vendored PixiJS build, reusing an existing one when there is one.
+ * Gets PixiJS from Desktop Mode.
  *
- * Daguerre ships its own copy of Pixi at `assets/vendor/pixi.min.js` because
- * WordPress.org forbids loading code from a CDN. Desktop Mode also ships a copy and
- * exposes it as `window.PIXI`. Injecting a second Pixi 8 onto a page that already
- * has one is not merely wasteful -- the two instances share GPU resource registries
- * through globals, and tearing one down can invalidate textures belonging to the
- * other. So: check the global first, and only inject when nothing is there.
+ * Daguerre does not ship Pixi. Desktop Mode already vendors a copy and registers it in
+ * its module registry as `pixijs`, so asking for it there is both smaller and safer
+ * than carrying a second one: two Pixi 8 instances on a page share GPU resource
+ * registries through globals, and tearing one down can invalidate textures belonging to
+ * the other. There is no version to keep in step and no second copy to go stale.
+ *
+ * `wp.desktop.loadModules()` is idempotent and de-duplicates concurrent callers, so
+ * several windows opening at once still load one script.
  */
 
 import type * as PixiNamespace from 'pixi.js';
@@ -14,74 +16,47 @@ import type * as PixiNamespace from 'pixi.js';
 /** The Pixi module namespace, as exposed on `window.PIXI` by the UMD build. */
 export type Pixi = typeof PixiNamespace;
 
-/** In-flight or settled load, keyed by URL, so concurrent callers share one script tag. */
-const pending = new Map< string, Promise< Pixi > >();
+/** The id Desktop Mode registers its Pixi build under. */
+const MODULE_ID = 'pixijs';
+
+/** The narrow part of the shell API this file needs. */
+interface DesktopModules {
+	loadModules?: ( ids: string[] ) => Promise< void >;
+}
+
+/**
+ * Reads Desktop Mode's module loader, if the shell is on this page.
+ */
+function shell(): DesktopModules | undefined {
+	return ( window as unknown as { wp?: { desktop?: DesktopModules } } ).wp?.desktop;
+}
 
 /**
  * Resolves with a usable Pixi namespace.
  *
- * @param url Absolute URL of the vendored Pixi build.
  * @return The Pixi namespace.
- * @throws {Error} When the script loads but does not define the global.
+ * @throws {Error} When Desktop Mode is absent, or its module fails to define the global.
  */
-export function loadPixi( url: string ): Promise< Pixi > {
+export async function loadPixi(): Promise< Pixi > {
 	if ( window.PIXI ) {
-		return Promise.resolve( window.PIXI );
+		return window.PIXI;
 	}
 
-	const existing = pending.get( url );
+	const desktop = shell();
 
-	if ( existing ) {
-		return existing;
-	}
-
-	const load = new Promise< Pixi >( ( resolve, reject ) => {
-		// Another bundle may already have injected the same script and be waiting
-		// on it; adopt that tag rather than racing a second one.
-		const selector = `script[data-daguerre-vendor="${ CSS.escape( url ) }"]`;
-		let script = document.querySelector< HTMLScriptElement >( selector );
-
-		const settle = () => {
-			if ( window.PIXI ) {
-				resolve( window.PIXI );
-			} else {
-				reject(
-					new Error(
-						'PixiJS loaded but did not define window.PIXI. The vendored bundle may be corrupt.'
-					)
-				);
-			}
-		};
-
-		if ( script ) {
-			script.addEventListener( 'load', settle, { once: true } );
-			script.addEventListener(
-				'error',
-				() => reject( new Error( `Could not load PixiJS from ${ url }` ) ),
-				{ once: true }
-			);
-			return;
-		}
-
-		script = document.createElement( 'script' );
-		script.src = url;
-		script.async = true;
-		script.dataset.daguerreVendor = url;
-		script.addEventListener( 'load', settle, { once: true } );
-		script.addEventListener(
-			'error',
-			() => reject( new Error( `Could not load PixiJS from ${ url }` ) ),
-			{ once: true }
+	if ( ! desktop?.loadModules ) {
+		throw new Error(
+			'Daguerre needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page.'
 		);
+	}
 
-		document.head.appendChild( script );
-	} );
+	await desktop.loadModules( [ MODULE_ID ] );
 
-	// A failed load must not be cached, or a transient network error would poison
-	// every later attempt for the lifetime of the page.
-	load.catch( () => pending.delete( url ) );
+	if ( ! window.PIXI ) {
+		throw new Error(
+			'Desktop Mode loaded its PixiJS module but window.PIXI is still undefined.'
+		);
+	}
 
-	pending.set( url, load );
-
-	return load;
+	return window.PIXI;
 }

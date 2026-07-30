@@ -2,12 +2,16 @@
 /**
  * Entry points into the editor from the Media Library.
  *
- * These are the cheap, PHP-only routes: a row action in list mode and a button on
- * the attachment edit screen. Both simply link to the full-screen editor page.
+ * A row action in list mode and a button on the attachment edit screen. Neither is a
+ * link any more: the editor is a native desktop window, so these carry a
+ * `data-daguerre-open` attribute that the bundle turns into a request to open it.
+ * Linking to a page would load that page as an *iframe* window inside the shell,
+ * which is the one context where the editor cannot reach Pixi or the shell's
+ * components.
  *
- * The richer surfaces -- a button inside the grid modal and one on the block
- * editor's image toolbar -- need JavaScript to patch Backbone views and register a
- * block filter, and land in Phase 3.
+ * The richer surfaces -- a button inside the grid modal and one on the block editor's
+ * image toolbar -- patch Backbone views and register a block filter from JavaScript,
+ * and end up in the same place.
  *
  * @package Daguerre
  */
@@ -32,7 +36,9 @@ add_action( 'enqueue_block_editor_assets', 'daguerre_enqueue_for_block_editor' )
  * @return void
  */
 function daguerre_enqueue_on_media_screens( $hook_suffix ) {
-	if ( ! current_user_can( 'upload_files' ) ) {
+	// Desktop Mode off for this user means classic admin, where there is no shell to
+	// render into. Loading the bundle there would only add weight.
+	if ( ! current_user_can( 'upload_files' ) || ! daguerre_is_desktop_mode_active() ) {
 		return;
 	}
 
@@ -65,7 +71,7 @@ function daguerre_enqueue_on_media_screens( $hook_suffix ) {
  * @return void
  */
 function daguerre_enqueue_for_block_editor() {
-	if ( ! current_user_can( 'upload_files' ) ) {
+	if ( ! current_user_can( 'upload_files' ) || ! daguerre_is_desktop_mode_active() ) {
 		return;
 	}
 
@@ -93,13 +99,13 @@ function daguerre_enqueue_for_block_editor() {
  * @return string[] Filtered row actions.
  */
 function daguerre_media_row_action( $actions, $post ) {
-	if ( ! daguerre_can_edit( $post->ID ) ) {
+	if ( ! daguerre_is_desktop_mode_active() || ! daguerre_can_edit( $post->ID ) ) {
 		return $actions;
 	}
 
 	$actions['daguerre'] = sprintf(
-		'<a href="%s">%s</a>',
-		esc_url( daguerre_editor_url( $post->ID ) ),
+		'<button type="button" class="button-link" data-daguerre-open="%d">%s</button>',
+		(int) $post->ID,
 		esc_html__( 'Edit with Daguerre', 'daguerre' )
 	);
 
@@ -118,13 +124,13 @@ function daguerre_media_row_action( $actions, $post ) {
  * @return void
  */
 function daguerre_attachment_edit_button( $post ) {
-	if ( ! daguerre_can_edit( $post->ID ) ) {
+	if ( ! daguerre_is_desktop_mode_active() || ! daguerre_can_edit( $post->ID ) ) {
 		return;
 	}
 
 	printf(
-		'<div class="misc-pub-section misc-pub-daguerre"><a class="button" href="%s">%s</a></div>',
-		esc_url( daguerre_editor_url( $post->ID ) ),
+		'<div class="misc-pub-section misc-pub-daguerre"><button type="button" class="button" data-daguerre-open="%d">%s</button></div>',
+		(int) $post->ID,
 		esc_html__( 'Edit with Daguerre', 'daguerre' )
 	);
 }

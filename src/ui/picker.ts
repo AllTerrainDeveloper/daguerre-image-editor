@@ -64,8 +64,13 @@ function thumbnailFor( item: MediaItem ): string {
 export async function renderPicker(
 	root: HTMLElement,
 	config: DaguerreConfig,
-	onPick?: ( attachmentId: number ) => void
+	onPick?: ( attachmentId: number ) => void,
+	isStale?: () => boolean
 ): Promise< void > {
+	if ( isStale?.() ) {
+		return;
+	}
+
 	root.classList.add( 'dg-picker' );
 
 	const heading = document.createElement( 'h2' );
@@ -102,6 +107,14 @@ export async function renderPicker(
 		status.classList.add( 'dg-picker__status--error' );
 		status.textContent =
 			error instanceof Error ? error.message : __( 'Your media library could not be loaded.' );
+		return;
+	}
+
+	// The fetch above is the only await, and anything can happen during it -- most
+	// often the user picking a photo, which mounts the editor into this very element.
+	// Writing the grid after that would erase the editor and leave the picker showing
+	// over a window that had already moved on.
+	if ( isStale?.() ) {
 		return;
 	}
 
@@ -142,12 +155,15 @@ export async function renderPicker(
 /**
  * Builds one thumbnail tile.
  *
- * A real link rather than a click handler, so the browser's own affordances --
- * middle-click, open in new tab, the status bar preview -- all work, and each photo
- * gets a shareable URL.
+ * A button, not a link. It was a link once, for the browser's own affordances --
+ * middle-click, open in a new tab, a shareable URL. There is no longer a page at the
+ * other end: the editor is a desktop window. Worse, a link with an admin URL is
+ * intercepted by the shell's own link handling, which opens it as an iframe window
+ * *before* a click handler on the link can call `preventDefault()` -- so every pick
+ * navigated to a page that no longer exists and produced a 403.
  *
  * @param item   Media item.
- * @param onPick Optional click interceptor.
+ * @param onPick Called with the chosen attachment.
  */
 function renderTile(
 	item: MediaItem,
@@ -156,10 +172,10 @@ function renderTile(
 	const title =
 		item.title?.rendered?.replace( /<[^>]*>/g, '' ) || __( 'Untitled image' );
 
-	const link = document.createElement( 'a' );
-	link.className = 'dg-picker__tile';
-	link.href = `upload.php?page=daguerre&attachment=${ item.id }`;
-	link.setAttribute( 'role', 'listitem' );
+	const tile = document.createElement( 'button' );
+	tile.type = 'button';
+	tile.className = 'dg-picker__tile';
+	tile.setAttribute( 'role', 'listitem' );
 
 	const image = document.createElement( 'img' );
 	image.className = 'dg-picker__thumb';
@@ -174,20 +190,13 @@ function renderTile(
 
 	const { width, height } = item.media_details ?? {};
 
-	if ( width && height ) {
-		link.title = sprintf( '%s — %d × %d', title, width, height );
-	} else {
-		link.title = title;
-	}
+	tile.title =
+		width && height
+			? sprintf( '%s — %d × %d', title, width, height )
+			: title;
 
-	if ( onPick ) {
-		link.addEventListener( 'click', ( event ) => {
-			event.preventDefault();
-			onPick( item.id );
-		} );
-	}
+	tile.addEventListener( 'click', () => onPick?.( item.id ) );
+	tile.append( image, caption );
 
-	link.append( image, caption );
-
-	return link;
+	return tile;
 }

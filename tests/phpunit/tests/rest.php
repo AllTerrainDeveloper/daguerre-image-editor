@@ -215,7 +215,10 @@ class Tests_Daguerre_Rest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'daguerre/v1', $config['restUrl'] );
 		$this->assertNotEmpty( $config['restNonce'] );
-		$this->assertStringContainsString( 'pixi.min.js', $config['pixiUrl'] );
+		// No Pixi URL: the shell's module registry supplies it, so shipping one would
+		// mean a second Pixi 8 on the page fighting the first over GPU resources.
+		$this->assertArrayNotHasKey( 'pixiUrl', $config );
+		$this->assertTrue( $config['desktopMode'] );
 		$this->assertGreaterThan( 0, $config['maxRenderPixels'] );
 		$this->assertTrue( $config['canUpload'] );
 		$this->assertArrayHasKey( 'hue', $config['schema'] );

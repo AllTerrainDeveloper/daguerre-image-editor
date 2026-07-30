@@ -15,7 +15,7 @@
  */
 
 import { __ } from '../i18n';
-import { openEditorOverlay } from './overlay';
+import { openInDesktop } from './desktop-mode';
 
 /** Block attributes the image block exposes that we care about. */
 interface ImageAttributes {
@@ -87,22 +87,7 @@ export function bootBlockEditor(): void {
 							ToolbarButton,
 							{
 								label: __( 'Edit with Daguerre' ),
-								onClick: () =>
-									openEditorOverlay( {
-										attachmentId: id,
-										onSave: ( result ) => {
-											// Point the block at the copy that was just
-											// created. Without this the user saves and
-											// then wonders why the post still shows the
-											// old version.
-											props.setAttributes( {
-												id: result.id,
-												url: result.url,
-												width: undefined,
-												height: undefined,
-											} );
-										},
-									} ),
+								onClick: () => openInDesktop( id ),
 							},
 							__( 'Daguerre' )
 						)

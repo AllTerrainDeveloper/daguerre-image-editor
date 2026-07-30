@@ -2,6 +2,7 @@
 Contributors: daniellopez
 Tags: image editor, media, photo, filters, histogram
 Requires at least: 6.0
+Requires Plugins: desktop-mode
 Tested up to: 6.9
 Requires PHP: 7.4
 Stable tag: 0.1.0
@@ -30,15 +31,16 @@ Saving never touches your original. Daguerre writes a new attachment and records
 
 Adjustments are composed into a single GPU pass rather than chained. That is not just quicker; it also means the image is quantised once instead of once per adjustment, which is the difference between clean gradients and visible banding in a sky.
 
-**Works with Desktop Mode**
+**A Desktop Mode application**
 
-Daguerre is a standalone plugin and needs nothing else. If you also run the Desktop Mode plugin, Daguerre notices and adapts — it uses the desktop's own interface components so it looks native inside a window.
+Daguerre requires the Desktop Mode plugin and runs as a window on the desktop, rendering into the shell itself rather than into an embedded frame. That is what gives it the desktop's own interface components, its window chrome and its drag and drop — and it takes its rendering engine from the shell too, rather than shipping a second copy of the same library for the browser to load twice.
 
 == Installation ==
 
-1. Upload the `daguerre` folder to `/wp-content/plugins/`.
-2. Activate the plugin through the Plugins menu.
-3. Go to **Media → Edit Photos**, or open any image and choose "Edit with Daguerre".
+1. Install and activate the Desktop Mode plugin, and switch it on for your user.
+2. Upload the `daguerre` folder to `/wp-content/plugins/`.
+3. Activate the plugin through the Plugins menu.
+4. Open Photos from the dock or the desktop, or choose "Edit with Daguerre" on any image in the Media Library.
 
 == Frequently Asked Questions ==
 
@@ -64,11 +66,9 @@ Rendering an animated GIF through a canvas silently flattens it to a single fram
 
 == Third-party libraries ==
 
-This plugin bundles the following third-party library. It is included in the plugin package and loaded from your own server — no external or CDN requests are made.
+This plugin bundles no third-party libraries and makes no external or CDN requests.
 
-* **PixiJS** v8 — https://github.com/pixijs/pixijs — MIT License.
-  Bundled at `assets/vendor/pixi.min.js`. Licence text at `assets/vendor/pixi-LICENSE.txt`.
-  Source: https://github.com/pixijs/pixijs/releases
+Rendering uses PixiJS (MIT), which is bundled by the Desktop Mode plugin and loaded from your own server by the desktop shell. Daguerre asks the shell for it rather than shipping a second copy: two instances of the same rendering library on one page share GPU resources through globals, and tearing one down can break the other.
 
 == Changelog ==
 

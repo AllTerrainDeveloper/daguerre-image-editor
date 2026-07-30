@@ -5,6 +5,12 @@
  * Locates a WordPress test library, then loads Daguerre as a must-use plugin so its
  * hooks are registered before the test suite's own `init` runs.
  *
+ * Daguerre requires Desktop Mode and refuses to load without it, so the two functions
+ * that requirement is tested against are stubbed here. Stubbing rather than installing
+ * Desktop Mode is deliberate: these tests are about Daguerre's PHP, and the plugin
+ * checks for *capability* -- do the functions I am about to call exist -- rather than
+ * for a plugin slug, so satisfying the check honestly means defining them.
+ *
  * Point WP_TESTS_DIR (or WP_PHPUNIT__DIR) at a WordPress develop checkout's
  * tests/phpunit directory before running.
  *
@@ -39,6 +45,47 @@ if ( ! $daguerre_tests_dir || ! file_exists( $daguerre_tests_dir . '/includes/fu
 }
 
 require_once $daguerre_tests_dir . '/includes/functions.php';
+
+/*
+ * Stand-ins for the parts of Desktop Mode that Daguerre requires.
+ *
+ * Declared at file scope so they exist before the plugin loads, and deliberately
+ * unprefixed: they impersonate another plugin's public API, and prefixing them would
+ * defeat the entire point.
+ *
+ * phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+ */
+
+if ( ! function_exists( 'desktop_mode_register_window' ) ) {
+	/**
+	 * Accepts a native window registration.
+	 *
+	 * @param string $id   Window id.
+	 * @param array  $args Window arguments.
+	 * @return bool Always true.
+	 */
+	function desktop_mode_register_window( $id, $args = array() ) {
+		unset( $id, $args );
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'desktop_mode_is_enabled' ) ) {
+	/**
+	 * Whether the current user is in desktop mode.
+	 *
+	 * True in tests, so the entry points that only appear inside the shell are
+	 * exercised rather than skipped.
+	 *
+	 * @return bool Always true.
+	 */
+	function desktop_mode_is_enabled() {
+		return true;
+	}
+}
+
+// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 
 /**
  * Loads the plugin under test.

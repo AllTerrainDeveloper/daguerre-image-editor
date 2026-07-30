@@ -34,8 +34,14 @@ class Tests_Daguerre_Media_Actions extends WP_UnitTestCase {
 		$actions = daguerre_media_row_action( array(), get_post( $id ) );
 
 		$this->assertArrayHasKey( 'daguerre', $actions );
-		$this->assertStringContainsString( 'page=daguerre', $actions['daguerre'] );
-		$this->assertStringContainsString( 'attachment=' . $id, $actions['daguerre'] );
+		// A button carrying the id, not a link: the editor is a desktop window, and a
+		// link would open the shell's iframe view of a page that no longer exists.
+		$this->assertStringContainsString( '<button', $actions['daguerre'] );
+		$this->assertStringContainsString(
+			'data-daguerre-open="' . $id . '"',
+			$actions['daguerre']
+		);
+		$this->assertStringNotContainsString( 'href', $actions['daguerre'] );
 	}
 
 	/**
@@ -100,8 +106,8 @@ class Tests_Daguerre_Media_Actions extends WP_UnitTestCase {
 		daguerre_attachment_edit_button( get_post( $id ) );
 		$html = ob_get_clean();
 
-		$this->assertStringContainsString( 'page=daguerre', $html );
-		$this->assertStringContainsString( 'attachment=' . $id, $html );
+		$this->assertStringContainsString( 'data-daguerre-open="' . $id . '"', $html );
+		$this->assertStringNotContainsString( 'href', $html );
 	}
 
 	/**

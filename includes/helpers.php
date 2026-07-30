@@ -206,21 +206,3 @@ function daguerre_max_render_pixels() {
 	 */
 	return (int) apply_filters( 'daguerre_max_render_pixels', 80000000 );
 }
-
-/**
- * Builds the admin URL that opens an attachment in the full-screen editor page.
- *
- * @since 0.1.0
- *
- * @param int $attachment_id Attachment post ID.
- * @return string Escaped-safe admin URL.
- */
-function daguerre_editor_url( $attachment_id ) {
-	return add_query_arg(
-		array(
-			'page'       => 'daguerre',
-			'attachment' => (int) $attachment_id,
-		),
-		admin_url( 'upload.php' )
-	);
-}

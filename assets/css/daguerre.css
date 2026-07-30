@@ -53,6 +53,42 @@
 	--dg-radius: var( --desktop-mode-window-radius, 6px );
 	--dg-sidebar-width: 300px;
 
+	/*
+	 * Desktop Mode's component palette, themed dark for the editor.
+	 *
+	 * Its components read these and fall back to light-theme literals -- `#646970` for
+	 * a muted label, `#1d2327` for text, `#fff` for an input background. Nothing in
+	 * either plugin actually *defines* them, so every control was painting its
+	 * light-mode colours onto a dark panel: labels at roughly 2:1 contrast, select
+	 * values almost black on charcoal, and number inputs as white slabs.
+	 *
+	 * Declared here rather than patched control by control, because this is the seam
+	 * the components were built to expose. One block themes every `<wpd-*>` the editor
+	 * will ever mount, including ones added later.
+	 */
+	--wpd-fg: var( --dg-fg );
+	--wpd-fg-muted: var( --dg-fg-muted );
+	--wpd-border: var( --dg-border );
+	--wpd-surface: var( --dg-surface-raised );
+	--wpd-hover: rgba( 255, 255, 255, 0.08 );
+	--wpd-accent: var( --dg-accent );
+	--wpd-fg-on-accent: #fff;
+	--wpd-button-bg: var( --dg-surface-raised );
+	--wpd-button-fg: var( --dg-fg );
+	--wpd-chip-bg: var( --dg-surface-raised );
+	--wpd-chip-fg: var( --dg-fg );
+	/* Lightened from WordPress's #d63638, which is unreadable on a dark surface. */
+	--wpd-danger: #f86368;
+	--wpd-scrim: rgba( 0, 0, 0, 0.6 );
+
+	/*
+	 * The components use the *window* background for their inputs, which is white --
+	 * that is what made every number field a white slab. Overridden only within the
+	 * editor, so the shell's own chrome is untouched.
+	 */
+	--desktop-mode-window-bg: var( --dg-surface );
+	--desktop-mode-fg: var( --dg-fg );
+
 	display: flex;
 	flex-direction: column;
 	min-block-size: 0;
@@ -584,22 +620,28 @@ button.dg-button:focus-visible {
 	gap: 14px;
 }
 
+/* A button now, not a link, so it needs the button chrome reset off it. */
 .dg-picker__tile {
+	appearance: none;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
+	text-align: start;
+	font: inherit;
 	text-decoration: none;
 	color: inherit;
+	background: transparent;
 	border-radius: 8px;
 	padding: 6px;
 	border: 1px solid transparent;
+	cursor: pointer;
 	transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 .dg-picker__tile:hover,
 .dg-picker__tile:focus-visible {
-	border-color: #3582c4;
-	background: rgba( 53, 130, 196, 0.08 );
+	border-color: var( --dg-accent );
+	background: rgba( 255, 255, 255, 0.08 );
 	outline: none;
 }
 
@@ -1586,6 +1628,19 @@ input.dg-colour {
 	inline-size: 64px;
 }
 
+/*
+ * Sized for the values that actually go in: a brush is at most three digits, a
+ * percentage two. The Desktop Mode field is a flex column whose input is 100% of the
+ * host, so constraining the host is the only lever -- and it only produces a
+ * *consistent* width once the label is outside the component, which is what
+ * `compact` does. Left inside, "Hardness" would eat 30px more of the box than "Size".
+ */
+.dg-options .dg-field--narrow wpd-text-field,
+.dg-options .dg-field--narrow wpd-number-field {
+	flex: 0 0 auto;
+	inline-size: 92px;
+}
+
 .dg-options input[ type='text' ].dg-field__control {
 	inline-size: 150px;
 }
@@ -1915,3 +1970,79 @@ svg.dg-selection {
 
 /* The text tool's own cursor, so it is obvious where a click will put the caret. */
 .dg-stage[ data-tool='text' ] { cursor: text; }
+
+/* -- Inside a Desktop Mode window ------------------------------------------- */
+
+/*
+ * The window body is a fixed-height block, and nothing else constrains the editor --
+ * the admin page used to, which is why this only surfaced once the editor moved out of
+ * an iframe. Without it the root grows to its content's natural height (2745px inside a
+ * 678px window), the stage grows with it, and Pixi sizes its drawing buffer to a canvas
+ * four times taller than the window: the image ends up scrolled far out of view and the
+ * visible area is blank.
+ */
+.dg-editor--window {
+	block-size: 100%;
+	min-block-size: 0;
+	overflow: hidden;
+}
+
+/*
+ * Desktop Mode's ghost buttons paint dark text, because the shell's window chrome is
+ * light. The editor's surround is dark, so the glyphs came out dark-on-dark and the
+ * whole tool rail looked like a column of empty boxes. `::part()` is the component's
+ * own supported way in -- reaching past it into the shadow root would not work at all.
+ */
+.dg-editor wpd-button {
+	color: var( --dg-fg );
+}
+
+.dg-editor wpd-button::part( button ) {
+	color: inherit;
+	font: inherit;
+}
+
+.dg-editor .dg-icon-button {
+	color: var( --dg-fg-muted );
+}
+
+.dg-editor .dg-icon-button.is-active {
+	color: #fff;
+}
+
+/*
+ * The panel header's focus ring.
+ *
+ * An outline is rectangular and the panel is a 16px-rounded box with `overflow:
+ * hidden`, so the ring's corners were being clipped -- the accent appeared to stop
+ * short at the top of the panel. Inheriting the radius makes the ring follow the
+ * shape it is drawn inside.
+ */
+.dg-panel__header {
+	border-radius: inherit;
+}
+
+/* Transparent, so the host's own background and active state show through. */
+.dg-editor .dg-icon-button::part( button ) {
+	background: transparent;
+	border-color: transparent;
+	padding: 0;
+	inline-size: 100%;
+	block-size: 100%;
+}
+
+/* -- Dock hover-peek thumbnail ---------------------------------------------- */
+
+/*
+ * Fills the peek card's body with the photo. `cover` rather than `contain`: the card is
+ * a fixed shape and a letterboxed thumbnail in it reads as a broken image, where a
+ * cropped one reads as a preview.
+ */
+.dg-peek-thumb {
+	display: block;
+	inline-size: 100%;
+	block-size: 100%;
+	object-fit: cover;
+	border-end-start-radius: inherit;
+	border-end-end-radius: inherit;
+}

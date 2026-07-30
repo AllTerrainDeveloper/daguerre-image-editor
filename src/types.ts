@@ -18,7 +18,6 @@ export interface DaguerreConfig {
 	restUrl: string;
 	restNonce: string;
 	pluginUrl: string;
-	pixiUrl: string;
 	mediaUrl: string;
 	supportedMimes: string[];
 	maxRenderPixels: number;
@@ -61,7 +60,6 @@ export interface SaveResult {
 	id: number;
 	sourceId: number;
 	url: string;
-	editUrl: string;
 	width: number;
 	height: number;
 	mime: string;

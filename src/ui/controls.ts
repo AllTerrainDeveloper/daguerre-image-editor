@@ -398,6 +398,16 @@ export interface NumberFieldOptions {
 	max: number;
 	step?: number;
 	suffix?: string;
+	/**
+	 * Renders the label beside the control rather than inside it, and narrows the
+	 * control to a few digits.
+	 *
+	 * For the options bar, where the values are two or three digits and the fields sit
+	 * in a row. Letting the component own the label there makes every field a different
+	 * width -- the label is inside the same box -- so "Hardness" ends up with a visibly
+	 * narrower input than "Size", and all of them far wider than any value they hold.
+	 */
+	compact?: boolean;
 	onChange: ( value: number ) => void;
 }
 
@@ -420,7 +430,12 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
 		const numeric = tag === 'wpd-number-field';
 		const field = document.createElement( tag );
 
-		field.setAttribute( 'label', options.label );
+		if ( ! options.compact ) {
+			field.setAttribute( 'label', options.label );
+		} else {
+			field.setAttribute( 'aria-label', options.label );
+		}
+
 		field.setAttribute( 'value', String( Math.round( options.value ) ) );
 		field.classList.add( 'dg-field--compact' );
 
@@ -462,18 +477,39 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
 		field.addEventListener( 'wpd-input-change', onChange );
 		field.addEventListener( 'wpd-input-commit', onChange );
 
-		return {
-			el: field,
-			setValue: ( value ) => field.setAttribute( 'value', String( value ) ),
+		const handle = {
+			el: field as HTMLElement,
+			setValue: ( value: string | number ) =>
+				field.setAttribute( 'value', String( value ) ),
 			destroy: () => {
 				field.removeEventListener( 'wpd-input-change', onChange );
 				field.removeEventListener( 'wpd-input-commit', onChange );
 			},
 		};
+
+		if ( ! options.compact ) {
+			return handle;
+		}
+
+		// The label goes outside, so every field in the row can share one width no
+		// matter how long its name is.
+		const row = document.createElement( 'div' );
+		const text = document.createElement( 'span' );
+
+		row.className = 'dg-field dg-field--compact dg-field--narrow';
+		text.className = 'dg-field__label';
+		text.textContent = options.label;
+		row.append( text, field );
+
+		return { ...handle, el: row };
 	}
 
 	const wrap = document.createElement( 'label' );
 	wrap.className = 'dg-field dg-field--compact';
+
+	if ( options.compact ) {
+		wrap.classList.add( 'dg-field--narrow' );
+	}
 
 	const text = document.createElement( 'span' );
 	text.className = 'dg-field__label';

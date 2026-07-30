@@ -208,15 +208,17 @@ class Tests_Daguerre_Helpers extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The editor URL carries the attachment and lands on the Media page.
+	 * The plugin only loads when Desktop Mode can host it.
 	 *
-	 * @covers ::daguerre_editor_url
+	 * The bootstrap stubs the two functions, so this asserts the shape of the check
+	 * rather than the absent case -- which cannot be exercised in the same process,
+	 * because a plugin that returned early defines nothing to call.
+	 *
+	 * @covers ::daguerre_requirements_met
 	 */
-	public function test_editor_url() {
-		$url = daguerre_editor_url( 123 );
-
-		$this->assertStringContainsString( 'upload.php', $url );
-		$this->assertStringContainsString( 'page=daguerre', $url );
-		$this->assertStringContainsString( 'attachment=123', $url );
+	public function test_requirements_track_the_functions_being_called() {
+		$this->assertTrue( function_exists( 'desktop_mode_register_window' ) );
+		$this->assertTrue( function_exists( 'desktop_mode_is_enabled' ) );
+		$this->assertTrue( daguerre_requirements_met() );
 	}
 }

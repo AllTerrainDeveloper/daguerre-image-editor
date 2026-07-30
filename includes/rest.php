@@ -443,7 +443,6 @@ function daguerre_rest_render( $request ) {
 			'id'       => $new_id,
 			'sourceId' => $source_id,
 			'url'      => wp_get_attachment_url( $new_id ),
-			'editUrl'  => daguerre_editor_url( $new_id ),
 			'width'    => isset( $metadata['width'] ) ? (int) $metadata['width'] : 0,
 			'height'   => isset( $metadata['height'] ) ? (int) $metadata['height'] : 0,
 			'mime'     => get_post_mime_type( $new_id ),

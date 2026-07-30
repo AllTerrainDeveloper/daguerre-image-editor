@@ -1,39 +1,41 @@
 /**
  * Bundle entry point.
  *
- * Publishes the mount API on `window.daguerre` and boots whichever host is present
- * on the current screen. Hosts are self-detecting and no-op when their mount point
- * is absent, so this file stays a list rather than a router.
+ * Publishes the API on `window.daguerre` and boots the desktop integration plus the
+ * controls that open it. There is one editing surface -- the native window -- because
+ * that is the only place the shell's Pixi, components and drag bridge are reachable;
+ * everything else on this list is a way of asking for it.
  */
 
 import { mount } from './api';
 import type { EditorInstance, MountOptions } from './api';
-import { bootAdminPage } from './hosts/admin-page';
 import { bootBlockEditor } from './hosts/block-editor';
-import { bootDesktopMode } from './hosts/desktop-mode';
+import { bootDesktopMode, openInDesktop } from './hosts/desktop-mode';
 import { bootMediaModal } from './hosts/media-modal';
-import { openEditorOverlay } from './hosts/overlay';
+import { bootOpenButtons } from './hosts/open-buttons';
 import { listPanels, registerPanel, unregisterPanel } from './ui/panels';
 import type { PanelDef } from './ui/panels';
 
-/** The public JavaScript API. */
+/**
+ * The public JavaScript API, as it lands on `window.daguerre`.
+ *
+ * Vite builds this bundle as an IIFE named `daguerre`, which assigns the module's
+ * *exports* to the global. So the exports at the foot of this file are the API --
+ * there is no second object to keep in step, and an earlier one that tried to be was
+ * silently overwritten on every load.
+ */
 export interface DaguerreApi {
-	/** Mounts the editor into an element. */
-	mount: ( element: HTMLElement, options: MountOptions ) => EditorInstance;
+	mount: typeof mount;
 	/**
-	 * Adds a tool to the editor sidebar.
+	 * Opens an image in the desktop window.
 	 *
-	 * Panels appear immediately in any open editor, so this can be called at any
-	 * time. Registering an id that already exists replaces it, which is how a plugin
-	 * would override a built-in tool rather than only adding beside it.
+	 * The only way in. The editor renders into the shell's own DOM, so there is no
+	 * in-page overlay and no full-screen admin page to link to.
 	 */
-	registerPanel: ( def: PanelDef ) => void;
-	/** Removes a registered panel. */
-	unregisterPanel: ( id: string ) => void;
-	/** Every registered panel, in display order. */
-	listPanels: () => PanelDef[];
-	/** Opens the editor in a full-screen overlay over the current page. */
-	openOverlay: ( options: { attachmentId: number } ) => { close: () => void };
+	openInDesktop: typeof openInDesktop;
+	registerPanel: typeof registerPanel;
+	unregisterPanel: typeof unregisterPanel;
+	listPanels: typeof listPanels;
 	/** Bundle version, matching the plugin's. */
 	version: string;
 }
@@ -44,23 +46,15 @@ declare global {
 	}
 }
 
-const api: DaguerreApi = {
-	mount,
-	openOverlay: openEditorOverlay,
-	registerPanel,
-	unregisterPanel,
-	listPanels,
-	version: window.daguerreConfig?.version ?? '0.0.0',
-};
-
-window.daguerre = api;
+/** Bundle version, matching the plugin's. */
+export const version: string = window.daguerreConfig?.version ?? '0.0.0';
 
 /** Starts every host that has a mount point on this screen. */
 function boot(): void {
-	bootAdminPage();
+	bootDesktopMode();
+	bootOpenButtons();
 	bootMediaModal();
 	bootBlockEditor();
-	bootDesktopMode();
 }
 
 if ( document.readyState === 'loading' ) {
@@ -69,5 +63,5 @@ if ( document.readyState === 'loading' ) {
 	boot();
 }
 
-export { mount, openEditorOverlay, registerPanel, unregisterPanel, listPanels };
+export { mount, openInDesktop, registerPanel, unregisterPanel, listPanels };
 export type { EditorInstance, MountOptions, PanelDef };

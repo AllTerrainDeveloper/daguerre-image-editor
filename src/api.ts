@@ -49,6 +49,7 @@ import { createButton } from './ui/controls';
 import type { ButtonHandle } from './ui/controls';
 import { StageTools, defaultBrush } from './ui/stage-tools';
 import type { BrushSettings } from './ui/stage-tools';
+import { openInDesktop } from './hosts/desktop-mode';
 import { BrushCursor } from './ui/brush-cursor';
 import { TextEditor } from './ui/text-editor';
 import { textCanvas } from './engine/paint-shapes';
@@ -66,6 +67,16 @@ export interface MountOptions {
 	onClose?: () => void;
 	/** Called after a successful save, with the attachment that was created. */
 	onSave?: ( result: SaveResult ) => void;
+	/**
+	 * Called once the editor has finished loading, successfully or not.
+	 *
+	 * `mount()` returns immediately and loads in the background, so a host with its
+	 * own loading state -- a Desktop Mode window, which covers its body with a spinner
+	 * until it is told otherwise -- has no other way to know when to stop waiting.
+	 * Fired on failure too: a window that failed to open an image is finished loading,
+	 * and leaving the spinner up would claim otherwise.
+	 */
+	onReady?: ( payload: MediaPayload | null ) => void;
 }
 
 export interface EditorInstance {
@@ -532,7 +543,6 @@ class Editor implements EditorInstance {
 
 			this.renderer = await EditorRenderer.create( {
 				host: this.stage,
-				pixiUrl: this.config.pixiUrl,
 				maxRenderPixels: this.config.maxRenderPixels,
 				schema: this.payload.schema,
 			} );
@@ -571,6 +581,8 @@ class Editor implements EditorInstance {
 			this.setTitle();
 		} catch ( error ) {
 			this.fail( error );
+		} finally {
+			this.options.onReady?.( this.payload );
 		}
 	}
 
@@ -1801,11 +1813,16 @@ class Editor implements EditorInstance {
 		const banner = document.createElement( 'p' );
 		banner.className = 'dg-saved';
 
-		const link = document.createElement( 'a' );
-		link.href = result.editUrl;
-		link.textContent = __( 'Open the saved copy' );
+		// A button rather than a link: the saved copy opens in this same window, and
+		// following a URL would navigate the whole desktop shell away.
+		const open = createButton( {
+			label: __( 'Open the saved copy' ),
+			variant: 'secondary',
+			onClick: () => openInDesktop( result.id ),
+		} );
 
-		banner.append( document.createTextNode( __( 'Saved a copy. ' ) ), link );
+		this.buttons.push( open );
+		banner.append( document.createTextNode( __( 'Saved a copy. ' ) ), open.el );
 		this.sidebar.prepend( banner );
 	}
 

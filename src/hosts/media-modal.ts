@@ -15,7 +15,7 @@
  */
 
 import { __ } from '../i18n';
-import { openEditorOverlay } from './overlay';
+import { openInDesktop } from './desktop-mode';
 
 import type { BackboneView } from '../globals';
 
@@ -118,18 +118,7 @@ function addButton( view: Record< string, unknown > ): void {
 		event.preventDefault();
 		event.stopPropagation();
 
-		openEditorOverlay( {
-			attachmentId: id,
-			onSave: () => {
-				// The library behind the modal now has one more item. Ask the
-				// collection to refresh so the new copy shows up without a reload.
-				const collection = ( view.collection ?? null ) as
-					| { more?: () => void; props?: { trigger: ( e: string ) => void } }
-					| null;
-
-				collection?.props?.trigger( 'change' );
-			},
-		} );
+		openInDesktop( id );
 	} );
 
 	host.appendChild( button );

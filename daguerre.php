@@ -11,11 +11,21 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       daguerre
  * Domain Path:       /languages
+ * Requires Plugins:  desktop-mode
  *
- * Daguerre is a standalone plugin. It works on any WordPress install and does not
- * require Desktop Mode. When Desktop Mode is active it registers a native window,
- * a desktop icon and a media file opener, but every one of those registrations sits
- * behind a `function_exists()` guard in includes/desktop-mode.php.
+ * Daguerre is a Desktop Mode application. It runs as a native window inside the
+ * desktop shell -- rendering into the shell's own DOM rather than into an iframe --
+ * and takes its PixiJS from the shell's module registry instead of shipping a second
+ * copy. Two Pixi 8 instances on one page share GPU resource registries through
+ * globals, so one is not merely smaller but safer.
+ *
+ * Running natively is what gives the editor the shell's `<wpd-*>` components, its
+ * drag bridge and its window chrome. None of that is reachable from inside a
+ * chromeless iframe, where no component is registered at all.
+ *
+ * Everything therefore sits behind `daguerre_can_run()`: with Desktop Mode absent or
+ * switched off for the user, the plugin registers nothing but the notice explaining
+ * why.
  *
  * @package Daguerre
  */
@@ -38,12 +48,40 @@ define( 'DAGUERRE_RECIPE_META', '_daguerre_recipe' );
  */
 define( 'DAGUERRE_SOURCE_META', '_daguerre_source' );
 
-require_once DAGUERRE_DIR . 'includes/helpers.php';
-require_once DAGUERRE_DIR . 'includes/recipe.php';
-require_once DAGUERRE_DIR . 'includes/presets.php';
-require_once DAGUERRE_DIR . 'includes/render.php';
-require_once DAGUERRE_DIR . 'includes/rest.php';
-require_once DAGUERRE_DIR . 'includes/assets.php';
-require_once DAGUERRE_DIR . 'includes/admin-page.php';
-require_once DAGUERRE_DIR . 'includes/media-actions.php';
-require_once DAGUERRE_DIR . 'includes/desktop-mode.php';
+require_once DAGUERRE_DIR . 'includes/requirements.php';
+
+add_action( 'plugins_loaded', 'daguerre_boot', 5 );
+
+/**
+ * Loads the plugin, once it is known that Desktop Mode is there to host it.
+ *
+ * On `plugins_loaded` rather than at file scope, and that is not a detail: plugins are
+ * loaded in alphabetical order, so `daguerre` runs *before* `desktop-mode` and none of
+ * its functions exist yet when this file is first read. Checking then would fail every
+ * time, on every site, and the plugin would silently never load. `Requires Plugins`
+ * governs activation, not load order.
+ *
+ * Priority 5 leaves room for the Desktop Mode registrations at 20 to be added by an
+ * include loaded here -- WordPress runs callbacks added to a hook that is already
+ * firing, as long as they sit at a later priority.
+ *
+ * @since 0.1.0
+ *
+ * @return void
+ */
+function daguerre_boot() {
+	if ( ! daguerre_requirements_met() ) {
+		// Nothing else loads. A half-registered plugin whose editor cannot open is
+		// worse than one that says plainly what it needs.
+		return;
+	}
+
+	require_once DAGUERRE_DIR . 'includes/helpers.php';
+	require_once DAGUERRE_DIR . 'includes/recipe.php';
+	require_once DAGUERRE_DIR . 'includes/presets.php';
+	require_once DAGUERRE_DIR . 'includes/render.php';
+	require_once DAGUERRE_DIR . 'includes/rest.php';
+	require_once DAGUERRE_DIR . 'includes/assets.php';
+	require_once DAGUERRE_DIR . 'includes/media-actions.php';
+	require_once DAGUERRE_DIR . 'includes/desktop-mode.php';
+}
