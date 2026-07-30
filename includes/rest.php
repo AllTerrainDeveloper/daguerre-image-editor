@@ -440,13 +440,21 @@ function lienzo_rest_render( $request ) {
 
 	$response = rest_ensure_response(
 		array(
-			'id'       => $new_id,
-			'sourceId' => $source_id,
-			'url'      => wp_get_attachment_url( $new_id ),
-			'width'    => isset( $metadata['width'] ) ? (int) $metadata['width'] : 0,
-			'height'   => isset( $metadata['height'] ) ? (int) $metadata['height'] : 0,
-			'mime'     => get_post_mime_type( $new_id ),
-			'recipe'   => $recipe,
+			'id'        => $new_id,
+			'sourceId'  => $source_id,
+			'url'       => wp_get_attachment_url( $new_id ),
+			'width'     => isset( $metadata['width'] ) ? (int) $metadata['width'] : 0,
+			'height'    => isset( $metadata['height'] ) ? (int) $metadata['height'] : 0,
+			'mime'      => get_post_mime_type( $new_id ),
+			'recipe'    => $recipe,
+
+			/*
+			 * Whether the painted content was baked in. A flattened save is its own
+			 * origin, so re-opening it shows those pixels rather than replaying a
+			 * recipe over the original -- and the editor says so, because "saved" and
+			 * "saved, and the layers are now pixels" are different promises.
+			 */
+			'flattened' => ! lienzo_recipe_is_reproducible( $recipe ),
 		)
 	);
 

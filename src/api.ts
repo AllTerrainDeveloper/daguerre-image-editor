@@ -2080,7 +2080,19 @@ class Editor implements EditorInstance {
 		} );
 
 		this.buttons.push( open );
-		banner.append( document.createTextNode( __( 'Saved a copy. ' ) ), open.el );
+		// Two different promises, so two different sentences. A flattened save cannot be
+		// re-opened as an editable recipe, and finding that out by re-opening it is
+		// exactly the surprise this avoids.
+		banner.append(
+			document.createTextNode(
+				result.flattened
+					? __(
+							'Saved a copy. Painted layers were baked into it, so re-opening shows those pixels rather than the sliders. '
+					  )
+					: __( 'Saved a copy. ' )
+			),
+			open.el
+		);
 		this.sidebar.prepend( banner );
 	}
 

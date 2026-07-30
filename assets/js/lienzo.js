@@ -10111,7 +10111,14 @@ void main( void )
         onClick: () => openInDesktop(result.id)
       });
       this.buttons.push(open);
-      banner.append(document.createTextNode(__("Saved a copy. ")), open.el);
+      banner.append(
+        document.createTextNode(
+          result.flattened ? __(
+            "Saved a copy. Painted layers were baked into it, so re-opening shows those pixels rather than the sliders. "
+          ) : __("Saved a copy. ")
+        ),
+        open.el
+      );
       this.sidebar.prepend(banner);
     }
     /**

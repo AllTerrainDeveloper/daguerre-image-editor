@@ -47,9 +47,18 @@ shows up as banding in a sky. Vibrance is the exception — it scales saturation
 pixel already is, which is not linear — so it travels as a separate uniform and the same shader
 applies it immediately after.
 
-**Non-destructive.** A save writes a *new* attachment and records the edit as a recipe — the list of
-adjustments, not the pixels. Re-opening a Lienzo-produced image loads the *original's* pixels plus
-the recipe, so every render is first-generation and repeated edits never compound quantisation loss.
+**Non-destructive, where non-destructive means something.** A save writes a *new* attachment and
+records the edit as a recipe: the list of adjustments, not the pixels. Re-opening loads the
+*original's* pixels plus the recipe, so every render is first-generation and repeated edits never
+compound quantisation loss.
+
+That only holds while the recipe describes the whole image. A painted, pasted or dropped layer is
+pixels, and no replay of a recipe over the original brings them back — so a save carrying any of them
+becomes **its own origin**: no source pointer, no stored recipe, and re-opening shows the flattened
+pixels with the sliders at zero. Getting this wrong is subtle and was: the save pointed back at the
+original and stored a recipe naming a raster layer whose pixels lived nowhere, so the file in the
+library was correct and re-opening it showed the original with an empty layer where the painting had
+been. `lienzo_recipe_is_reproducible()` is the one place that decides.
 
 **Resolution independence is what makes the preview honest.** The on-screen sprite is scaled to fit
 the viewport and Pixi runs filters at rendered size, so dragging a slider on a 6000px photo costs

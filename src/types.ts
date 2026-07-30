@@ -57,6 +57,14 @@ export interface MediaPayload {
  * and silently downscales past it.
  */
 export interface SaveResult {
+	/**
+	 * Whether painted, pasted or dropped layers were baked into the saved file.
+	 *
+	 * Such a save cannot be replayed from the original, so it becomes its own origin:
+	 * re-opening it shows the pixels that were saved, with the adjustments already in
+	 * them and the sliders back at zero.
+	 */
+	flattened: boolean;
 	id: number;
 	sourceId: number;
 	url: string;

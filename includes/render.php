@@ -187,8 +187,22 @@ function lienzo_store_render( $file, $source_id, $recipe ) {
 
 	wp_update_attachment_metadata( $attachment_id, $metadata );
 
-	update_post_meta( $attachment_id, LIENZO_SOURCE_META, $source_id );
-	update_post_meta( $attachment_id, LIENZO_RECIPE_META, wp_json_encode( $recipe ) );
+	/*
+	 * A save is only re-editable from the original when the recipe describes all of
+	 * it. Adjustments, crops and transforms are instructions and replay exactly; a
+	 * painted, pasted or dropped layer is pixels, and those live nowhere but in the
+	 * flattened file just written.
+	 *
+	 * Pointing such a save back at the original told the editor to rebuild from pixels
+	 * that never had the paint on them: the file in the library was right, and opening
+	 * it showed the original with an empty layer where the painting had been. So a save
+	 * carrying pixels of its own becomes its own origin, and re-opening it shows exactly
+	 * what was saved.
+	 */
+	if ( lienzo_recipe_is_reproducible( $recipe ) ) {
+		update_post_meta( $attachment_id, LIENZO_SOURCE_META, $source_id );
+		update_post_meta( $attachment_id, LIENZO_RECIPE_META, wp_json_encode( $recipe ) );
+	}
 
 	$alt = get_post_meta( $source_id, '_wp_attachment_image_alt', true );
 

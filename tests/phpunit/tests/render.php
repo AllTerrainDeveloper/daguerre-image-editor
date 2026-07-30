@@ -418,4 +418,115 @@ class Tests_Lienzo_Render extends WP_UnitTestCase {
 		// No edit URL: there is no page to link to, only a window to open.
 		$this->assertArrayNotHasKey( 'editUrl', $data );
 	}
+
+	/**
+	 * A recipe of pure adjustments is re-editable from the original.
+	 *
+	 * @covers ::lienzo_recipe_is_reproducible
+	 */
+	public function test_adjustments_are_reproducible() {
+		$recipe = lienzo_validate_recipe( wp_json_encode( $this->recipe( 12 ) ) );
+
+		$this->assertTrue( lienzo_recipe_is_reproducible( $recipe ) );
+	}
+
+	/**
+	 * A recipe carrying a raster layer is not.
+	 *
+	 * Painted, pasted and dropped pixels exist only in the texture the browser drew them
+	 * into. No amount of replaying the recipe over the original brings them back.
+	 *
+	 * @covers ::lienzo_recipe_is_reproducible
+	 */
+	public function test_a_raster_layer_is_not_reproducible() {
+		$raw           = $this->recipe( 12 );
+		$raw['layers'] = array(
+			array(
+				'id'   => 'base',
+				'kind' => 'image',
+			),
+			array(
+				'id'   => 'layer-paint',
+				'kind' => 'raster',
+				'name' => 'Paint',
+			),
+		);
+
+		$recipe = lienzo_validate_recipe( wp_json_encode( $raw ) );
+
+		$this->assertFalse( lienzo_recipe_is_reproducible( $recipe ) );
+	}
+
+	/**
+	 * A painted save becomes its own origin.
+	 *
+	 * The bug this pins: the save pointed back at the original and stored a recipe
+	 * naming a raster layer whose pixels lived nowhere. The file in the library was
+	 * correct, and re-opening it showed the original with an empty layer where the
+	 * painting had been.
+	 *
+	 * @covers ::lienzo_store_render
+	 */
+	public function test_a_painted_save_does_not_point_back_at_the_original() {
+		wp_set_current_user( $this->admin );
+
+		$source        = $this->make_image();
+		$raw           = $this->recipe( $source );
+		$raw['layers'] = array(
+			array(
+				'id'   => 'base',
+				'kind' => 'image',
+			),
+			array(
+				'id'   => 'layer-paint',
+				'kind' => 'raster',
+				'name' => 'Paint',
+			),
+		);
+
+		$recipe = lienzo_validate_recipe( wp_json_encode( $raw ) );
+		$file   = $this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'painted.jpg' );
+		$new_id = lienzo_store_render( $file, $source, $recipe );
+
+		$this->assertIsInt( $new_id );
+
+		// No source pointer, so the editor loads the flattened pixels it just wrote.
+		$this->assertSame(
+			$source,
+			lienzo_resolve_source_id( $source ),
+			'The original still resolves to itself.'
+		);
+		$this->assertSame(
+			$new_id,
+			lienzo_resolve_source_id( $new_id ),
+			'A flattened save must resolve to itself, not to the original.'
+		);
+		// And no recipe, so no phantom layer describing pixels that are already baked in.
+		$this->assertNull( lienzo_get_recipe( $new_id ) );
+	}
+
+	/**
+	 * An adjustment-only save still points back, so its sliders come back.
+	 *
+	 * The other half of the rule: making a painted save self-contained must not cost
+	 * the non-destructive behaviour that everything else depends on.
+	 *
+	 * @covers ::lienzo_store_render
+	 */
+	public function test_an_adjustment_save_still_re_opens_from_the_original() {
+		wp_set_current_user( $this->admin );
+
+		$source = $this->make_image();
+		$recipe = lienzo_validate_recipe( wp_json_encode( $this->recipe( $source ) ) );
+		$file   = $this->staged_upload( DIR_TESTDATA . '/images/canola.jpg', 'adjusted.jpg' );
+		$new_id = lienzo_store_render( $file, $source, $recipe );
+
+		$this->assertIsInt( $new_id );
+		$this->assertSame( $source, lienzo_resolve_source_id( $new_id ) );
+
+		$stored = lienzo_get_recipe( $new_id );
+
+		$this->assertNotNull( $stored );
+		$this->assertSame( 'contrast', $stored['ops'][0]['type'] );
+	}
 }

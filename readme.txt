@@ -97,7 +97,9 @@ Rendering an animated GIF through a canvas silently flattens it to a single fram
 
 = Are brush strokes stored in the recipe? =
 
-No. Adjustments, crops and transforms are described in the recipe and come back when you re-open the image. Painted pixels are pixels, so they live in the copy you save. Save a copy to keep them.
+No, and the difference decides what re-opening does. Adjustments, crops and transforms are instructions: they are stored in the recipe, replayed over your original, and come back as sliders you can still move. Painted, pasted and dropped pixels are not instructions, so they are baked into the file you save.
+
+That makes a painted save its own original. Re-open it and you see exactly the pixels you saved, with the sliders back at zero, ready to be edited again from there. The editor says so when you save, rather than letting you find out later.
 
 = Can I use it in the classic admin? =
 
