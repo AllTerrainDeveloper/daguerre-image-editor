@@ -218,6 +218,26 @@ some bundle imports it. On the QA site `wpd-range-field`, `wpd-select`, `wpd-seg
 Adapters do the same for behaviour. `src/platform.ts` funnels `request()`, `toast()` and
 `confirmAction()` through feature detection, so no other module branches on the shell.
 
+### Drag an image in, get a layer
+
+Dropping a photo on the editor **adds it as a layer** where it was released, scaled to
+sit inside the canvas. Deliberately not "open this instead": a drop onto a document
+already in progress means *combine them*, and replacing it would throw away the work.
+An empty window has nothing to combine with, so there a drop opens.
+
+Two routes arrive at one place. Drags that start inside the desktop — the Media Library,
+a desktop icon — come through the shell's drag manager as an attachment, and its pixels
+load via the same CORS-safe path the document uses, so a CDN-served file falls back to
+the byte proxy instead of tainting the canvas. A file dragged from Finder or Explorer is
+a plain HTML5 drop the shell never sees; it needs no upload at all, going straight from a
+blob URL into a texture like a paste.
+
+Layer textures are retained for **every state on the undo stack**, not just the current
+one. That is what makes redo work: a dropped, pasted or typed layer keeps its pixels in a
+GPU texture and nowhere else, so freeing them the moment the layer left the current
+document meant undo destroyed what redo needed — the layer came back as an empty frame
+with handles around nothing.
+
 ### Theming
 
 The editor **defines** Desktop Mode's component palette on its own root, and this is not optional

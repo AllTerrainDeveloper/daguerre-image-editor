@@ -1381,21 +1381,26 @@ void main( void )
       this.canvas = clampCanvas(canvas, this.maxRenderPixels);
       this.layers = layers;
       this.activeLayerId = activeLayerId;
-      this.releaseOrphanTextures();
       this.composeDocument();
       this.fit();
       this.scheduleHistogram();
     }
     /**
-     * Frees textures for layers that no longer exist.
+     * Frees textures for layers that can no longer come back.
      *
-     * Without this, deleting a pasted layer would leave its pixels on the GPU for
-     * the lifetime of the editor.
+     * Reachability is the caller's to decide, and it is not "in the current document".
+     * A layer that has merely been *undone* still exists as far as the user is
+     * concerned -- one press of redo brings it back -- but its pixels live only in a
+     * texture, so freeing them on undo made redo restore an empty frame. Sweeping on
+     * every document change is what did that, and it is why this is no longer called
+     * from `setDocument()`.
+     *
+     * @param reachable Layer ids still referenced anywhere the user can return to.
      */
-    releaseOrphanTextures() {
+    retainLayers(reachable) {
       const live = new Set(this.layers.map((layer) => layer.id));
       for (const [id, texture] of this.layerTextures) {
-        if (live.has(id) || id === BASE_LAYER_ID) {
+        if (live.has(id) || reachable.has(id) || id === BASE_LAYER_ID) {
           continue;
         }
         texture.destroy(true);
@@ -2547,6 +2552,16 @@ void main( void )
         this.index++;
       }
       return this.current;
+    }
+    /**
+     * Every state still on the stack, oldest first.
+     *
+     * For callers holding resources a state refers to but does not contain -- a layer's
+     * pixels, which live in a GPU texture. Anything reachable by undo or redo is still
+     * needed, and only the entries this stack has dropped are safe to free.
+     */
+    get states() {
+      return this.entries.map((entry) => entry.state);
     }
     /** The state the stack started from. */
     get initial() {
@@ -4724,6 +4739,19 @@ void main( void )
       );
       image.src = url;
     });
+  }
+  async function loadImageFile(file) {
+    if (!file.type.startsWith("image/")) {
+      throw new Error(`${file.name} is not an image.`);
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      const image = await loadElement(url);
+      return { image, release: () => URL.revokeObjectURL(url), via: "direct" };
+    } catch {
+      URL.revokeObjectURL(url);
+      throw new Error(`${file.name} could not be decoded.`);
+    }
   }
   async function loadSourceImage(payload, client) {
     try {
@@ -7656,12 +7684,21 @@ void main( void )
         () => session !== mine
       );
     }
+    const drop = (dropped) => {
+      if (editor) {
+        void editor.addImageLayer(dropped);
+      } else if (dropped.attachmentId) {
+        open(dropped.attachmentId);
+      }
+    };
     try {
-      releaseDrop = registerDropTarget(root, open);
+      releaseDrop = registerDropTarget(root, drop);
     } catch (error) {
       console.warn("[daguerre] drag-and-drop unavailable:", error);
     }
+    const releaseFiles = attachFileDrop(root, drop);
     return () => {
+      releaseFiles();
       state().openers.delete(open);
       state().previewUrl = "";
       state().previewTitle = "";
@@ -7669,7 +7706,7 @@ void main( void )
       editor?.destroy();
     };
   }
-  function registerDropTarget(element, open) {
+  function registerDropTarget(element, drop) {
     const manager = desktop()?.dragManager;
     if (!manager?.registerDropTarget) {
       return null;
@@ -7688,14 +7725,61 @@ void main( void )
       id: "daguerre-window",
       element,
       accept: (payload) => attachmentOf(payload) > 0,
-      acceptLabel: __("Open in Daguerre"),
-      onDrop: (session) => {
+      acceptLabel: __("Add as a layer"),
+      onDrop: (session, at) => {
         const id = attachmentOf(session.payload);
-        if (id) {
-          open(id);
+        if (!id) {
+          return;
         }
+        drop({
+          attachmentId: id,
+          clientX: at?.clientX,
+          clientY: at?.clientY
+        });
       }
     });
+  }
+  function attachFileDrop(element, drop) {
+    const hasImage = (event) => Array.from(event.dataTransfer?.items ?? []).some(
+      (item) => item.kind === "file" && item.type.startsWith("image/")
+    );
+    const onOver = (event) => {
+      if (!hasImage(event)) {
+        return;
+      }
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+      element.classList.add("is-drop-target");
+    };
+    const onLeave = (event) => {
+      if (event.relatedTarget && element.contains(event.relatedTarget)) {
+        return;
+      }
+      element.classList.remove("is-drop-target");
+    };
+    const onDrop = (event) => {
+      const files = Array.from(event.dataTransfer?.files ?? []).filter(
+        (file) => file.type.startsWith("image/")
+      );
+      element.classList.remove("is-drop-target");
+      if (files.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      for (const file of files) {
+        drop({ file, clientX: event.clientX, clientY: event.clientY });
+      }
+    };
+    element.addEventListener("dragover", onOver);
+    element.addEventListener("dragleave", onLeave);
+    element.addEventListener("drop", onDrop);
+    return () => {
+      element.removeEventListener("dragover", onOver);
+      element.removeEventListener("dragleave", onLeave);
+      element.removeEventListener("drop", onDrop);
+    };
   }
   function attachDragOut(root, result) {
     const bridge = desktop()?.dragBridge;
@@ -8470,6 +8554,7 @@ void main( void )
     // tag test alone would let a keystroke inside one switch tools.
     target.tagName.startsWith("WPD-") || target.closest('[ contenteditable="true" ]') !== null;
   }
+  const DROP_FIT = 0.8;
   function mount(element, options) {
     const editor = new Editor(element, options);
     void editor.boot();
@@ -9127,6 +9212,98 @@ void main( void )
       this.syncToolbar();
     }
     /**
+     * Adds an image to the document as a new layer.
+     *
+     * Deliberately not "open this instead". Dropping a photo onto an editor that
+     * already holds one means *combine them* -- replacing the document would throw away
+     * the work in progress, and there is a separate gesture for opening.
+     *
+     * The layer arrives scaled to sit inside the canvas. A 6000px photo dropped on a
+     * 1200px canvas would otherwise land five times oversized, with its handles somewhere
+     * off screen, which reads as the drop having failed.
+     *
+     * @param dropped What was dropped, and where.
+     * @return True when a layer was added.
+     */
+    async addImageLayer(dropped) {
+      const renderer = this.renderer;
+      if (!renderer) {
+        return false;
+      }
+      let image;
+      let release = () => {
+      };
+      let title = dropped.title ?? "";
+      try {
+        if (dropped.attachmentId) {
+          const payload = await this.client.getMedia(dropped.attachmentId);
+          const loaded = await loadSourceImage(payload, this.client);
+          image = loaded.image;
+          release = loaded.release;
+          title = title || payload.title;
+        } else if (dropped.file) {
+          const loaded = await loadImageFile(dropped.file);
+          image = loaded.image;
+          release = loaded.release;
+          title = title || dropped.file.name.replace(/\.[^.]+$/, "");
+        } else {
+          return false;
+        }
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : __("That image could not be added."),
+          "error"
+        );
+        return false;
+      }
+      if (this.destroyed) {
+        release();
+        return false;
+      }
+      const recipe = this.history.current;
+      const canvas = recipe.canvas;
+      const scale = Math.min(
+        1,
+        canvas.width * DROP_FIT / Math.max(image.naturalWidth, 1),
+        canvas.height * DROP_FIT / Math.max(image.naturalHeight, 1)
+      );
+      const at = this.canvasPointFromClient(dropped.clientX, dropped.clientY);
+      const layer = createRasterLayer(title || __("Image"), {
+        x: at.x,
+        y: at.y,
+        scaleX: scale,
+        scaleY: scale
+      });
+      renderer.addRasterTexture(layer.id, image);
+      this.applyLayers([...recipe.layers, layer], layer.id);
+      release();
+      this.setActiveTool("transform");
+      toast(__("Added as a new layer."), "success");
+      return true;
+    }
+    /**
+     * Converts a client point into normalised canvas coordinates.
+     *
+     * Falls back to the centre, which is where an image with no drop position belongs
+     * -- and where one dropped outside the canvas bounds is most useful.
+     *
+     * @param clientX Client coordinate, if known.
+     * @param clientY Client coordinate, if known.
+     */
+    canvasPointFromClient(clientX, clientY) {
+      const viewport = this.renderer?.getViewport();
+      if (!viewport || viewport.width < 1 || clientX === void 0 || clientY === void 0) {
+        return { x: 0.5, y: 0.5 };
+      }
+      const stage = this.stage.getBoundingClientRect();
+      const x = (clientX - stage.left - viewport.x) / viewport.width;
+      const y = (clientY - stage.top - viewport.y) / viewport.height;
+      return {
+        x: Math.min(1, Math.max(0, x)),
+        y: Math.min(1, Math.max(0, y))
+      };
+    }
+    /**
      * Turns typed text into a layer of its own.
      *
      * Not painted into the shared raster layer. Text is an object: you want to move it,
@@ -9389,9 +9566,32 @@ void main( void )
      */
     notifyRecipe() {
       const recipe = this.history.current;
+      this.retainTextures();
       for (const listener of this.recipeListeners) {
         listener(recipe);
       }
+    }
+    /**
+     * Tells the renderer which layers' pixels are still reachable.
+     *
+     * Every state on the undo stack, not just the current one. A dropped, pasted or
+     * typed layer keeps its pixels in a texture and nowhere else, so freeing them the
+     * moment the layer left the *current* document meant undo destroyed what redo
+     * needed -- the layer came back as an empty frame with handles around nothing.
+     *
+     * Bounded by what the user actually created, and by the history cap above it.
+     */
+    retainTextures() {
+      if (!this.renderer) {
+        return;
+      }
+      const reachable = /* @__PURE__ */ new Set();
+      for (const state2 of this.history.states) {
+        for (const layer of state2.layers) {
+          reachable.add(layer.id);
+        }
+      }
+      this.renderer.retainLayers(reachable);
     }
     /**
      * The native pixel size of whatever backs the active layer.

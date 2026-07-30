@@ -39,7 +39,7 @@ import {
 	validateRecipe,
 } from './model/recipe';
 import type { OpType, Recipe } from './model/recipe';
-import { loadSourceImage } from './net/image-loader';
+import { loadImageFile, loadSourceImage } from './net/image-loader';
 import type { LoadedImage } from './net/image-loader';
 import { RestClient } from './net/rest';
 import { isDesktopModeEnabled, toast } from './platform';
@@ -57,6 +57,14 @@ import { Rulers } from './ui/rulers';
 import { ToolRail } from './ui/tool-rail';
 import { PanelHost } from './ui/panels';
 import type { ActiveTool, PanelContext, ViewPrefs } from './ui/panels';
+
+/**
+ * How much of the canvas a dropped image fills at most.
+ *
+ * Short of the full width so the handles stay reachable and it is obvious the layer is
+ * an object sitting on the canvas rather than a replacement for it.
+ */
+const DROP_FIT = 0.8;
 
 export interface MountOptions {
 	/** Attachment to open. */
@@ -79,9 +87,31 @@ export interface MountOptions {
 	onReady?: ( payload: MediaPayload | null ) => void;
 }
 
+/** Where an image dropped onto the editor came from, and where it landed. */
+export interface DroppedImage {
+	/** Attachment to add. Its pixels are loaded through the CORS-safe path. */
+	attachmentId?: number;
+	/** A file dragged in from outside the browser. Used when there is no attachment. */
+	file?: File;
+	/** Name for the layer. Falls back to the attachment's title or the file's name. */
+	title?: string;
+	/** Where the pointer released, in client coordinates. Defaults to the centre. */
+	clientX?: number;
+	clientY?: number;
+}
+
 export interface EditorInstance {
 	/** Releases the canvas, the GPU resources and every listener. */
 	destroy: () => void;
+	/**
+	 * Adds an image to the document as a new layer.
+	 *
+	 * The drop-to-add path: the image lands where it was released, scaled to sit
+	 * inside the canvas, as an object the Transform tool can move like any other.
+	 *
+	 * @return True when a layer was added.
+	 */
+	addImageLayer: ( dropped: DroppedImage ) => Promise< boolean >;
 	/** Renderer internals, for diagnosing render problems. */
 	debug: () => Record< string, unknown >;
 	/** The edit as it currently stands. */
@@ -1017,6 +1047,132 @@ class Editor implements EditorInstance {
 	}
 
 	/**
+	 * Adds an image to the document as a new layer.
+	 *
+	 * Deliberately not "open this instead". Dropping a photo onto an editor that
+	 * already holds one means *combine them* -- replacing the document would throw away
+	 * the work in progress, and there is a separate gesture for opening.
+	 *
+	 * The layer arrives scaled to sit inside the canvas. A 6000px photo dropped on a
+	 * 1200px canvas would otherwise land five times oversized, with its handles somewhere
+	 * off screen, which reads as the drop having failed.
+	 *
+	 * @param dropped What was dropped, and where.
+	 * @return True when a layer was added.
+	 */
+	async addImageLayer( dropped: DroppedImage ): Promise< boolean > {
+		const renderer = this.renderer;
+
+		if ( ! renderer ) {
+			return false;
+		}
+
+		let image: HTMLImageElement;
+		let release = () => {};
+		let title = dropped.title ?? '';
+
+		try {
+			if ( dropped.attachmentId ) {
+				// Through the media payload rather than straight at a URL, so a
+				// CDN-served file falls back to the same-origin byte proxy instead of
+				// tainting the canvas and breaking every later save.
+				const payload = await this.client.getMedia( dropped.attachmentId );
+				const loaded = await loadSourceImage( payload, this.client );
+
+				image = loaded.image;
+				release = loaded.release;
+				title = title || payload.title;
+			} else if ( dropped.file ) {
+				const loaded = await loadImageFile( dropped.file );
+
+				image = loaded.image;
+				release = loaded.release;
+				title = title || dropped.file.name.replace( /\.[^.]+$/, '' );
+			} else {
+				return false;
+			}
+		} catch ( error ) {
+			toast(
+				error instanceof Error
+					? error.message
+					: __( 'That image could not be added.' ),
+				'error'
+			);
+
+			return false;
+		}
+
+		if ( this.destroyed ) {
+			release();
+
+			return false;
+		}
+
+		const recipe = this.history.current;
+		const canvas = recipe.canvas;
+		const scale = Math.min(
+			1,
+			( canvas.width * DROP_FIT ) / Math.max( image.naturalWidth, 1 ),
+			( canvas.height * DROP_FIT ) / Math.max( image.naturalHeight, 1 )
+		);
+		const at = this.canvasPointFromClient( dropped.clientX, dropped.clientY );
+
+		const layer = createRasterLayer( title || __( 'Image' ), {
+			x: at.x,
+			y: at.y,
+			scaleX: scale,
+			scaleY: scale,
+		} );
+
+		renderer.addRasterTexture( layer.id, image );
+		this.applyLayers( [ ...recipe.layers, layer ], layer.id );
+
+		// The pixels are in a GPU texture now; the decoded element and any blob URL
+		// behind it are not needed and would otherwise be held for the session.
+		release();
+
+		this.setActiveTool( 'transform' );
+		toast( __( 'Added as a new layer.' ), 'success' );
+
+		return true;
+	}
+
+	/**
+	 * Converts a client point into normalised canvas coordinates.
+	 *
+	 * Falls back to the centre, which is where an image with no drop position belongs
+	 * -- and where one dropped outside the canvas bounds is most useful.
+	 *
+	 * @param clientX Client coordinate, if known.
+	 * @param clientY Client coordinate, if known.
+	 */
+	private canvasPointFromClient(
+		clientX?: number,
+		clientY?: number
+	): { x: number; y: number } {
+		const viewport = this.renderer?.getViewport();
+
+		if (
+			! viewport ||
+			viewport.width < 1 ||
+			clientX === undefined ||
+			clientY === undefined
+		) {
+			return { x: 0.5, y: 0.5 };
+		}
+
+		const stage = this.stage.getBoundingClientRect();
+		const x = ( clientX - stage.left - viewport.x ) / viewport.width;
+		const y = ( clientY - stage.top - viewport.y ) / viewport.height;
+
+		// Clamped, so a release just outside the canvas still lands somewhere visible.
+		return {
+			x: Math.min( 1, Math.max( 0, x ) ),
+			y: Math.min( 1, Math.max( 0, y ) ),
+		};
+	}
+
+	/**
 	 * Turns typed text into a layer of its own.
 	 *
 	 * Not painted into the shared raster layer. Text is an object: you want to move it,
@@ -1361,9 +1517,37 @@ class Editor implements EditorInstance {
 	private notifyRecipe(): void {
 		const recipe = this.history.current;
 
+		this.retainTextures();
+
 		for ( const listener of this.recipeListeners ) {
 			listener( recipe );
 		}
+	}
+
+	/**
+	 * Tells the renderer which layers' pixels are still reachable.
+	 *
+	 * Every state on the undo stack, not just the current one. A dropped, pasted or
+	 * typed layer keeps its pixels in a texture and nowhere else, so freeing them the
+	 * moment the layer left the *current* document meant undo destroyed what redo
+	 * needed -- the layer came back as an empty frame with handles around nothing.
+	 *
+	 * Bounded by what the user actually created, and by the history cap above it.
+	 */
+	private retainTextures(): void {
+		if ( ! this.renderer ) {
+			return;
+		}
+
+		const reachable = new Set< string >();
+
+		for ( const state of this.history.states ) {
+			for ( const layer of state.layers ) {
+				reachable.add( layer.id );
+			}
+		}
+
+		this.renderer.retainLayers( reachable );
 	}
 
 	/**

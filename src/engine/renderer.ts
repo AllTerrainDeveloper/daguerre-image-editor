@@ -354,23 +354,28 @@ export class EditorRenderer {
 		this.layers = layers;
 		this.activeLayerId = activeLayerId;
 
-		this.releaseOrphanTextures();
 		this.composeDocument();
 		this.fit();
 		this.scheduleHistogram();
 	}
 
 	/**
-	 * Frees textures for layers that no longer exist.
+	 * Frees textures for layers that can no longer come back.
 	 *
-	 * Without this, deleting a pasted layer would leave its pixels on the GPU for
-	 * the lifetime of the editor.
+	 * Reachability is the caller's to decide, and it is not "in the current document".
+	 * A layer that has merely been *undone* still exists as far as the user is
+	 * concerned -- one press of redo brings it back -- but its pixels live only in a
+	 * texture, so freeing them on undo made redo restore an empty frame. Sweeping on
+	 * every document change is what did that, and it is why this is no longer called
+	 * from `setDocument()`.
+	 *
+	 * @param reachable Layer ids still referenced anywhere the user can return to.
 	 */
-	private releaseOrphanTextures(): void {
+	retainLayers( reachable: Set< string > ): void {
 		const live = new Set( this.layers.map( ( layer ) => layer.id ) );
 
 		for ( const [ id, texture ] of this.layerTextures ) {
-			if ( live.has( id ) || id === BASE_LAYER_ID ) {
+			if ( live.has( id ) || reachable.has( id ) || id === BASE_LAYER_ID ) {
 				continue;
 			}
 

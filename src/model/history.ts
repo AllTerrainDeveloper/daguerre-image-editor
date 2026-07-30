@@ -174,6 +174,17 @@ export class History< T > {
 		return this.current;
 	}
 
+	/**
+	 * Every state still on the stack, oldest first.
+	 *
+	 * For callers holding resources a state refers to but does not contain -- a layer's
+	 * pixels, which live in a GPU texture. Anything reachable by undo or redo is still
+	 * needed, and only the entries this stack has dropped are safe to free.
+	 */
+	get states(): T[] {
+		return this.entries.map( ( entry ) => entry.state );
+	}
+
 	/** The state the stack started from. */
 	get initial(): T {
 		return this.entries[ 0 ].state;

@@ -17,7 +17,7 @@
  */
 
 import { mount } from '../api';
-import type { EditorInstance } from '../api';
+import type { DroppedImage, EditorInstance } from '../api';
 import { __ } from '../i18n';
 import { renderPicker } from '../ui/picker';
 import type { SaveResult } from '../types';
@@ -59,7 +59,10 @@ interface DesktopApi {
 			id: string;
 			element: HTMLElement;
 			accept: ( payload: DragPayloadLike ) => boolean;
-			onDrop: ( session: { payload: DragPayloadLike } ) => void;
+			onDrop: (
+				session: { payload: DragPayloadLike },
+				at: { clientX: number; clientY: number }
+			) => void;
 			acceptLabel?: string;
 		} ) => () => void;
 	};
@@ -403,14 +406,27 @@ function renderWindow(
 	// should cost drag-and-drop; an exception here happens *inside* the shell's render
 	// callback, so it takes the whole window with it and the editor never appears --
 	// which is exactly what an unbound call to the shell's own method did.
+	// An empty window has nothing to combine a dropped photo with, so there a drop
+	// opens it; once an editor is running, a drop adds a layer.
+	const drop = ( dropped: DroppedImage ) => {
+		if ( editor ) {
+			void editor.addImageLayer( dropped );
+		} else if ( dropped.attachmentId ) {
+			open( dropped.attachmentId );
+		}
+	};
+
 	try {
-		releaseDrop = registerDropTarget( root, open );
+		releaseDrop = registerDropTarget( root, drop );
 	} catch ( error ) {
 		// eslint-disable-next-line no-console
 		console.warn( '[daguerre] drag-and-drop unavailable:', error );
 	}
 
+	const releaseFiles = attachFileDrop( root, drop );
+
 	return () => {
+		releaseFiles();
 		// Only this render's own loader, so a teardown arriving after a newer render
 		// cannot leave the live window unreachable.
 		state().openers.delete( open );
@@ -430,7 +446,7 @@ function renderWindow(
  */
 function registerDropTarget(
 	element: HTMLElement,
-	open: ( id: number ) => void
+	drop: ( dropped: DroppedImage ) => void
 ): ( () => void ) | null {
 	const manager = desktop()?.dragManager;
 
@@ -463,15 +479,102 @@ function registerDropTarget(
 		id: 'daguerre-window',
 		element,
 		accept: ( payload ) => attachmentOf( payload ) > 0,
-		acceptLabel: __( 'Open in Daguerre' ),
-		onDrop: ( session ) => {
+		acceptLabel: __( 'Add as a layer' ),
+		onDrop: ( session, at ) => {
 			const id = attachmentOf( session.payload );
 
-			if ( id ) {
-				open( id );
+			if ( ! id ) {
+				return;
 			}
+
+			// Onto an editor that already holds a photo, a drop *combines*: it adds the
+			// image as a layer where it was released. Replacing the document would throw
+			// away whatever was in progress, and opening has its own gesture. An empty
+			// window has nothing to combine with, so there a drop opens.
+			drop( {
+				attachmentId: id,
+				clientX: at?.clientX,
+				clientY: at?.clientY,
+			} );
 		},
 	} );
+}
+
+/**
+ * Accepts images dragged in from outside the browser.
+ *
+ * The shell's drag manager handles drags that start *inside* the desktop; a file coming
+ * from Finder or Explorer arrives as a plain HTML5 drop, which the manager never sees.
+ * Both end in the same place, so both are worth having -- and the file path needs no
+ * upload at all: the pixels go straight into a layer, exactly like a paste.
+ *
+ * @param element Drop area.
+ * @param drop    Called with each image file dropped.
+ * @return Teardown.
+ */
+function attachFileDrop(
+	element: HTMLElement,
+	drop: ( dropped: DroppedImage ) => void
+): () => void {
+	const hasImage = ( event: DragEvent ): boolean =>
+		Array.from( event.dataTransfer?.items ?? [] ).some(
+			( item ) => item.kind === 'file' && item.type.startsWith( 'image/' )
+		);
+
+	const onOver = ( event: DragEvent ) => {
+		if ( ! hasImage( event ) ) {
+			return;
+		}
+
+		// Both preventDefaults are required: without the dragover one the browser
+		// refuses the drop, and without `dropEffect` the cursor claims it will move the
+		// file rather than copy it.
+		event.preventDefault();
+
+		if ( event.dataTransfer ) {
+			event.dataTransfer.dropEffect = 'copy';
+		}
+
+		element.classList.add( 'is-drop-target' );
+	};
+
+	const onLeave = ( event: DragEvent ) => {
+		// Only when the pointer has actually left the element, not merely crossed onto
+		// a child -- dragleave fires for both.
+		if ( event.relatedTarget && element.contains( event.relatedTarget as Node ) ) {
+			return;
+		}
+
+		element.classList.remove( 'is-drop-target' );
+	};
+
+	const onDrop = ( event: DragEvent ) => {
+		const files = Array.from( event.dataTransfer?.files ?? [] ).filter( ( file ) =>
+			file.type.startsWith( 'image/' )
+		);
+
+		element.classList.remove( 'is-drop-target' );
+
+		if ( files.length === 0 ) {
+			return;
+		}
+
+		event.preventDefault();
+
+		for ( const file of files ) {
+			drop( { file, clientX: event.clientX, clientY: event.clientY } );
+		}
+	};
+
+	element.addEventListener( 'dragover', onOver );
+	element.addEventListener( 'dragleave', onLeave );
+	element.addEventListener( 'drop', onDrop );
+
+	return () => {
+		element.removeEventListener( 'dragover', onOver );
+		element.removeEventListener( 'dragleave', onLeave );
+		element.removeEventListener( 'drop', onDrop );
+	};
 }
 
 /**

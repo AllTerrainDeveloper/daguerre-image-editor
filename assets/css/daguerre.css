@@ -2046,3 +2046,25 @@ svg.dg-selection {
 	border-end-start-radius: inherit;
 	border-end-end-radius: inherit;
 }
+
+/* -- Drop target ------------------------------------------------------------ */
+
+/*
+ * Shown while an image is dragged over the editor from outside the browser. The shell
+ * draws its own affordance for drags that start on the desktop; this one covers files
+ * coming from Finder or Explorer, which the shell's drag manager never sees.
+ */
+.dg-editor.is-drop-target::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 8;
+	pointer-events: none;
+	border: 2px dashed var( --dg-accent );
+	border-radius: var( --dg-radius );
+	background: rgba( 255, 255, 255, 0.06 );
+}
+
+.dg-editor {
+	position: relative;
+}

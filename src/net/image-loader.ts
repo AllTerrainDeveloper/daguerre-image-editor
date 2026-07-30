@@ -54,6 +54,36 @@ function loadElement( url: string ): Promise< HTMLImageElement > {
 }
 
 /**
+ * Loads an image dragged in from outside the browser.
+ *
+ * A blob URL is same-origin by definition, so this path can never taint the canvas --
+ * which is why a file dropped from the desktop needs none of the fallback machinery an
+ * attachment does. The URL is revoked once the pixels are in a texture; holding one
+ * open pins the whole file in memory for the life of the document.
+ *
+ * @param file File from a drop or a file input.
+ * @return The loaded image and its cleanup.
+ * @throws {Error} When the file is not an image the browser can decode.
+ */
+export async function loadImageFile( file: File ): Promise< LoadedImage > {
+	if ( ! file.type.startsWith( 'image/' ) ) {
+		throw new Error( `${ file.name } is not an image.` );
+	}
+
+	const url = URL.createObjectURL( file );
+
+	try {
+		const image = await loadElement( url );
+
+		return { image, release: () => URL.revokeObjectURL( url ), via: 'direct' };
+	} catch {
+		URL.revokeObjectURL( url );
+
+		throw new Error( `${ file.name } could not be decoded.` );
+	}
+}
+
+/**
  * Loads an attachment's full-size pixels, falling back to the REST byte proxy.
  *
  * @param payload Media payload from `GET /media/<id>`.
