@@ -25,7 +25,6 @@ import {
 	floodFillMask,
 	interpolateStroke,
 } from '../engine/brush';
-import type { BrushShape } from '../engine/brush';
 import {
 	gradientCanvas,
 	rectFromDrag,
@@ -33,166 +32,17 @@ import {
 	shapeCanvas,
 	squareDrag,
 } from '../engine/paint-shapes';
-import type { GradientKind, ShapeKind, ShapeStyle } from '../engine/paint-shapes';
 import { applyPixelDab } from '../engine/pixel-tools';
 import type { Carry, PixelBuffer, PixelOp } from '../engine/pixel-tools';
-import type { CanvasSize } from '../model/document';
 import { appendPathPoint, selectionFromDrag, traceMask } from '../model/selection';
-import type { Point, Selection, SelectionShape } from '../model/selection';
+import type { Point } from '../model/selection';
 import type { ActiveTool } from './panels';
-
-/**
- * Everything the drawing tools need to know about themselves.
- *
- * One object rather than one per tool: the settings overlap heavily -- size, opacity
- * and colour belong to almost all of them -- and a single object means the options bar
- * and the sidebar panel are two views of one model rather than nine.
- */
-export interface BrushSettings {
-	shape: BrushShape;
-	/** Diameter in canvas pixels. */
-	size: number;
-	/** Edge falloff, 0..1. */
-	hardness: number;
-	/** Stroke opacity, 0..1. */
-	opacity: number;
-	/** The foreground colour: what brushes, fills, shapes and text paint with. */
-	colour: string;
-	/** The background colour: the far end of a gradient, and what X swaps to. */
-	background: string;
-	/** Flood fill match tolerance, 0..255. */
-	tolerance: number;
-	/** Which pixel operation the retouch tool performs. */
-	retouch: PixelOp;
-	/** Which pixel operation the dodge/burn tool performs. */
-	tone: PixelOp;
-	/** How hard the retouching tools bite, 0..1. */
-	strength: number;
-	/** Linear or radial, for the gradient tool. */
-	gradient: GradientKind;
-	/** Whether the gradient ends transparent rather than at the background colour. */
-	gradientFade: boolean;
-	/** What the shape tool draws. */
-	shapeKind: ShapeKind;
-	/** Whether shapes are filled or outlined. */
-	shapeStyle: ShapeStyle;
-	/** Outline width in canvas pixels. */
-	strokeWidth: number;
-	/** Text size in canvas pixels. */
-	fontSize: number;
-	fontFamily: string;
-	bold: boolean;
-	italic: boolean;
-}
-
-/**
- * The settings a freshly opened editor starts with.
- *
- * A factory rather than a shared constant, because every editor instance owns its own
- * copy and handing them all the same object would let two windows fight over one brush.
- */
-export function defaultBrush(): BrushSettings {
-	return {
-		shape: 'soft',
-		size: 40,
-		hardness: 0.6,
-		opacity: 1,
-		colour: '#000000',
-		background: '#ffffff',
-		tolerance: 32,
-		retouch: 'blur',
-		tone: 'dodge',
-		strength: 0.5,
-		gradient: 'linear',
-		gradientFade: false,
-		shapeKind: 'rect',
-		shapeStyle: 'fill',
-		strokeWidth: 4,
-		fontSize: 72,
-		fontFamily: 'system-ui, sans-serif',
-		bold: false,
-		italic: false,
-	};
-}
-
-export interface StageToolsOptions {
-	stage: HTMLElement;
-	getViewport: () => { x: number; y: number; width: number; height: number } | null;
-	getCanvas: () => CanvasSize;
-	getTool: () => ActiveTool;
-	getBrush: () => BrushSettings;
-	/** Changes a setting -- the eyedropper picks a colour this way. */
-	setBrush: ( patch: Partial< BrushSettings > ) => void;
-	/** The layer strokes land on. */
-	getTargetLayerId: () => string;
-	/** Stamps one dab into a layer. */
-	stamp: (
-		layerId: string,
-		image: HTMLCanvasElement,
-		x: number,
-		y: number,
-		size: number,
-		colour: string,
-		opacity: number,
-		erase: boolean
-	) => void;
-	/** Draws a full-canvas mask into a layer, for fill. */
-	fillMask: (
-		layerId: string,
-		mask: HTMLCanvasElement,
-		colour: string,
-		opacity: number
-	) => void;
-	/** Draws a bitmap into a layer, for gradients, shapes, text and retouching. */
-	composite: (
-		layerId: string,
-		source: HTMLCanvasElement,
-		x: number,
-		y: number,
-		opacity: number
-	) => void;
-	/** Reads the composed document, for flood fill's colour matching. */
-	readDocument: () => { pixels: Uint8ClampedArray; width: number; height: number } | null;
-	/** Reads the image without any painted layer, for the history brush. */
-	readPristine: () => { pixels: Uint8ClampedArray; width: number; height: number } | null;
-	/** Which shape the marquee draws. */
-	getSelectionShape: () => SelectionShape;
-	/** Replaces the selection. Null clears it. */
-	setSelection: ( selection: Selection | null ) => void;
-	/** Moves the view, in CSS pixels. */
-	pan: ( dx: number, dy: number ) => void;
-	/** Zooms about a point given in stage-relative CSS pixels. */
-	zoomAt: ( factor: number, x: number, y: number ) => void;
-	/** Called once a stroke finishes, for history. */
-	onStrokeEnd: () => void;
-	/** Called when a tool wants the options bar redrawn -- a clone source, say. */
-	onToolStateChange?: () => void;
-	/**
-	 * Called when the text tool is clicked.
-	 *
-	 * The caret belongs on the canvas, so placing text is opening an editor at a point
-	 * rather than stamping a string held elsewhere.
-	 */
-	onPlaceText: ( point: { x: number; y: number } ) => void;
-}
-
-/** How much of a dab's width a retouching stroke advances before the next one. */
-const RETOUCH_SPACING = 0.25;
-
-/** The tools that work on pixels rather than laying down paint. */
-const PIXEL_TOOLS: ActiveTool[] = [ 'retouch', 'tone', 'clone', 'history' ];
-
-/**
- * Which operation each pixel tool performs.
- *
- * Retouch and tone choose theirs from the options bar, so they are absent here and
- * fall through to the brush setting.
- */
-const PIXEL_OPS: Partial< Record< ActiveTool, PixelOp > > = {
-	clone: 'clone',
-	history: 'restore',
-	tone: undefined,
-};
+import {
+	PIXEL_OPS,
+	PIXEL_TOOLS,
+	RETOUCH_SPACING,
+} from './stage-tools/types';
+import type { StageToolsOptions } from './stage-tools/types';
 
 /**
  * Routes pointer events on the stage to whichever tool is active.
@@ -1045,3 +895,8 @@ export class StageTools {
 		this.options.stage.removeEventListener( 'pointerdown', this.onPointerDown );
 	}
 }
+
+
+export type { BrushSettings } from './stage-tools/brush-settings';
+export { defaultBrush } from './stage-tools/brush-settings';
+export type { StageToolsOptions } from './stage-tools/types';

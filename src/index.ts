@@ -7,8 +7,8 @@
  * everything else on this list is a way of asking for it.
  */
 
-import { mount } from './api';
-import type { EditorInstance, MountOptions } from './api';
+import { mount } from './editor';
+import type { EditorInstance, MountOptions } from './editor';
 import { bootBlockEditor } from './hosts/block-editor';
 import { bootDesktopMode, openInDesktop } from './hosts/desktop-mode';
 import { bootMediaDrag } from './hosts/media-drag';
