@@ -25,18 +25,19 @@ import type { Histogram } from '../histogram';
 import type { Curves, Levels } from '../lut';
 import type { Op } from '../../model/recipe';
 import type { OpSchema } from '../../types';
-import { AdjustPipeline } from './adjust-pipeline';
-import { DocumentCompositor } from './compositor';
+import { assemble, sizeOf } from './assemble';
+import type { Engine } from './assemble';
+import type { DocumentCompositor } from './compositor';
 import { GpuContext } from './gpu';
 import type { GpuSprite, GpuTexture } from './gpu';
-import { HistogramProbe } from './histogram-probe';
-import { LayerTextures } from './layer-textures';
-import { makeRenderSprite, renderFull } from './offscreen';
-import type { OffscreenContext } from './offscreen';
-import { PaintApi } from './paint-api';
-import { ViewController } from './view-controller';
+import type { HistogramProbe } from './histogram-probe';
+import type { LayerTextures } from './layer-textures';
+import { releaseImage } from './lifecycle';
+import { renderFull } from './offscreen';
+import type { PaintApi } from './paint-api';
+import type { ViewController } from './view-controller';
 import { rendererDebugState } from './debug';
-import { ScreenFilters } from './screen-filters';
+import type { ScreenFilters } from './screen-filters';
 
 export interface RendererOptions {
 	/** Element the canvas fills. */
@@ -76,7 +77,7 @@ export class EditorRenderer {
 
 	private gpu: GpuContext;
 
-	private adjust: AdjustPipeline;
+	private engine: Engine;
 
 	private layers: LayerTextures;
 
@@ -107,32 +108,22 @@ export class EditorRenderer {
 	private constructor( gpu: GpuContext, options: RendererOptions ) {
 		this.gpu = gpu;
 		this.maxRenderPixels = options.maxRenderPixels;
-		this.adjust = new AdjustPipeline( gpu, options.schema );
-		this.filters = new ScreenFilters( gpu, this.adjust );
-		this.layers = new LayerTextures( gpu );
-		this.pixels = new DocumentCompositor( gpu, this.layers );
 
-		this.view = new ViewController( gpu, options.host, {
-			sprite: () => this.sprite,
-			size: () => this.displaySize(),
-			textures: () => [
-				this.texture,
-				this.pixels.texture as GpuTexture | null,
-				...this.layers.all(),
-			],
-		} );
-
-		this.paint = new PaintApi( {
-			gpu,
-			layers: this.layers,
+		const engine = assemble( gpu, options.host, options.schema, {
 			canvas: () => this.canvas,
-			onChange: () => this.recompose(),
+			source: () => this.texture,
+			display: () => this.displayTexture(),
+			sprite: () => this.sprite,
+			onPaint: () => this.recompose(),
 		} );
 
-		this.histogram = new HistogramProbe( gpu, {
-			size: () => ( this.texture ? this.displaySize() : null ),
-			sprite: ( scale ) => makeRenderSprite( this.offscreen(), scale ),
-		} );
+		this.engine = engine;
+		this.filters = engine.filters;
+		this.layers = engine.layers;
+		this.histogram = engine.histogram;
+		this.view = engine.view;
+		this.paint = engine.paint;
+		this.pixels = engine.compositor;
 	}
 
 	/**
@@ -151,18 +142,7 @@ export class EditorRenderer {
 
 	/** Size of the texture every downstream stage reads. */
 	private displaySize(): CanvasSize {
-		const texture = this.displayTexture();
-
-		return { width: texture?.width ?? 0, height: texture?.height ?? 0 };
-	}
-
-	/** What an offscreen render runs against. */
-	private offscreen(): OffscreenContext {
-		return {
-			gpu: this.gpu,
-			adjust: this.adjust,
-			texture: () => this.displayTexture(),
-		};
+		return sizeOf( this.displayTexture() );
 	}
 
 	/**
@@ -204,6 +184,12 @@ export class EditorRenderer {
 
 		this.view.fit();
 		this.histogram.schedule();
+	}
+
+	/** Tears down the texture, sprite and filter without touching the app. */
+	private releaseImage(): void {
+		this.sprite = releaseImage( this.engine, this.sprite, this.texture );
+		this.texture = null;
 	}
 
 	/**
@@ -318,7 +304,7 @@ export class EditorRenderer {
 	 * @throws {Error} When the image is too large, or encoding fails.
 	 */
 	renderFull( format: string, quality: number ): Promise< Blob > {
-		return renderFull( this.offscreen(), format, quality, this.maxRenderPixels );
+		return renderFull( this.engine.offscreen, format, quality, this.maxRenderPixels );
 	}
 
 	/** Internal state, for diagnosing render problems from the console. */
@@ -334,21 +320,6 @@ export class EditorRenderer {
 		} );
 	}
 
-	/** Tears down the texture, sprite and filter without touching the app. */
-	private releaseImage(): void {
-		this.pixels.release();
-		this.layers.releaseAll();
-
-		if ( this.sprite ) {
-			this.sprite.destroy( { children: true } );
-			this.sprite = null;
-		}
-
-		this.filters.release();
-		this.texture?.destroy( true );
-		this.texture = null;
-	}
-
 	/** Releases everything. */
 	destroy(): void {
 		if ( this.destroyed ) {
@@ -360,7 +331,7 @@ export class EditorRenderer {
 		this.histogram.stop();
 		this.view.destroy();
 		this.releaseImage();
-		this.adjust.release();
+		this.engine.adjust.release();
 		this.layers.releaseMask();
 		this.gpu.destroy();
 	}

@@ -414,6 +414,249 @@ var lienzo = function(exports) {
     next.splice(target, 0, moved);
     return next;
   }
+  const LUMA_R = 0.2126;
+  const LUMA_G = 0.7152;
+  const LUMA_B = 0.0722;
+  const IDENTITY = [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0
+  ];
+  function multiply(b, a) {
+    const out = new Array(20).fill(0);
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 5; col++) {
+        let sum = 0;
+        for (let k = 0; k < 4; k++) {
+          sum += b[row * 5 + k] * a[k * 5 + col];
+        }
+        if (col === 4) {
+          sum += b[row * 5 + 4];
+        }
+        out[row * 5 + col] = sum;
+      }
+    }
+    return out;
+  }
+  function exposureMatrix(v) {
+    const scale = Math.pow(2, v * 2);
+    return [
+      scale,
+      0,
+      0,
+      0,
+      0,
+      0,
+      scale,
+      0,
+      0,
+      0,
+      0,
+      0,
+      scale,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ];
+  }
+  function contrastMatrix(v) {
+    const c = 1 + v;
+    const offset = 0.5 * (1 - c);
+    return [
+      c,
+      0,
+      0,
+      0,
+      offset,
+      0,
+      c,
+      0,
+      0,
+      offset,
+      0,
+      0,
+      c,
+      0,
+      offset,
+      0,
+      0,
+      0,
+      1,
+      0
+    ];
+  }
+  function saturationMatrix(v) {
+    const s = 1 + v;
+    const ir = LUMA_R * (1 - s);
+    const ig = LUMA_G * (1 - s);
+    const ib = LUMA_B * (1 - s);
+    return [
+      ir + s,
+      ig,
+      ib,
+      0,
+      0,
+      ir,
+      ig + s,
+      ib,
+      0,
+      0,
+      ir,
+      ig,
+      ib + s,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ];
+  }
+  function temperatureMatrix(v) {
+    const r = 1 + 0.2 * v;
+    const b = 1 - 0.2 * v;
+    return [
+      r,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      b,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ];
+  }
+  function tintMatrix(v) {
+    const g = 1 - 0.15 * v;
+    const rb = 1 + 0.075 * v;
+    return [
+      rb,
+      0,
+      0,
+      0,
+      0,
+      0,
+      g,
+      0,
+      0,
+      0,
+      0,
+      0,
+      rb,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ];
+  }
+  function multiply3(b, a) {
+    const out = new Array(9).fill(0);
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        let sum = 0;
+        for (let k = 0; k < 3; k++) {
+          sum += b[row * 3 + k] * a[k * 3 + col];
+        }
+        out[row * 3 + col] = sum;
+      }
+    }
+    return out;
+  }
+  const LUMA_PROJECTION = [
+    LUMA_R,
+    LUMA_G,
+    LUMA_B,
+    LUMA_R,
+    LUMA_G,
+    LUMA_B,
+    LUMA_R,
+    LUMA_G,
+    LUMA_B
+  ];
+  const CHROMA_PROJECTION = [
+    1 - LUMA_R,
+    -LUMA_G,
+    -LUMA_B,
+    -LUMA_R,
+    1 - LUMA_G,
+    -LUMA_B,
+    -LUMA_R,
+    -LUMA_G,
+    1 - LUMA_B
+  ];
+  const NEUTRAL_AXIS_CROSS = (() => {
+    const n = 1 / Math.sqrt(3);
+    return [0, -n, n, n, 0, -n, -n, n, 0];
+  })();
+  const CHROMA_QUARTER_TURN = multiply3(CHROMA_PROJECTION, NEUTRAL_AXIS_CROSS);
+  function hueMatrix(degrees) {
+    const radians = degrees * Math.PI / 180;
+    const c = Math.cos(radians);
+    const s = Math.sin(radians);
+    const m = new Array(9);
+    for (let i = 0; i < 9; i++) {
+      m[i] = LUMA_PROJECTION[i] + c * CHROMA_PROJECTION[i] + s * CHROMA_QUARTER_TURN[i];
+    }
+    return [
+      m[0],
+      m[1],
+      m[2],
+      0,
+      0,
+      m[3],
+      m[4],
+      m[5],
+      0,
+      0,
+      m[6],
+      m[7],
+      m[8],
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ];
+  }
   const RECIPE_VERSION = 5;
   const MATRIX_OP_ORDER = [
     "exposure",
@@ -823,249 +1066,6 @@ var lienzo = function(exports) {
       white: safeWhite,
       gamma: Number.isFinite(gamma) ? Math.min(10, Math.max(0.1, gamma)) : 1
     };
-  }
-  const LUMA_R = 0.2126;
-  const LUMA_G = 0.7152;
-  const LUMA_B = 0.0722;
-  const IDENTITY = [
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0
-  ];
-  function multiply(b, a) {
-    const out = new Array(20).fill(0);
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 5; col++) {
-        let sum = 0;
-        for (let k = 0; k < 4; k++) {
-          sum += b[row * 5 + k] * a[k * 5 + col];
-        }
-        if (col === 4) {
-          sum += b[row * 5 + 4];
-        }
-        out[row * 5 + col] = sum;
-      }
-    }
-    return out;
-  }
-  function exposureMatrix(v) {
-    const scale = Math.pow(2, v * 2);
-    return [
-      scale,
-      0,
-      0,
-      0,
-      0,
-      0,
-      scale,
-      0,
-      0,
-      0,
-      0,
-      0,
-      scale,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0
-    ];
-  }
-  function contrastMatrix(v) {
-    const c = 1 + v;
-    const offset = 0.5 * (1 - c);
-    return [
-      c,
-      0,
-      0,
-      0,
-      offset,
-      0,
-      c,
-      0,
-      0,
-      offset,
-      0,
-      0,
-      c,
-      0,
-      offset,
-      0,
-      0,
-      0,
-      1,
-      0
-    ];
-  }
-  function saturationMatrix(v) {
-    const s = 1 + v;
-    const ir = LUMA_R * (1 - s);
-    const ig = LUMA_G * (1 - s);
-    const ib = LUMA_B * (1 - s);
-    return [
-      ir + s,
-      ig,
-      ib,
-      0,
-      0,
-      ir,
-      ig + s,
-      ib,
-      0,
-      0,
-      ir,
-      ig,
-      ib + s,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0
-    ];
-  }
-  function multiply3(b, a) {
-    const out = new Array(9).fill(0);
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        let sum = 0;
-        for (let k = 0; k < 3; k++) {
-          sum += b[row * 3 + k] * a[k * 3 + col];
-        }
-        out[row * 3 + col] = sum;
-      }
-    }
-    return out;
-  }
-  const LUMA_PROJECTION = [
-    LUMA_R,
-    LUMA_G,
-    LUMA_B,
-    LUMA_R,
-    LUMA_G,
-    LUMA_B,
-    LUMA_R,
-    LUMA_G,
-    LUMA_B
-  ];
-  const CHROMA_PROJECTION = [
-    1 - LUMA_R,
-    -LUMA_G,
-    -LUMA_B,
-    -LUMA_R,
-    1 - LUMA_G,
-    -LUMA_B,
-    -LUMA_R,
-    -LUMA_G,
-    1 - LUMA_B
-  ];
-  const NEUTRAL_AXIS_CROSS = (() => {
-    const n = 1 / Math.sqrt(3);
-    return [0, -n, n, n, 0, -n, -n, n, 0];
-  })();
-  const CHROMA_QUARTER_TURN = multiply3(CHROMA_PROJECTION, NEUTRAL_AXIS_CROSS);
-  function hueMatrix(degrees) {
-    const radians = degrees * Math.PI / 180;
-    const c = Math.cos(radians);
-    const s = Math.sin(radians);
-    const m = new Array(9);
-    for (let i = 0; i < 9; i++) {
-      m[i] = LUMA_PROJECTION[i] + c * CHROMA_PROJECTION[i] + s * CHROMA_QUARTER_TURN[i];
-    }
-    return [
-      m[0],
-      m[1],
-      m[2],
-      0,
-      0,
-      m[3],
-      m[4],
-      m[5],
-      0,
-      0,
-      m[6],
-      m[7],
-      m[8],
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0
-    ];
-  }
-  function temperatureMatrix(v) {
-    const r = 1 + 0.2 * v;
-    const b = 1 - 0.2 * v;
-    return [
-      r,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-      0,
-      0,
-      0,
-      0,
-      b,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0
-    ];
-  }
-  function tintMatrix(v) {
-    const g = 1 - 0.15 * v;
-    const rb = 1 + 0.075 * v;
-    return [
-      rb,
-      0,
-      0,
-      0,
-      0,
-      0,
-      g,
-      0,
-      0,
-      0,
-      0,
-      0,
-      rb,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0
-    ];
   }
   function matrixForOp(type, v) {
     switch (type) {
@@ -1621,201 +1621,6 @@ void main( void )
     release() {
       this.target?.destroy(true);
       this.target = null;
-    }
-  }
-  const MODULE_ID = "pixijs";
-  function shell() {
-    return window.wp?.desktop;
-  }
-  async function loadPixi() {
-    if (window.PIXI) {
-      return window.PIXI;
-    }
-    const desktop2 = shell();
-    if (!desktop2?.loadModules) {
-      throw new Error(
-        "Lienzo needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page."
-      );
-    }
-    await desktop2.loadModules([MODULE_ID]);
-    if (!window.PIXI) {
-      throw new Error(
-        "Desktop Mode loaded its PixiJS module but window.PIXI is still undefined."
-      );
-    }
-    return window.PIXI;
-  }
-  class GpuContext {
-    /**
-     * @param pixi The Pixi namespace.
-     * @param app  An initialised application.
-     */
-    constructor(pixi, app) {
-      this.solid = null;
-      this.pixi = pixi;
-      this.app = app;
-    }
-    /**
-     * Boots Pixi and attaches a canvas to a host element.
-     *
-     * WebGL is requested explicitly rather than letting Pixi prefer WebGPU. The
-     * adjustment filter ships a GLSL program only, and Pixi silently *skips* a
-     * filter that has no program for the active backend -- which would show the
-     * unedited image with no error at all. Pinning the backend makes that
-     * impossible. Adding a WGSL program later is what would lift this.
-     *
-     * @param host Element the canvas fills.
-     */
-    static async create(host) {
-      const pixi = await loadPixi();
-      const app = new pixi.Application();
-      await app.init({
-        preference: "webgl",
-        backgroundAlpha: 0,
-        antialias: false,
-        autoDensity: true,
-        resolution: window.devicePixelRatio || 1
-      });
-      app.canvas.classList.add("lz-canvas");
-      host.appendChild(app.canvas);
-      return new GpuContext(pixi, app);
-    }
-    /** The drawing surface, in CSS pixels. */
-    get screen() {
-      return this.app.renderer.screen;
-    }
-    /** The root container everything on screen hangs off. */
-    get stage() {
-      return this.app.stage;
-    }
-    /**
-     * Matches the drawing surface to a size.
-     *
-     * @param width  Width in CSS pixels.
-     * @param height Height in CSS pixels.
-     */
-    resize(width, height) {
-      const screen = this.app.renderer.screen;
-      if (screen.width !== width || screen.height !== height) {
-        this.app.renderer.resize(width, height);
-      }
-    }
-    /**
-     * Creates a render target.
-     *
-     * @param width  Width in pixels.
-     * @param height Height in pixels.
-     */
-    createTarget(width, height) {
-      return this.pixi.RenderTexture.create({
-        width: Math.max(1, Math.round(width)),
-        height: Math.max(1, Math.round(height))
-      });
-    }
-    /**
-     * Wraps a source in a texture.
-     *
-     * @param source Decoded pixels.
-     */
-    textureFrom(source) {
-      return this.pixi.Texture.from(source);
-    }
-    /** An empty container. */
-    container() {
-      return new this.pixi.Container();
-    }
-    /**
-     * A sprite over a texture.
-     *
-     * @param texture What to draw.
-     */
-    sprite(texture) {
-      return new this.pixi.Sprite(texture);
-    }
-    /**
-     * Draws a container into a target.
-     *
-     * @param container What to draw.
-     * @param target    Where to draw it. Omit for the screen.
-     * @param clear     Whether to wipe the target first.
-     */
-    draw(container, target, clear = false) {
-      this.app.renderer.render({ container, target, clear });
-    }
-    /**
-     * Draws one sprite into a target, honouring its blend mode.
-     *
-     * The wrapping container is not ceremony. A sprite passed as the render *root* is
-     * its own render group, and the batcher never applies a root's blend mode -- so an
-     * `erase` sprite rendered directly paints solid white instead of clearing, with no
-     * error.
-     *
-     * @param sprite What to draw. Destroyed afterwards.
-     * @param target Texture to draw into.
-     * @param clear  Whether to wipe the target first.
-     */
-    drawDetached(sprite, target, clear = false) {
-      const holder = this.container();
-      holder.addChild(sprite);
-      this.draw(holder, target, clear);
-      holder.destroy({ children: true });
-    }
-    /**
-     * Reads a target back as a canvas.
-     *
-     * @param target Texture to read.
-     */
-    extractCanvas(target) {
-      return this.app.renderer.extract.canvas(target);
-    }
-    /**
-     * Reads a target back as raw bytes.
-     *
-     * @param target Texture to read.
-     */
-    extractPixels(target) {
-      const { pixels } = this.app.renderer.extract.pixels(target);
-      return { pixels, width: target.width, height: target.height };
-    }
-    /**
-     * A one-pixel opaque white texture, used as an eraser stencil.
-     *
-     * Built here rather than taken from `Texture.WHITE` so the narrow Pixi surface this
-     * engine is typed against stays narrow.
-     */
-    solidTexture() {
-      if (!this.solid) {
-        const canvas = document.createElement("canvas");
-        canvas.width = 1;
-        canvas.height = 1;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#fff";
-          ctx.fillRect(0, 0, 1, 1);
-        }
-        this.solid = this.textureFrom(canvas);
-      }
-      return this.solid;
-    }
-    /**
-     * Whether a texture can be rendered into.
-     *
-     * @param texture Texture to test.
-     */
-    isTarget(texture) {
-      return texture instanceof this.pixi.RenderTexture;
-    }
-    /**
-     * Releases the application.
-     *
-     * `destroy( true )` on the Application is deliberately *not* used: it releases
-     * Pixi's global resource registries, which corrupts any other Pixi application
-     * alive on the page. Desktop Mode runs its own -- wallpapers, widgets, games --
-     * so taking that shortcut here would break unrelated windows.
-     */
-    destroy() {
-      this.solid = null;
-      this.app.destroy({ removeView: true }, { children: true, texture: true });
     }
   }
   const LUMA_R_256 = 55;
@@ -2412,6 +2217,103 @@ void main( void )
       this.host.onChange();
     }
   }
+  class ScreenFilters {
+    /**
+     * @param gpu    Drawing context.
+     * @param adjust The pipeline holding the uniform values.
+     */
+    constructor(gpu, adjust) {
+      this.sprite = null;
+      this.filter = null;
+      this.blur = null;
+      this.gpu = gpu;
+      this.adjust = adjust;
+    }
+    /**
+     * Puts the chain on a newly created sprite.
+     *
+     * @param sprite Sprite to filter.
+     */
+    attach(sprite) {
+      this.sprite = sprite;
+      this.filter = this.adjust.build();
+      this.rebuildChain();
+      sprite.filters ?? (sprite.filters = [this.filter]);
+      this.applyUniforms();
+    }
+    /**
+     * Rebuilds the tone table from curves and levels.
+     *
+     * @param curves Curve set.
+     * @param levels Levels.
+     */
+    setTone(curves, levels) {
+      this.adjust.setTone(curves, levels);
+      this.applyUniforms();
+    }
+    /**
+     * Sets the adjustments to render.
+     *
+     * @param ops        Recipe ops.
+     * @param blurTarget Width the blur radius should be scaled to.
+     */
+    setOps(ops, blurTarget) {
+      if (this.adjust.setOps(ops)) {
+        this.rebuildChain();
+      }
+      this.refreshBlur(blurTarget);
+      this.applyUniforms();
+    }
+    /**
+     * Temporarily shows the unedited image.
+     *
+     * @param bypass Whether to skip the adjustments.
+     * @return True when the state changed, so the caller can re-measure.
+     */
+    setBypass(bypass) {
+      if (!this.adjust.setBypass(bypass)) {
+        return false;
+      }
+      this.applyUniforms();
+      return true;
+    }
+    /**
+     * Scales the blur radius to whatever is being rendered.
+     *
+     * The stored value is a fraction of the longest edge, so a blur previewed on a
+     * 900px canvas survives being saved at 6000px instead of becoming imperceptible.
+     *
+     * @param width Width being rendered, in pixels.
+     */
+    refreshBlur(width) {
+      if (this.blur && this.adjust.hasBlur) {
+        this.blur.strength = this.adjust.blurStrength(width);
+      }
+    }
+    /** Adds or removes the blur pass. */
+    rebuildChain() {
+      if (!this.sprite || !this.filter) {
+        return;
+      }
+      if (!this.adjust.hasBlur) {
+        this.sprite.filters = [this.filter];
+        return;
+      }
+      this.blur ?? (this.blur = new this.gpu.pixi.BlurFilter({ strength: 1, quality: 3 }));
+      this.sprite.filters = [this.blur, this.filter];
+    }
+    /** Pushes the current uniforms onto the on-screen filter. */
+    applyUniforms() {
+      if (this.filter) {
+        this.adjust.applyTo(this.filter);
+      }
+    }
+    /** Forgets the sprite's filter, which is destroyed along with the sprite. */
+    release() {
+      this.sprite = null;
+      this.filter = null;
+    }
+  }
   const MIN_ZOOM = 0.05;
   const MAX_ZOOM = 16;
   const INSET = 48;
@@ -2749,6 +2651,243 @@ void main( void )
       this.camera.clear();
     }
   }
+  function assemble(gpu, host, schema, reads) {
+    const adjust = new AdjustPipeline(gpu, schema);
+    const layers = new LayerTextures(gpu);
+    const compositor = new DocumentCompositor(gpu, layers);
+    const offscreen = { gpu, adjust, texture: reads.display };
+    const view = new ViewController(gpu, host, {
+      sprite: reads.sprite,
+      size: () => sizeOf(reads.display()),
+      textures: () => [reads.source(), reads.display(), ...layers.all()]
+    });
+    const paint = new PaintApi({
+      gpu,
+      layers,
+      canvas: reads.canvas,
+      onChange: reads.onPaint
+    });
+    const histogram = new HistogramProbe(gpu, {
+      size: () => reads.source() ? sizeOf(reads.display()) : null,
+      sprite: (scale) => makeRenderSprite(offscreen, scale)
+    });
+    return {
+      adjust,
+      filters: new ScreenFilters(gpu, adjust),
+      layers,
+      compositor,
+      view,
+      paint,
+      histogram,
+      offscreen
+    };
+  }
+  function sizeOf(texture) {
+    return { width: texture?.width ?? 0, height: texture?.height ?? 0 };
+  }
+  const MODULE_ID = "pixijs";
+  function shell() {
+    return window.wp?.desktop;
+  }
+  async function loadPixi() {
+    if (window.PIXI) {
+      return window.PIXI;
+    }
+    const desktop2 = shell();
+    if (!desktop2?.loadModules) {
+      throw new Error(
+        "Lienzo needs Desktop Mode: PixiJS comes from the desktop shell, which is not on this page."
+      );
+    }
+    await desktop2.loadModules([MODULE_ID]);
+    if (!window.PIXI) {
+      throw new Error(
+        "Desktop Mode loaded its PixiJS module but window.PIXI is still undefined."
+      );
+    }
+    return window.PIXI;
+  }
+  class GpuContext {
+    /**
+     * @param pixi The Pixi namespace.
+     * @param app  An initialised application.
+     */
+    constructor(pixi, app) {
+      this.solid = null;
+      this.pixi = pixi;
+      this.app = app;
+    }
+    /**
+     * Boots Pixi and attaches a canvas to a host element.
+     *
+     * WebGL is requested explicitly rather than letting Pixi prefer WebGPU. The
+     * adjustment filter ships a GLSL program only, and Pixi silently *skips* a
+     * filter that has no program for the active backend -- which would show the
+     * unedited image with no error at all. Pinning the backend makes that
+     * impossible. Adding a WGSL program later is what would lift this.
+     *
+     * @param host Element the canvas fills.
+     */
+    static async create(host) {
+      const pixi = await loadPixi();
+      const app = new pixi.Application();
+      await app.init({
+        preference: "webgl",
+        backgroundAlpha: 0,
+        antialias: false,
+        autoDensity: true,
+        resolution: window.devicePixelRatio || 1
+      });
+      app.canvas.classList.add("lz-canvas");
+      host.appendChild(app.canvas);
+      return new GpuContext(pixi, app);
+    }
+    /** The drawing surface, in CSS pixels. */
+    get screen() {
+      return this.app.renderer.screen;
+    }
+    /** The root container everything on screen hangs off. */
+    get stage() {
+      return this.app.stage;
+    }
+    /**
+     * Matches the drawing surface to a size.
+     *
+     * @param width  Width in CSS pixels.
+     * @param height Height in CSS pixels.
+     */
+    resize(width, height) {
+      const screen = this.app.renderer.screen;
+      if (screen.width !== width || screen.height !== height) {
+        this.app.renderer.resize(width, height);
+      }
+    }
+    /**
+     * Creates a render target.
+     *
+     * @param width  Width in pixels.
+     * @param height Height in pixels.
+     */
+    createTarget(width, height) {
+      return this.pixi.RenderTexture.create({
+        width: Math.max(1, Math.round(width)),
+        height: Math.max(1, Math.round(height))
+      });
+    }
+    /**
+     * Wraps a source in a texture.
+     *
+     * @param source Decoded pixels.
+     */
+    textureFrom(source) {
+      return this.pixi.Texture.from(source);
+    }
+    /** An empty container. */
+    container() {
+      return new this.pixi.Container();
+    }
+    /**
+     * A sprite over a texture.
+     *
+     * @param texture What to draw.
+     */
+    sprite(texture) {
+      return new this.pixi.Sprite(texture);
+    }
+    /**
+     * Draws a container into a target.
+     *
+     * @param container What to draw.
+     * @param target    Where to draw it. Omit for the screen.
+     * @param clear     Whether to wipe the target first.
+     */
+    draw(container, target, clear = false) {
+      this.app.renderer.render({ container, target, clear });
+    }
+    /**
+     * Draws one sprite into a target, honouring its blend mode.
+     *
+     * The wrapping container is not ceremony. A sprite passed as the render *root* is
+     * its own render group, and the batcher never applies a root's blend mode -- so an
+     * `erase` sprite rendered directly paints solid white instead of clearing, with no
+     * error.
+     *
+     * @param sprite What to draw. Destroyed afterwards.
+     * @param target Texture to draw into.
+     * @param clear  Whether to wipe the target first.
+     */
+    drawDetached(sprite, target, clear = false) {
+      const holder = this.container();
+      holder.addChild(sprite);
+      this.draw(holder, target, clear);
+      holder.destroy({ children: true });
+    }
+    /**
+     * Reads a target back as a canvas.
+     *
+     * @param target Texture to read.
+     */
+    extractCanvas(target) {
+      return this.app.renderer.extract.canvas(target);
+    }
+    /**
+     * Reads a target back as raw bytes.
+     *
+     * @param target Texture to read.
+     */
+    extractPixels(target) {
+      const { pixels } = this.app.renderer.extract.pixels(target);
+      return { pixels, width: target.width, height: target.height };
+    }
+    /**
+     * A one-pixel opaque white texture, used as an eraser stencil.
+     *
+     * Built here rather than taken from `Texture.WHITE` so the narrow Pixi surface this
+     * engine is typed against stays narrow.
+     */
+    solidTexture() {
+      if (!this.solid) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, 1, 1);
+        }
+        this.solid = this.textureFrom(canvas);
+      }
+      return this.solid;
+    }
+    /**
+     * Whether a texture can be rendered into.
+     *
+     * @param texture Texture to test.
+     */
+    isTarget(texture) {
+      return texture instanceof this.pixi.RenderTexture;
+    }
+    /**
+     * Releases the application.
+     *
+     * `destroy( true )` on the Application is deliberately *not* used: it releases
+     * Pixi's global resource registries, which corrupts any other Pixi application
+     * alive on the page. Desktop Mode runs its own -- wallpapers, widgets, games --
+     * so taking that shortcut here would break unrelated windows.
+     */
+    destroy() {
+      this.solid = null;
+      this.app.destroy({ removeView: true }, { children: true, texture: true });
+    }
+  }
+  function releaseImage(engine, sprite, texture) {
+    engine.compositor.release();
+    engine.layers.releaseAll();
+    engine.filters.release();
+    sprite?.destroy({ children: true });
+    texture?.destroy(true);
+    return null;
+  }
   function scaleModeOf(texture) {
     return texture ? texture.source.scaleMode : null;
   }
@@ -2772,103 +2911,6 @@ void main( void )
       documentSize: document2 ? { w: document2.width, h: document2.height } : null
     };
   }
-  class ScreenFilters {
-    /**
-     * @param gpu    Drawing context.
-     * @param adjust The pipeline holding the uniform values.
-     */
-    constructor(gpu, adjust) {
-      this.sprite = null;
-      this.filter = null;
-      this.blur = null;
-      this.gpu = gpu;
-      this.adjust = adjust;
-    }
-    /**
-     * Puts the chain on a newly created sprite.
-     *
-     * @param sprite Sprite to filter.
-     */
-    attach(sprite) {
-      this.sprite = sprite;
-      this.filter = this.adjust.build();
-      this.rebuildChain();
-      sprite.filters ?? (sprite.filters = [this.filter]);
-      this.applyUniforms();
-    }
-    /**
-     * Rebuilds the tone table from curves and levels.
-     *
-     * @param curves Curve set.
-     * @param levels Levels.
-     */
-    setTone(curves, levels) {
-      this.adjust.setTone(curves, levels);
-      this.applyUniforms();
-    }
-    /**
-     * Sets the adjustments to render.
-     *
-     * @param ops        Recipe ops.
-     * @param blurTarget Width the blur radius should be scaled to.
-     */
-    setOps(ops, blurTarget) {
-      if (this.adjust.setOps(ops)) {
-        this.rebuildChain();
-      }
-      this.refreshBlur(blurTarget);
-      this.applyUniforms();
-    }
-    /**
-     * Temporarily shows the unedited image.
-     *
-     * @param bypass Whether to skip the adjustments.
-     * @return True when the state changed, so the caller can re-measure.
-     */
-    setBypass(bypass) {
-      if (!this.adjust.setBypass(bypass)) {
-        return false;
-      }
-      this.applyUniforms();
-      return true;
-    }
-    /**
-     * Scales the blur radius to whatever is being rendered.
-     *
-     * The stored value is a fraction of the longest edge, so a blur previewed on a
-     * 900px canvas survives being saved at 6000px instead of becoming imperceptible.
-     *
-     * @param width Width being rendered, in pixels.
-     */
-    refreshBlur(width) {
-      if (this.blur && this.adjust.hasBlur) {
-        this.blur.strength = this.adjust.blurStrength(width);
-      }
-    }
-    /** Adds or removes the blur pass. */
-    rebuildChain() {
-      if (!this.sprite || !this.filter) {
-        return;
-      }
-      if (!this.adjust.hasBlur) {
-        this.sprite.filters = [this.filter];
-        return;
-      }
-      this.blur ?? (this.blur = new this.gpu.pixi.BlurFilter({ strength: 1, quality: 3 }));
-      this.sprite.filters = [this.blur, this.filter];
-    }
-    /** Pushes the current uniforms onto the on-screen filter. */
-    applyUniforms() {
-      if (this.filter) {
-        this.adjust.applyTo(this.filter);
-      }
-    }
-    /** Forgets the sprite's filter, which is destroyed along with the sprite. */
-    release() {
-      this.sprite = null;
-      this.filter = null;
-    }
-  }
   class EditorRenderer {
     /**
      * @param gpu     Drawing context.
@@ -2883,29 +2925,20 @@ void main( void )
       this.destroyed = false;
       this.gpu = gpu;
       this.maxRenderPixels = options.maxRenderPixels;
-      this.adjust = new AdjustPipeline(gpu, options.schema);
-      this.filters = new ScreenFilters(gpu, this.adjust);
-      this.layers = new LayerTextures(gpu);
-      this.pixels = new DocumentCompositor(gpu, this.layers);
-      this.view = new ViewController(gpu, options.host, {
-        sprite: () => this.sprite,
-        size: () => this.displaySize(),
-        textures: () => [
-          this.texture,
-          this.pixels.texture,
-          ...this.layers.all()
-        ]
-      });
-      this.paint = new PaintApi({
-        gpu,
-        layers: this.layers,
+      const engine = assemble(gpu, options.host, options.schema, {
         canvas: () => this.canvas,
-        onChange: () => this.recompose()
+        source: () => this.texture,
+        display: () => this.displayTexture(),
+        sprite: () => this.sprite,
+        onPaint: () => this.recompose()
       });
-      this.histogram = new HistogramProbe(gpu, {
-        size: () => this.texture ? this.displaySize() : null,
-        sprite: (scale) => makeRenderSprite(this.offscreen(), scale)
-      });
+      this.engine = engine;
+      this.filters = engine.filters;
+      this.layers = engine.layers;
+      this.histogram = engine.histogram;
+      this.view = engine.view;
+      this.paint = engine.paint;
+      this.pixels = engine.compositor;
     }
     /**
      * Boots Pixi and attaches a canvas to the host element.
@@ -2921,16 +2954,7 @@ void main( void )
     }
     /** Size of the texture every downstream stage reads. */
     displaySize() {
-      const texture = this.displayTexture();
-      return { width: texture?.width ?? 0, height: texture?.height ?? 0 };
-    }
-    /** What an offscreen render runs against. */
-    offscreen() {
-      return {
-        gpu: this.gpu,
-        adjust: this.adjust,
-        texture: () => this.displayTexture()
-      };
+      return sizeOf(this.displayTexture());
     }
     /**
      * Redraws the document and brings the display back in line with it.
@@ -2963,6 +2987,11 @@ void main( void )
       this.gpu.stage.addChild(this.sprite);
       this.view.fit();
       this.histogram.schedule();
+    }
+    /** Tears down the texture, sprite and filter without touching the app. */
+    releaseImage() {
+      this.sprite = releaseImage(this.engine, this.sprite, this.texture);
+      this.texture = null;
     }
     /**
      * Replaces the document and recomposes it.
@@ -3064,7 +3093,7 @@ void main( void )
      * @throws {Error} When the image is too large, or encoding fails.
      */
     renderFull(format, quality) {
-      return renderFull(this.offscreen(), format, quality, this.maxRenderPixels);
+      return renderFull(this.engine.offscreen, format, quality, this.maxRenderPixels);
     }
     /** Internal state, for diagnosing render problems from the console. */
     debugState() {
@@ -3078,18 +3107,6 @@ void main( void )
         spriteScale: this.sprite ? Math.abs(this.sprite.scale.x) : null
       });
     }
-    /** Tears down the texture, sprite and filter without touching the app. */
-    releaseImage() {
-      this.pixels.release();
-      this.layers.releaseAll();
-      if (this.sprite) {
-        this.sprite.destroy({ children: true });
-        this.sprite = null;
-      }
-      this.filters.release();
-      this.texture?.destroy(true);
-      this.texture = null;
-    }
     /** Releases everything. */
     destroy() {
       if (this.destroyed) {
@@ -3099,7 +3116,7 @@ void main( void )
       this.histogram.stop();
       this.view.destroy();
       this.releaseImage();
-      this.adjust.release();
+      this.engine.adjust.release();
       this.layers.releaseMask();
       this.gpu.destroy();
     }
@@ -3886,7 +3903,6 @@ void main( void )
     { value: "hairy", label: "Bristle" },
     { value: "square", label: "Square" }
   ];
-  const STAMP_SPACING = 0.18;
   const cache = /* @__PURE__ */ new Map();
   const MAX_CACHED = 24;
   function brushStamp(shape, size, hardness) {
@@ -3951,6 +3967,7 @@ void main( void )
     ctx.arc(r, r, r, 0, Math.PI * 2);
     ctx.fill();
   }
+  const STAMP_SPACING = 0.18;
   function interpolateStroke(from, to, spacing) {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
@@ -4486,6 +4503,45 @@ void main( void )
     });
   }
   const MIN_SIZE = 0.02;
+  function resizeRect(start, handle, dx, dy, aspect, frame) {
+    if (handle === "move") {
+      return clampRect({ ...start, x: start.x + dx, y: start.y + dy });
+    }
+    let { x, y, w, h } = start;
+    if (handle.includes("w")) {
+      const nx = Math.min(x + w - MIN_SIZE, Math.max(0, x + dx));
+      w += x - nx;
+      x = nx;
+    }
+    if (handle.includes("e")) {
+      w = Math.min(1 - x, Math.max(MIN_SIZE, w + dx));
+    }
+    if (handle.includes("n")) {
+      const ny = Math.min(y + h - MIN_SIZE, Math.max(0, y + dy));
+      h += y - ny;
+      y = ny;
+    }
+    if (handle.includes("s")) {
+      h = Math.min(1 - y, Math.max(MIN_SIZE, h + dy));
+    }
+    if (aspect > 0) {
+      const viewport = frame;
+      const frameAspect = viewport && viewport.height > 0 ? viewport.width / viewport.height : 1;
+      const relative = aspect / frameAspect;
+      if (handle === "n" || handle === "s") {
+        w = h * relative;
+      } else {
+        h = w / relative;
+      }
+      if (handle.includes("n")) {
+        y = start.y + start.h - h;
+      }
+      if (handle.includes("w")) {
+        x = start.x + start.w - w;
+      }
+    }
+    return clampRect({ x, y, w, h });
+  }
   class CropOverlay {
     constructor(options) {
       this.rect = { x: 0, y: 0, w: 1, h: 1 };
@@ -4538,7 +4594,14 @@ void main( void )
         }
         const dx = (event.clientX - this.active.startX) / viewport.width;
         const dy = (event.clientY - this.active.startY) / viewport.height;
-        this.rect = this.resize(this.active.startRect, this.active.handle, dx, dy);
+        this.rect = resizeRect(
+          this.active.startRect,
+          this.active.handle,
+          dx,
+          dy,
+          this.aspect,
+          this.active.viewport
+        );
         this.options.onChange?.(this.rect);
         this.sync();
       };
@@ -4590,54 +4653,6 @@ void main( void )
       window.removeEventListener("pointerup", this.onPointerUp);
       window.removeEventListener("pointercancel", this.onPointerUp);
       window.removeEventListener("blur", this.onPointerUp);
-    }
-    /**
-     * Applies a drag delta to a rectangle.
-     *
-     * @param start  Rectangle at the start of the drag.
-     * @param handle Which handle is being dragged.
-     * @param dx     Horizontal delta, as a fraction of the frame.
-     * @param dy     Vertical delta, as a fraction of the frame.
-     */
-    resize(start, handle, dx, dy) {
-      if (handle === "move") {
-        return clampRect({ ...start, x: start.x + dx, y: start.y + dy });
-      }
-      let { x, y, w, h } = start;
-      if (handle.includes("w")) {
-        const nx = Math.min(x + w - MIN_SIZE, Math.max(0, x + dx));
-        w += x - nx;
-        x = nx;
-      }
-      if (handle.includes("e")) {
-        w = Math.min(1 - x, Math.max(MIN_SIZE, w + dx));
-      }
-      if (handle.includes("n")) {
-        const ny = Math.min(y + h - MIN_SIZE, Math.max(0, y + dy));
-        h += y - ny;
-        y = ny;
-      }
-      if (handle.includes("s")) {
-        h = Math.min(1 - y, Math.max(MIN_SIZE, h + dy));
-      }
-      const aspect = this.aspect;
-      if (aspect > 0) {
-        const viewport = this.active?.viewport;
-        const frameAspect = viewport && viewport.height > 0 ? viewport.width / viewport.height : 1;
-        const relative = aspect / frameAspect;
-        if (handle === "n" || handle === "s") {
-          w = h * relative;
-        } else {
-          h = w / relative;
-        }
-        if (handle.includes("n")) {
-          y = start.y + start.h - h;
-        }
-        if (handle.includes("w")) {
-          x = start.x + start.w - w;
-        }
-      }
-      return clampRect({ x, y, w, h });
     }
     /** The rectangle as it currently stands. */
     getRect() {
@@ -5288,7 +5303,7 @@ void main( void )
       const ctx = this.ctx;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
-      const toCanvas = (x, y) => ({
+      const toCanvas2 = (x, y) => ({
         cx: x / 255 * size,
         cy: (1 - y / 255) * size
       });
@@ -5314,7 +5329,7 @@ void main( void )
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let x = 0; x < 256; x++) {
-        const { cx, cy } = toCanvas(x, sampled[x]);
+        const { cx, cy } = toCanvas2(x, sampled[x]);
         if (x === 0) {
           ctx.moveTo(cx, cy);
         } else {
@@ -5323,7 +5338,7 @@ void main( void )
       }
       ctx.stroke();
       points.forEach(([x, y], index) => {
-        const { cx, cy } = toCanvas(x, y);
+        const { cx, cy } = toCanvas2(x, y);
         ctx.beginPath();
         ctx.arc(cx, cy, index === this.dragIndex ? 5 : 3.5, 0, Math.PI * 2);
         ctx.fillStyle = index === this.dragIndex ? "#3582c4" : "#f0f0f1";
@@ -5427,33 +5442,160 @@ void main( void )
     registerCurvesPanel();
     registerLevelsPanel();
   }
+  const GRIPS = ["nw", "ne", "sw", "se", "n", "s", "w", "e"];
+  function buildChrome(stage) {
+    const root = document.createElement("div");
+    root.className = "lz-transform";
+    const box = document.createElement("div");
+    box.className = "lz-transform__box";
+    box.dataset.handle = "move";
+    box.title = __(
+      "Drag to move. Corners scale both axes, edges scale one, the top handle rotates. Hold Shift on a corner to scale freely."
+    );
+    for (const handle of GRIPS) {
+      const grip = document.createElement("span");
+      grip.className = `lz-transform__handle lz-transform__handle--${handle}`;
+      grip.dataset.handle = handle;
+      box.appendChild(grip);
+    }
+    const stem = document.createElement("span");
+    stem.className = "lz-transform__stem";
+    box.appendChild(stem);
+    const rotate = document.createElement("span");
+    rotate.className = "lz-transform__handle lz-transform__handle--rotate";
+    rotate.dataset.handle = "rotate";
+    rotate.title = __("Rotate. Hold Shift to snap.");
+    box.appendChild(rotate);
+    const guideX = document.createElement("span");
+    guideX.className = "lz-snap lz-snap--v";
+    guideX.hidden = true;
+    const guideY = document.createElement("span");
+    guideY.className = "lz-snap lz-snap--h";
+    guideY.hidden = true;
+    root.append(guideX, guideY, box);
+    stage.appendChild(root);
+    return { root, box, guideX, guideY };
+  }
+  function layOut(chrome, options) {
+    const viewport = options.getViewport();
+    const canvas = options.getCanvas();
+    if (!viewport || canvas.width <= 0) {
+      chrome.root.hidden = true;
+      return;
+    }
+    chrome.root.hidden = false;
+    chrome.root.style.insetInlineStart = `${viewport.x}px`;
+    chrome.root.style.insetBlockStart = `${viewport.y}px`;
+    chrome.root.style.inlineSize = `${viewport.width}px`;
+    chrome.root.style.blockSize = `${viewport.height}px`;
+    const transform = options.getTransform();
+    const image = options.getImageSize();
+    const ratio = viewport.width / canvas.width;
+    const width = image.width * transform.scaleX * ratio;
+    const height = image.height * transform.scaleY * ratio;
+    chrome.box.style.inlineSize = `${width}px`;
+    chrome.box.style.blockSize = `${height}px`;
+    chrome.box.style.insetInlineStart = `${transform.x * viewport.width - width / 2}px`;
+    chrome.box.style.insetBlockStart = `${transform.y * viewport.height - height / 2}px`;
+    chrome.box.style.transform = `rotate(${transform.rotation}deg)`;
+  }
+  function showGuide(element, at, axis) {
+    if (null === at) {
+      element.hidden = true;
+      return;
+    }
+    element.hidden = false;
+    if ("v" === axis) {
+      element.style.insetInlineStart = `${at * 100}%`;
+    } else {
+      element.style.insetBlockStart = `${at * 100}%`;
+    }
+  }
+  function projectLocal(dx, dy, rotation) {
+    const radians = rotation * Math.PI / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    return {
+      localX: Math.max(1, Math.abs(dx * cos + dy * sin)),
+      localY: Math.max(1, Math.abs(-dx * sin + dy * cos))
+    };
+  }
+  function snap(value, targets, tolerance) {
+    let best = value;
+    let bestDistance = tolerance;
+    let hit = false;
+    for (const target of targets) {
+      const distance = Math.abs(value - target);
+      if (distance < bestDistance) {
+        best = target;
+        bestDistance = distance;
+        hit = true;
+      }
+    }
+    return { value: best, hit };
+  }
   const SNAP_DEGREES = 15;
   const SNAP_PX = 7;
+  function bound(value) {
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+  }
+  function dragMove(start, event, canvas, image, snapping) {
+    const dx = (event.clientX - start.pointerX) / start.pixelRatio;
+    const dy = (event.clientY - start.pointerY) / start.pixelRatio;
+    const x = start.transform.x + dx / canvas.width;
+    const y = start.transform.y + dy / canvas.height;
+    if (!snapping) {
+      return {
+        transform: { ...start.transform, x, y },
+        guideX: null,
+        guideY: null
+      };
+    }
+    const halfW = image.width * start.transform.scaleX / 2 / canvas.width;
+    const halfH = image.height * start.transform.scaleY / 2 / canvas.height;
+    const snappedX = snap(x, [0.5, halfW, 1 - halfW], SNAP_PX / start.pixelRatio / canvas.width);
+    const snappedY = snap(y, [0.5, halfH, 1 - halfH], SNAP_PX / start.pixelRatio / canvas.height);
+    return {
+      transform: { ...start.transform, x: snappedX.value, y: snappedY.value },
+      guideX: snappedX.hit ? snappedX.value : null,
+      guideY: snappedY.hit ? snappedY.value : null
+    };
+  }
+  function dragRotate(start, event) {
+    const angle = Math.atan2(event.clientY - start.centreY, event.clientX - start.centreX) * 180 / Math.PI;
+    let rotation = start.transform.rotation + (angle - start.angle);
+    if (event.shiftKey) {
+      rotation = Math.round(rotation / SNAP_DEGREES) * SNAP_DEGREES;
+    }
+    return { ...start.transform, rotation: normaliseAngle(rotation) };
+  }
+  function dragScale(start, event) {
+    const dx = event.clientX - start.centreX;
+    const dy = event.clientY - start.centreY;
+    const local = projectLocal(dx, dy, start.transform.rotation);
+    const scaleX = bound(start.transform.scaleX * (local.localX / start.localX));
+    const scaleY = bound(start.transform.scaleY * (local.localY / start.localY));
+    if ("e" === start.handle || "w" === start.handle) {
+      return { ...start.transform, scaleX };
+    }
+    if ("n" === start.handle || "s" === start.handle) {
+      return { ...start.transform, scaleY };
+    }
+    if (event.shiftKey) {
+      return { ...start.transform, scaleX, scaleY };
+    }
+    const ratio = Math.hypot(dx, dy) / start.distance;
+    return {
+      ...start.transform,
+      scaleX: bound(start.transform.scaleX * ratio),
+      scaleY: bound(start.transform.scaleY * ratio)
+    };
+  }
   class TransformOverlay {
     constructor(options) {
       this.start = null;
       this.sync = () => {
-        const viewport = this.options.getViewport();
-        const canvas = this.options.getCanvas();
-        if (!viewport || canvas.width <= 0) {
-          this.root.hidden = true;
-          return;
-        }
-        this.root.hidden = false;
-        this.root.style.insetInlineStart = `${viewport.x}px`;
-        this.root.style.insetBlockStart = `${viewport.y}px`;
-        this.root.style.inlineSize = `${viewport.width}px`;
-        this.root.style.blockSize = `${viewport.height}px`;
-        const transform = this.options.getTransform();
-        const image = this.options.getImageSize();
-        const ratio = viewport.width / canvas.width;
-        const width = image.width * transform.scaleX * ratio;
-        const height = image.height * transform.scaleY * ratio;
-        this.box.style.inlineSize = `${width}px`;
-        this.box.style.blockSize = `${height}px`;
-        this.box.style.insetInlineStart = `${transform.x * viewport.width - width / 2}px`;
-        this.box.style.insetBlockStart = `${transform.y * viewport.height - height / 2}px`;
-        this.box.style.transform = `rotate(${transform.rotation}deg)`;
+        layOut(this.chrome, this.options);
       };
       this.onPointerDown = (event) => {
         const viewport = this.options.getViewport();
@@ -5490,91 +5632,26 @@ void main( void )
         if (!start) {
           return;
         }
-        const canvas = this.options.getCanvas();
-        if (start.handle === "move") {
-          const dx2 = (event.clientX - start.pointerX) / start.pixelRatio;
-          const dy2 = (event.clientY - start.pointerY) / start.pixelRatio;
-          let x = start.transform.x + dx2 / canvas.width;
-          let y = start.transform.y + dy2 / canvas.height;
-          if (this.options.getSnapping() && !event.altKey) {
-            const image = this.options.getImageSize();
-            const halfW = image.width * start.transform.scaleX / 2 / canvas.width;
-            const halfH = image.height * start.transform.scaleY / 2 / canvas.height;
-            const toleranceX = SNAP_PX / start.pixelRatio / canvas.width;
-            const toleranceY = SNAP_PX / start.pixelRatio / canvas.height;
-            const snappedX = snap(
-              x,
-              [0.5, halfW, 1 - halfW],
-              toleranceX
-            );
-            const snappedY = snap(
-              y,
-              [0.5, halfH, 1 - halfH],
-              toleranceY
-            );
-            x = snappedX.value;
-            y = snappedY.value;
-            this.showGuide(this.guideX, snappedX.hit ? x : null, "v");
-            this.showGuide(this.guideY, snappedY.hit ? y : null, "h");
-          } else {
-            this.guideX.hidden = true;
-            this.guideY.hidden = true;
-          }
-          this.options.onChange({ ...start.transform, x, y });
+        if ("move" === start.handle) {
+          const moved = dragMove(
+            start,
+            event,
+            this.options.getCanvas(),
+            this.options.getImageSize(),
+            this.options.getSnapping() && !event.altKey
+          );
+          this.options.onChange(moved.transform);
+          showGuide(this.guideX, moved.guideX, "v");
+          showGuide(this.guideY, moved.guideY, "h");
           this.sync();
           return;
         }
-        if (start.handle === "rotate") {
-          const angle = Math.atan2(
-            event.clientY - start.centreY,
-            event.clientX - start.centreX
-          ) * 180 / Math.PI;
-          let rotation = start.transform.rotation + (angle - start.angle);
-          if (event.shiftKey) {
-            rotation = Math.round(rotation / SNAP_DEGREES) * SNAP_DEGREES;
-          }
-          this.options.onChange({
-            ...start.transform,
-            rotation: normaliseAngle(rotation)
-          });
+        if ("rotate" === start.handle) {
+          this.options.onChange(dragRotate(start, event));
           this.sync();
           return;
         }
-        const dx = event.clientX - start.centreX;
-        const dy = event.clientY - start.centreY;
-        const local = projectLocal(dx, dy, start.transform.rotation);
-        const bound = (value) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
-        if (start.handle === "e" || start.handle === "w") {
-          this.options.onChange({
-            ...start.transform,
-            scaleX: bound(start.transform.scaleX * (local.localX / start.localX))
-          });
-          this.sync();
-          return;
-        }
-        if (start.handle === "n" || start.handle === "s") {
-          this.options.onChange({
-            ...start.transform,
-            scaleY: bound(start.transform.scaleY * (local.localY / start.localY))
-          });
-          this.sync();
-          return;
-        }
-        if (event.shiftKey) {
-          this.options.onChange({
-            ...start.transform,
-            scaleX: bound(start.transform.scaleX * (local.localX / start.localX)),
-            scaleY: bound(start.transform.scaleY * (local.localY / start.localY))
-          });
-          this.sync();
-          return;
-        }
-        const ratio = Math.hypot(dx, dy) / start.distance;
-        this.options.onChange({
-          ...start.transform,
-          scaleX: bound(start.transform.scaleX * ratio),
-          scaleY: bound(start.transform.scaleY * ratio)
-        });
+        this.options.onChange(dragScale(start, event));
         this.sync();
       };
       this.onPointerUp = () => {
@@ -5588,45 +5665,11 @@ void main( void )
         this.options.onCommit();
       };
       this.options = options;
-      this.root = document.createElement("div");
-      this.root.className = "lz-transform";
-      this.box = document.createElement("div");
-      this.box.className = "lz-transform__box";
-      this.box.dataset.handle = "move";
-      this.box.title = __(
-        "Drag to move. Corners scale both axes, edges scale one, the top handle rotates. Hold Shift on a corner to scale freely."
-      );
-      for (const handle of [
-        "nw",
-        "ne",
-        "sw",
-        "se",
-        "n",
-        "s",
-        "w",
-        "e"
-      ]) {
-        const grip = document.createElement("span");
-        grip.className = `lz-transform__handle lz-transform__handle--${handle}`;
-        grip.dataset.handle = handle;
-        this.box.appendChild(grip);
-      }
-      this.guideX = document.createElement("span");
-      this.guideX.className = "lz-snap lz-snap--v";
-      this.guideX.hidden = true;
-      this.guideY = document.createElement("span");
-      this.guideY.className = "lz-snap lz-snap--h";
-      this.guideY.hidden = true;
-      const stem = document.createElement("span");
-      stem.className = "lz-transform__stem";
-      this.box.appendChild(stem);
-      const rotate = document.createElement("span");
-      rotate.className = "lz-transform__handle lz-transform__handle--rotate";
-      rotate.dataset.handle = "rotate";
-      rotate.title = __("Rotate. Hold Shift to snap.");
-      this.box.appendChild(rotate);
-      this.root.append(this.guideX, this.guideY, this.box);
-      options.stage.appendChild(this.root);
+      this.chrome = buildChrome(options.stage);
+      this.root = this.chrome.root;
+      this.box = this.chrome.box;
+      this.guideX = this.chrome.guideX;
+      this.guideY = this.chrome.guideY;
       this.box.addEventListener("pointerdown", this.onPointerDown);
       this.sync();
     }
@@ -5644,26 +5687,6 @@ void main( void )
       window.removeEventListener("pointercancel", this.onPointerUp);
       window.removeEventListener("blur", this.onPointerUp);
     }
-    /**
-     * Positions a snap guide.
-     *
-     * @param element Guide element.
-     * @param at      Normalised position, or null to hide it.
-     * @param axis    Which guide.
-     */
-    showGuide(element, at, axis) {
-      if (at === null) {
-        element.hidden = true;
-        return;
-      }
-      element.hidden = false;
-      if (axis === "v") {
-        element.style.insetInlineStart = `${at * 100}%`;
-      } else {
-        element.style.insetBlockStart = `${at * 100}%`;
-      }
-    }
-    /** Whether the handles are on screen. */
     setVisible(visible) {
       this.root.style.display = visible ? "" : "none";
       if (!visible) {
@@ -5677,29 +5700,6 @@ void main( void )
       this.box.removeEventListener("pointerdown", this.onPointerDown);
       this.root.remove();
     }
-  }
-  function projectLocal(dx, dy, rotation) {
-    const radians = rotation * Math.PI / 180;
-    const cos = Math.cos(radians);
-    const sin = Math.sin(radians);
-    return {
-      localX: Math.max(1, Math.abs(dx * cos + dy * sin)),
-      localY: Math.max(1, Math.abs(-dx * sin + dy * cos))
-    };
-  }
-  function snap(value, targets, tolerance) {
-    let best = value;
-    let bestDistance = tolerance;
-    let hit = false;
-    for (const target of targets) {
-      const distance = Math.abs(value - target);
-      if (distance < bestDistance) {
-        best = target;
-        bestDistance = distance;
-        hit = true;
-      }
-    }
-    return { value: best, hit };
   }
   function actionRow(actions) {
     const el = buttonRow();
@@ -6880,7 +6880,7 @@ void main( void )
     }
     renderer.retainLayers(reachable);
   }
-  function isTypingTarget$1(target) {
+  function isTypingTarget(target) {
     if (!(target instanceof HTMLElement)) {
       return false;
     }
@@ -6888,7 +6888,7 @@ void main( void )
   }
   function onEditorKey(type, handler) {
     const listener = (event) => {
-      if (!isTypingTarget$1(event.target)) {
+      if (!isTypingTarget(event.target)) {
         handler(event);
       }
     };
@@ -7447,6 +7447,40 @@ void main( void )
     }
     return out;
   }
+  function withAlpha(colour, alpha) {
+    const rgb = hexToRgb(colour);
+    if (!rgb) {
+      return colour;
+    }
+    return `rgba( ${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha} )`;
+  }
+  function hexToRgb(colour) {
+    const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour.trim());
+    if (!match) {
+      return null;
+    }
+    const hex = match[1];
+    const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+    return [
+      parseInt(full.slice(0, 2), 16),
+      parseInt(full.slice(2, 4), 16),
+      parseInt(full.slice(4, 6), 16)
+    ];
+  }
+  function rgbToHex(r, g, b) {
+    const byte = (value) => Math.min(255, Math.max(0, Math.round(value))).toString(16).padStart(2, "0");
+    return `#${byte(r)}${byte(g)}${byte(b)}`;
+  }
+  function makeCanvas(width, height) {
+    if (width < 1 || height < 1) {
+      return null;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width);
+    canvas.height = Math.round(height);
+    const ctx = canvas.getContext("2d");
+    return ctx ? { canvas, ctx } : null;
+  }
   function shapeCanvas(width, height, from, to, options) {
     const surface = makeCanvas(width, height);
     if (!surface) {
@@ -7600,40 +7634,6 @@ void main( void )
     { value: 'Georgia, "Times New Roman", serif', label: "Serif" },
     { value: "ui-monospace, Menlo, Consolas, monospace", label: "Mono" }
   ];
-  function withAlpha(colour, alpha) {
-    const rgb = hexToRgb(colour);
-    if (!rgb) {
-      return colour;
-    }
-    return `rgba( ${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha} )`;
-  }
-  function hexToRgb(colour) {
-    const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour.trim());
-    if (!match) {
-      return null;
-    }
-    const hex = match[1];
-    const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
-    return [
-      parseInt(full.slice(0, 2), 16),
-      parseInt(full.slice(2, 4), 16),
-      parseInt(full.slice(4, 6), 16)
-    ];
-  }
-  function rgbToHex(r, g, b) {
-    const byte = (value) => Math.min(255, Math.max(0, Math.round(value))).toString(16).padStart(2, "0");
-    return `#${byte(r)}${byte(g)}${byte(b)}`;
-  }
-  function makeCanvas(width, height) {
-    if (width < 1 || height < 1) {
-      return null;
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(width);
-    canvas.height = Math.round(height);
-    const ctx = canvas.getContext("2d");
-    return ctx ? { canvas, ctx } : null;
-  }
   function styleToggle(bar) {
     bar.add(
       createSegmented({
@@ -8115,6 +8115,87 @@ void main( void )
   }
   const RULER_SIZE = 20;
   const MIN_LABEL_GAP = 56;
+  function tickStep(scale) {
+    const wanted = MIN_LABEL_GAP / Math.max(scale, 1e-6) / 5;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(wanted, 1e-6))));
+    for (const multiple of [1, 2, 5, 10]) {
+      if (magnitude * multiple >= wanted) {
+        return magnitude * multiple;
+      }
+    }
+    return magnitude * 10;
+  }
+  function paintRuler(canvas, width, height, axis, origin, scale, marker) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(width));
+    const h = Math.max(1, Math.round(height));
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#1a1f24";
+    ctx.fillRect(0, 0, w, h);
+    const length = axis === "h" ? w : h;
+    const step = tickStep(scale);
+    ctx.font = "9px -apple-system, system-ui, sans-serif";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#8f979e";
+    ctx.strokeStyle = "#4a5259";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const firstValue = Math.floor(-origin / scale / step) * step;
+    for (let value = firstValue; ; value += step) {
+      const at = origin + value * scale;
+      if (at > length) {
+        break;
+      }
+      if (at < 0) {
+        continue;
+      }
+      const major = value % (step * 5) === 0;
+      const size = major ? RULER_SIZE : RULER_SIZE * 0.4;
+      if (axis === "h") {
+        ctx.moveTo(Math.round(at) + 0.5, RULER_SIZE - size);
+        ctx.lineTo(Math.round(at) + 0.5, RULER_SIZE);
+      } else {
+        ctx.moveTo(RULER_SIZE - size, Math.round(at) + 0.5);
+        ctx.lineTo(RULER_SIZE, Math.round(at) + 0.5);
+      }
+      if (major) {
+        if (axis === "h") {
+          ctx.fillText(String(value), at + 2, 2);
+        } else {
+          ctx.save();
+          ctx.translate(2, at + 2);
+          ctx.rotate(Math.PI / 2);
+          ctx.fillText(String(value), 0, -RULER_SIZE + 4);
+          ctx.restore();
+        }
+      }
+    }
+    ctx.stroke();
+    if (marker) {
+      const at = origin + (axis === "h" ? marker.x : marker.y) * scale;
+      ctx.strokeStyle = "#3582c4";
+      ctx.beginPath();
+      if (axis === "h") {
+        ctx.moveTo(Math.round(at) + 0.5, 0);
+        ctx.lineTo(Math.round(at) + 0.5, RULER_SIZE);
+      } else {
+        ctx.moveTo(0, Math.round(at) + 0.5);
+        ctx.lineTo(RULER_SIZE, Math.round(at) + 0.5);
+      }
+      ctx.stroke();
+    }
+  }
   class Rulers {
     constructor(options) {
       this.marker = null;
@@ -8141,21 +8222,23 @@ void main( void )
         this.root.hidden = false;
         const bounds = this.options.stage.getBoundingClientRect();
         const scale = viewport.width / canvas.width;
-        this.paint(
+        paintRuler(
           this.horizontal,
           bounds.width - RULER_SIZE,
           RULER_SIZE,
           "h",
           viewport.x - RULER_SIZE,
-          scale
+          scale,
+          this.marker
         );
-        this.paint(
+        paintRuler(
           this.vertical,
           RULER_SIZE,
           bounds.height - RULER_SIZE,
           "v",
           viewport.y - RULER_SIZE,
-          scale
+          scale,
+          this.marker
         );
       };
       this.options = options;
@@ -8173,87 +8256,6 @@ void main( void )
       options.stage.addEventListener("pointermove", this.onPointerMove);
       this.draw();
     }
-    /**
-     * Paints one ruler.
-     *
-     * @param canvas Target canvas.
-     * @param width  CSS width.
-     * @param height CSS height.
-     * @param axis   Which ruler.
-     * @param origin Where canvas pixel zero falls, in CSS pixels along the ruler.
-     * @param scale  CSS pixels per canvas pixel.
-     */
-    paint(canvas, width, height, axis, origin, scale) {
-      const dpr = window.devicePixelRatio || 1;
-      const w = Math.max(1, Math.round(width));
-      const h = Math.max(1, Math.round(height));
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-        canvas.style.width = `${w}px`;
-        canvas.style.height = `${h}px`;
-      }
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        return;
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "#1a1f24";
-      ctx.fillRect(0, 0, w, h);
-      const length = axis === "h" ? w : h;
-      const step = tickStep(scale);
-      ctx.font = "9px -apple-system, system-ui, sans-serif";
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "#8f979e";
-      ctx.strokeStyle = "#4a5259";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      const firstValue = Math.floor(-origin / scale / step) * step;
-      for (let value = firstValue; ; value += step) {
-        const at = origin + value * scale;
-        if (at > length) {
-          break;
-        }
-        if (at < 0) {
-          continue;
-        }
-        const major = value % (step * 5) === 0;
-        const size = major ? RULER_SIZE : RULER_SIZE * 0.4;
-        if (axis === "h") {
-          ctx.moveTo(Math.round(at) + 0.5, RULER_SIZE - size);
-          ctx.lineTo(Math.round(at) + 0.5, RULER_SIZE);
-        } else {
-          ctx.moveTo(RULER_SIZE - size, Math.round(at) + 0.5);
-          ctx.lineTo(RULER_SIZE, Math.round(at) + 0.5);
-        }
-        if (major) {
-          if (axis === "h") {
-            ctx.fillText(String(value), at + 2, 2);
-          } else {
-            ctx.save();
-            ctx.translate(2, at + 2);
-            ctx.rotate(Math.PI / 2);
-            ctx.fillText(String(value), 0, -RULER_SIZE + 4);
-            ctx.restore();
-          }
-        }
-      }
-      ctx.stroke();
-      if (this.marker) {
-        const at = origin + (axis === "h" ? this.marker.x : this.marker.y) * scale;
-        ctx.strokeStyle = "#3582c4";
-        ctx.beginPath();
-        if (axis === "h") {
-          ctx.moveTo(Math.round(at) + 0.5, 0);
-          ctx.lineTo(Math.round(at) + 0.5, RULER_SIZE);
-        } else {
-          ctx.moveTo(0, Math.round(at) + 0.5);
-          ctx.lineTo(RULER_SIZE, Math.round(at) + 0.5);
-        }
-        ctx.stroke();
-      }
-    }
     /** Shows or hides the rulers. */
     setVisible(visible) {
       this.root.style.display = visible ? "" : "none";
@@ -8264,15 +8266,127 @@ void main( void )
       this.root.remove();
     }
   }
-  function tickStep(scale) {
-    const wanted = MIN_LABEL_GAP / Math.max(scale, 1e-6) / 5;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(wanted, 1e-6))));
-    for (const multiple of [1, 2, 5, 10]) {
-      if (magnitude * multiple >= wanted) {
-        return magnitude * multiple;
-      }
+  function toCanvas(source, event) {
+    const viewport = source.getViewport();
+    const canvas = source.getCanvas();
+    if (!viewport || 0 === viewport.width || 0 === canvas.width) {
+      return null;
     }
-    return magnitude * 10;
+    const stageRect = source.stage.getBoundingClientRect();
+    const x = event.clientX - stageRect.left - viewport.x;
+    const y = event.clientY - stageRect.top - viewport.y;
+    return {
+      x: x / viewport.width * canvas.width,
+      y: y / viewport.height * canvas.height
+    };
+  }
+  function normalise(canvas, point) {
+    return { x: point.x / canvas.width, y: point.y / canvas.height };
+  }
+  function toStage(stage, event) {
+    const rect = stage.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+  class DragPreview {
+    /**
+     * @param stage The canvas area to draw over.
+     */
+    constructor(stage) {
+      this.svg = null;
+      this.path = null;
+      this.origin = null;
+      this.stage = stage;
+    }
+    /**
+     * Begins an outline at a pointer position.
+     *
+     * @param event Pointer event the drag began with.
+     * @param shape What the outline should look like.
+     */
+    start(event, shape) {
+      if (!this.svg) {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("class", "lz-drag-preview");
+        svg.setAttribute("aria-hidden", "true");
+        this.path = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "path"
+        );
+        svg.appendChild(this.path);
+        this.stage.appendChild(svg);
+        this.svg = svg;
+      }
+      this.origin = { x: event.clientX, y: event.clientY };
+      this.svg.style.display = "";
+      this.update(event, shape);
+    }
+    /**
+     * Redraws the outline.
+     *
+     * @param event Current pointer position.
+     * @param shape What the outline should look like.
+     */
+    update(event, shape) {
+      if (!this.path || !this.origin) {
+        return;
+      }
+      const rect = this.stage.getBoundingClientRect();
+      const from = {
+        x: this.origin.x - rect.left,
+        y: this.origin.y - rect.top
+      };
+      let to = toStage(this.stage, event);
+      if (shape.square && "shape" === shape.tool) {
+        to = squareDrag(from, to);
+      }
+      this.path.setAttribute("d", outlineFor(from, to, shape));
+    }
+    /** Hides the outline. */
+    hide() {
+      if (this.svg) {
+        this.svg.style.display = "none";
+        this.path?.setAttribute("d", "");
+      }
+      this.origin = null;
+    }
+    /** Takes the outline off the stage. */
+    destroy() {
+      this.svg?.remove();
+      this.svg = null;
+      this.path = null;
+      this.origin = null;
+    }
+  }
+  function outlineFor(from, to, shape) {
+    if ("gradient" === shape.tool || "line" === shape.shapeKind) {
+      return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+    }
+    const box = rectFromDrag(from, to);
+    if ("ellipse" === shape.shapeKind) {
+      const rx = box.width / 2;
+      const ry = box.height / 2;
+      return `M ${box.x} ${box.y + ry} a ${rx} ${ry} 0 1 0 ${box.width} 0 a ${rx} ${ry} 0 1 0 ${-box.width} 0 Z`;
+    }
+    return `M ${box.x} ${box.y} h ${box.width} v ${box.height} h ${-box.width} Z`;
+  }
+  function cutPatch(buffer, rect) {
+    const patch = document.createElement("canvas");
+    patch.width = rect.width;
+    patch.height = rect.height;
+    const ctx = patch.getContext("2d");
+    if (!ctx) {
+      return null;
+    }
+    const region = ctx.createImageData(rect.width, rect.height);
+    for (let row = 0; row < rect.height; row++) {
+      const from = ((rect.y + row) * buffer.width + rect.x) * 4;
+      region.data.set(
+        buffer.data.subarray(from, from + rect.width * 4),
+        row * rect.width * 4
+      );
+    }
+    ctx.putImageData(region, 0, 0);
+    return patch;
   }
   const RETOUCH_SPACING = 0.25;
   const PIXEL_TOOLS = ["retouch", "tone", "clone", "history"];
@@ -8281,6 +8395,418 @@ void main( void )
     history: "restore",
     tone: void 0
   };
+  function isPixelTool(tool) {
+    return PIXEL_TOOLS.includes(tool);
+  }
+  class PixelStroke {
+    /**
+     * @param options Tool wiring.
+     */
+    constructor(options) {
+      this.work = null;
+      this.carry = null;
+      this.pristine = null;
+      this.offset = null;
+      this.options = options;
+    }
+    /**
+     * Fixes where the clone stamp copies from for this stroke.
+     *
+     * @param offset Distance from the stroke to the sample point, in canvas pixels.
+     */
+    setCloneOffset(offset) {
+      this.offset = offset;
+    }
+    /**
+     * Prepares a stroke.
+     *
+     * @param tool Active tool.
+     */
+    begin(tool) {
+      if (!isPixelTool(tool)) {
+        return;
+      }
+      const source = this.options.readDocument();
+      this.carry = null;
+      this.work = source ? {
+        data: new Uint8ClampedArray(source.pixels),
+        width: source.width,
+        height: source.height
+      } : null;
+      if ("history" !== tool) {
+        this.pristine = null;
+        return;
+      }
+      const pristine = this.options.readPristine();
+      this.pristine = pristine ? {
+        data: pristine.pixels,
+        width: pristine.width,
+        height: pristine.height
+      } : null;
+    }
+    /**
+     * Applies one dab and composites the changed pixels back.
+     *
+     * @param point Canvas coordinates.
+     * @param tool  Active tool.
+     */
+    dab(point, tool) {
+      const work = this.work;
+      if (!work) {
+        return;
+      }
+      const brush = this.options.getBrush();
+      const op = PIXEL_OPS[tool] ?? ("tone" === tool ? brush.tone : brush.retouch);
+      if ("restore" === op && !this.pristine) {
+        return;
+      }
+      const result = applyPixelDab({
+        op,
+        target: work,
+        source: "restore" === op ? this.pristine : void 0,
+        x: point.x,
+        y: point.y,
+        radius: brush.size,
+        strength: brush.strength,
+        hardness: brush.hardness,
+        offsetX: this.offset?.x ?? 0,
+        offsetY: this.offset?.y ?? 0,
+        carry: this.carry
+      });
+      if (!result) {
+        return;
+      }
+      this.carry = result.carry ?? this.carry;
+      const patch = cutPatch(work, result.rect);
+      if (!patch) {
+        return;
+      }
+      this.options.composite(
+        this.options.getTargetLayerId(),
+        patch,
+        result.rect.x,
+        result.rect.y,
+        1
+      );
+    }
+    /** Drops the stroke's buffers. */
+    reset() {
+      this.work = null;
+      this.carry = null;
+      this.pristine = null;
+    }
+  }
+  class SelectionGesture {
+    constructor() {
+      this.from = null;
+      this.points = [];
+    }
+    /** Whether a drag is currently extending a marquee. */
+    get isDragging() {
+      return null !== this.from;
+    }
+    /** The vertices placed so far. */
+    get vertices() {
+      return this.points;
+    }
+    /**
+     * Places one vertex, for the shapes built click by click.
+     *
+     * @param point Normalised coordinates.
+     * @return The selection to show.
+     */
+    addVertex(point) {
+      this.points = appendPathPoint(this.points, point, 0);
+      return { shape: "polygon", points: this.points };
+    }
+    /**
+     * Starts a marquee.
+     *
+     * @param point Normalised coordinates.
+     * @param shape Which shape the marquee tool draws.
+     * @return The selection to show, or null to clear it.
+     */
+    begin(point, shape) {
+      if ("polygon" === shape) {
+        return this.addVertex(point);
+      }
+      this.from = point;
+      this.points = [point];
+      return null;
+    }
+    /**
+     * Extends a marquee.
+     *
+     * @param point Normalised coordinates.
+     * @param shape Which shape the marquee tool draws.
+     * @return The selection to show, or null when there is no drag to extend.
+     */
+    extend(point, shape) {
+      if (!this.from) {
+        return null;
+      }
+      if ("lasso" === shape) {
+        this.points = appendPathPoint(this.points, point);
+        return { shape: "lasso", points: this.points };
+      }
+      return selectionFromDrag(shape, this.from, point);
+    }
+    /** Ends a drag, leaving whatever it produced in place. */
+    endDrag() {
+      this.from = null;
+    }
+    /** Abandons a half-placed polygon or path. */
+    clear() {
+      this.points = [];
+      this.from = null;
+    }
+  }
+  function newGesture(options) {
+    return {
+      selection: new SelectionGesture(),
+      preview: new DragPreview(options.stage),
+      stroke: new PixelStroke(options),
+      drawing: false,
+      last: null,
+      dragFrom: null,
+      cloneSource: null
+    };
+  }
+  function endGesture(gesture) {
+    gesture.drawing = false;
+    gesture.last = null;
+    gesture.dragFrom = null;
+    gesture.selection.endDrag();
+    gesture.stroke.reset();
+    gesture.preview.hide();
+  }
+  function previewShape(options, event) {
+    return {
+      tool: options.getTool(),
+      shapeKind: options.getBrush().shapeKind,
+      square: event.shiftKey
+    };
+  }
+  function paintPath(options, points) {
+    const canvas = options.getCanvas();
+    const brush = options.getBrush();
+    if (points.length < 3) {
+      return false;
+    }
+    const surface = document.createElement("canvas");
+    surface.width = canvas.width;
+    surface.height = canvas.height;
+    const ctx = surface.getContext("2d");
+    if (!ctx) {
+      return false;
+    }
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      const x = point.x * canvas.width;
+      const y = point.y * canvas.height;
+      if (0 === index) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.closePath();
+    if ("fill" === brush.shapeStyle) {
+      ctx.fillStyle = brush.colour;
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = brush.colour;
+      ctx.lineWidth = Math.max(1, brush.strokeWidth);
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    }
+    options.composite(options.getTargetLayerId(), surface, 0, 0, brush.opacity);
+    options.onStrokeEnd();
+    return true;
+  }
+  function pickColour(options, point) {
+    const source = options.readDocument();
+    if (!source) {
+      return;
+    }
+    const x = Math.round(point.x);
+    const y = Math.round(point.y);
+    if (x < 0 || y < 0 || x >= source.width || y >= source.height) {
+      return;
+    }
+    const index = (y * source.width + x) * 4;
+    options.setBrush({
+      colour: rgbToHex(
+        source.pixels[index],
+        source.pixels[index + 1],
+        source.pixels[index + 2]
+      )
+    });
+  }
+  function zoomAtPointer(options, event) {
+    const at = toStage(options.stage, event);
+    options.zoomAt(event.altKey ? 1 / 1.4 : 1.4, at.x, at.y);
+  }
+  function matchRegion(options, point) {
+    const source = options.readDocument();
+    if (!source) {
+      return null;
+    }
+    return floodFillMask(
+      source.pixels,
+      source.width,
+      source.height,
+      point.x,
+      point.y,
+      options.getBrush().tolerance
+    );
+  }
+  function floodFill(options, point) {
+    const mask = matchRegion(options, point);
+    if (!mask) {
+      return;
+    }
+    const brush = options.getBrush();
+    options.fillMask(options.getTargetLayerId(), mask, brush.colour, brush.opacity);
+    options.onStrokeEnd();
+  }
+  function magicWand(options, point) {
+    const mask = matchRegion(options, point);
+    if (!mask) {
+      return;
+    }
+    const ctx = mask.getContext("2d");
+    const pixels = ctx?.getImageData(0, 0, mask.width, mask.height);
+    if (!pixels) {
+      return;
+    }
+    const points = traceMask(pixels);
+    options.setSelection(points.length > 2 ? { shape: "lasso", points } : null);
+  }
+  function routePress(options, gesture, tool, point, event) {
+    const norm = () => normalise(options.getCanvas(), point);
+    switch (tool) {
+      case "zoom":
+        zoomAtPointer(options, event);
+        return "done";
+      case "fill":
+        floodFill(options, point);
+        return "done";
+      case "wand":
+        magicWand(options, point);
+        return "done";
+      case "text":
+        options.onPlaceText(point);
+        return "done";
+      case "path":
+        options.setSelection(gesture.selection.addVertex(norm()));
+        return "done";
+      case "eyedropper":
+        pickColour(options, point);
+        gesture.last = point;
+        return "drag";
+      case "select":
+        options.setSelection(
+          gesture.selection.begin(norm(), options.getSelectionShape())
+        );
+        return "drag";
+      case "gradient":
+      case "shape":
+        gesture.dragFrom = point;
+        gesture.preview.start(event, previewShape(options, event));
+        return "drag";
+      case "clone":
+        return routeClonePress(options, gesture, point, event);
+      default:
+        return "stroke";
+    }
+  }
+  function routeClonePress(options, gesture, point, event) {
+    if (event.altKey) {
+      gesture.cloneSource = point;
+      gesture.stroke.setCloneOffset(null);
+      options.onToolStateChange?.();
+      return "done";
+    }
+    if (!gesture.cloneSource) {
+      return "done";
+    }
+    gesture.stroke.setCloneOffset({
+      x: point.x - gesture.cloneSource.x,
+      y: point.y - gesture.cloneSource.y
+    });
+    return "stroke";
+  }
+  function commitRegion(options, from, event) {
+    const to = toCanvas(options, event);
+    if (!to) {
+      return;
+    }
+    const tool = options.getTool();
+    const brush = options.getBrush();
+    const canvas = options.getCanvas();
+    const end = event.shiftKey && "shape" === tool ? squareDrag(from, to) : to;
+    const bitmap = "gradient" === tool ? gradientCanvas(
+      canvas.width,
+      canvas.height,
+      brush.gradient,
+      from,
+      end,
+      brush.colour,
+      brush.background,
+      brush.gradientFade
+    ) : shapeCanvas(canvas.width, canvas.height, from, end, {
+      kind: brush.shapeKind,
+      style: brush.shapeStyle,
+      colour: brush.colour,
+      strokeWidth: brush.strokeWidth
+    });
+    if (!bitmap) {
+      return;
+    }
+    options.composite(options.getTargetLayerId(), bitmap, 0, 0, brush.opacity);
+    options.onStrokeEnd();
+  }
+  function stampDab(options, point, erasing) {
+    const brush = options.getBrush();
+    options.stamp(
+      options.getTargetLayerId(),
+      brushStamp(brush.shape, brush.size, brush.hardness),
+      point.x,
+      point.y,
+      brush.size,
+      brush.colour,
+      brush.opacity,
+      erasing
+    );
+  }
+  function strokeDab(options, gesture, point, tool) {
+    if (isPixelTool(tool)) {
+      gesture.stroke.dab(point, tool);
+      return;
+    }
+    stampDab(options, point, "eraser" === tool);
+  }
+  function continueStroke(options, gesture, point, tool) {
+    const last = gesture.last;
+    if (!gesture.drawing || !last) {
+      return;
+    }
+    const spacing = isPixelTool(tool) ? RETOUCH_SPACING : STAMP_SPACING;
+    const step = options.getBrush().size * spacing;
+    for (const at of interpolateStroke(last, point, step)) {
+      strokeDab(options, gesture, at, tool);
+    }
+    gesture.last = point;
+  }
+  function panBy(options, gesture, event) {
+    const last = gesture.last;
+    if (!last) {
+      return;
+    }
+    options.pan(event.clientX - last.x, event.clientY - last.y);
+    gesture.last = { x: event.clientX, y: event.clientY };
+  }
   function defaultBrush() {
     return {
       shape: "soft",
@@ -8305,172 +8831,85 @@ void main( void )
     };
   }
   class StageTools {
+    /**
+     * @param options Tool wiring.
+     */
     constructor(options) {
-      this.drawing = false;
-      this.last = null;
-      this.dragStart = null;
-      this.dragFrom = null;
-      this.path = [];
-      this.work = null;
-      this.carry = null;
-      this.pristine = null;
-      this.cloneSource = null;
-      this.cloneOffset = null;
-      this.preview = null;
-      this.previewPath = null;
       this.onPointerDown = (event) => {
         const tool = this.options.getTool();
-        if (tool === "transform" || tool === "crop") {
+        if ("transform" === tool || "crop" === tool) {
           return;
         }
-        if (tool === "hand") {
+        if ("hand" === tool) {
           event.preventDefault();
-          this.last = { x: event.clientX, y: event.clientY };
+          this.gesture.last = { x: event.clientX, y: event.clientY };
           this.listen();
           return;
         }
-        const point = this.toCanvas(event);
+        const point = toCanvas(this.options, event);
         if (!point) {
           return;
         }
         event.preventDefault();
-        switch (tool) {
-          case "zoom":
-            this.zoom(event);
-            return;
-          case "eyedropper":
-            this.pick(point);
-            this.last = point;
-            this.listen();
-            return;
-          case "fill":
-            this.fill(point);
-            return;
-          case "wand":
-            this.wand(point);
-            return;
-          case "text":
-            this.options.onPlaceText(point);
-            return;
-          case "path":
-            this.path = appendPathPoint(this.path, this.normalise(point), 0);
-            this.options.setSelection({ shape: "polygon", points: this.path });
-            return;
-          case "select":
-            this.beginSelect(point);
-            this.listen();
-            return;
-          case "gradient":
-          case "shape":
-            this.dragFrom = point;
-            this.showPreview(event, event);
-            this.listen();
-            return;
-          case "clone":
-            if (event.altKey) {
-              this.cloneSource = point;
-              this.cloneOffset = null;
-              this.options.onToolStateChange?.();
-              return;
-            }
-            if (!this.cloneSource) {
-              return;
-            }
-            this.cloneOffset = {
-              x: point.x - this.cloneSource.x,
-              y: point.y - this.cloneSource.y
-            };
-            break;
+        const outcome = routePress(this.options, this.gesture, tool, point, event);
+        if ("done" === outcome) {
+          return;
         }
-        this.drawing = true;
-        this.last = point;
-        this.beginPixelStroke(tool);
-        this.strokeDab(point, tool);
+        if ("stroke" === outcome) {
+          this.gesture.drawing = true;
+          this.gesture.last = point;
+          this.gesture.stroke.begin(tool);
+          strokeDab(this.options, this.gesture, point, tool);
+        }
         this.listen();
       };
       this.onPointerMove = (event) => {
         const tool = this.options.getTool();
-        if (tool === "hand") {
-          if (this.last) {
-            this.options.pan(
-              event.clientX - this.last.x,
-              event.clientY - this.last.y
-            );
-            this.last = { x: event.clientX, y: event.clientY };
-          }
+        if ("hand" === tool) {
+          panBy(this.options, this.gesture, event);
           return;
         }
-        const point = this.toCanvas(event);
+        const point = toCanvas(this.options, event);
         if (!point) {
           return;
         }
-        if (tool === "eyedropper") {
-          this.pick(point);
+        if ("eyedropper" === tool) {
+          pickColour(this.options, point);
           return;
         }
-        if (this.dragFrom) {
-          this.updatePreview(event);
+        if (this.gesture.dragFrom) {
+          this.gesture.preview.update(event, previewShape(this.options, event));
           return;
         }
-        if (this.dragStart) {
-          this.continueSelect(point);
+        if (this.gesture.selection.isDragging) {
+          this.options.setSelection(
+            this.gesture.selection.extend(
+              normalise(this.options.getCanvas(), point),
+              this.options.getSelectionShape()
+            )
+          );
           return;
         }
-        if (!this.drawing || !this.last) {
-          return;
-        }
-        const brush = this.options.getBrush();
-        const spacing = PIXEL_TOOLS.includes(tool) ? RETOUCH_SPACING : STAMP_SPACING;
-        for (const step of interpolateStroke(this.last, point, brush.size * spacing)) {
-          this.strokeDab(step, tool);
-        }
-        this.last = point;
+        continueStroke(this.options, this.gesture, point, tool);
       };
       this.onPointerUp = (event) => {
         window.removeEventListener("pointermove", this.onPointerMove);
         window.removeEventListener("pointerup", this.onPointerUp);
         window.removeEventListener("pointercancel", this.onPointerUp);
         window.removeEventListener("blur", this.onPointerUp);
-        const wasDrawing = this.drawing;
-        const dragFrom = this.dragFrom;
-        this.drawing = false;
-        this.last = null;
-        this.dragStart = null;
-        this.dragFrom = null;
-        this.work = null;
-        this.carry = null;
-        this.pristine = null;
-        this.hidePreview();
+        const wasDrawing = this.gesture.drawing;
+        const dragFrom = this.gesture.dragFrom;
+        endGesture(this.gesture);
         if (dragFrom && event instanceof PointerEvent) {
-          this.commitRegion(dragFrom, event);
+          commitRegion(this.options, dragFrom, event);
         }
         if (wasDrawing) {
           this.options.onStrokeEnd();
         }
       };
-      this.previewOrigin = null;
       this.options = options;
+      this.gesture = newGesture(options);
       options.stage.addEventListener("pointerdown", this.onPointerDown);
-    }
-    /**
-     * Converts a pointer position into canvas pixels.
-     *
-     * @param event Pointer event.
-     * @return Canvas coordinates, or null when nothing is loaded.
-     */
-    toCanvas(event) {
-      const viewport = this.options.getViewport();
-      const canvas = this.options.getCanvas();
-      if (!viewport || viewport.width === 0 || canvas.width === 0) {
-        return null;
-      }
-      const stageRect = this.options.stage.getBoundingClientRect();
-      const x = event.clientX - stageRect.left - viewport.x;
-      const y = event.clientY - stageRect.top - viewport.y;
-      return {
-        x: x / viewport.width * canvas.width,
-        y: y / viewport.height * canvas.height
-      };
     }
     /** Starts tracking a drag on the window, so a release anywhere ends it. */
     listen() {
@@ -8479,472 +8918,36 @@ void main( void )
       window.addEventListener("pointercancel", this.onPointerUp);
       window.addEventListener("blur", this.onPointerUp);
     }
-    // -- Selection ------------------------------------------------------------
-    /**
-     * Starts a marquee.
-     *
-     * @param point Canvas coordinates.
-     */
-    beginSelect(point) {
-      const shape = this.options.getSelectionShape();
-      const norm = this.normalise(point);
-      if (shape === "polygon") {
-        this.path = appendPathPoint(this.path, norm, 0);
-        this.options.setSelection({ shape: "polygon", points: this.path });
-        return;
-      }
-      this.dragStart = norm;
-      this.path = [norm];
-      this.options.setSelection(null);
-    }
-    /**
-     * Extends a marquee.
-     *
-     * @param point Canvas coordinates.
-     */
-    continueSelect(point) {
-      const shape = this.options.getSelectionShape();
-      const norm = this.normalise(point);
-      if (!this.dragStart) {
-        return;
-      }
-      if (shape === "lasso") {
-        this.path = appendPathPoint(this.path, norm);
-        this.options.setSelection({ shape: "lasso", points: this.path });
-        return;
-      }
-      this.options.setSelection(
-        selectionFromDrag(shape, this.dragStart, norm)
-      );
-    }
-    /**
-     * Selects the contiguous region matching the colour under the pointer.
-     *
-     * The same flood fill the paint bucket uses, traced into a path -- which is the
-     * whole reason the wand was cheap to add.
-     *
-     * @param point Canvas coordinates.
-     */
-    wand(point) {
-      const source = this.options.readDocument();
-      if (!source) {
-        return;
-      }
-      const brush = this.options.getBrush();
-      const mask = floodFillMask(
-        source.pixels,
-        source.width,
-        source.height,
-        point.x,
-        point.y,
-        brush.tolerance
-      );
-      if (!mask) {
-        return;
-      }
-      const ctx = mask.getContext("2d");
-      const pixels = ctx?.getImageData(0, 0, mask.width, mask.height);
-      if (!pixels) {
-        return;
-      }
-      const points = traceMask(pixels);
-      this.options.setSelection(
-        points.length > 2 ? { shape: "lasso", points } : null
-      );
-    }
-    // -- Point tools ----------------------------------------------------------
-    /**
-     * Samples the colour under the pointer into the foreground.
-     *
-     * @param point Canvas coordinates.
-     */
-    pick(point) {
-      const source = this.options.readDocument();
-      if (!source) {
-        return;
-      }
-      const x = Math.round(point.x);
-      const y = Math.round(point.y);
-      if (x < 0 || y < 0 || x >= source.width || y >= source.height) {
-        return;
-      }
-      const index = (y * source.width + x) * 4;
-      this.options.setBrush({
-        colour: rgbToHex(
-          source.pixels[index],
-          source.pixels[index + 1],
-          source.pixels[index + 2]
-        )
-      });
-    }
-    /**
-     * Zooms in, or out with Alt held.
-     *
-     * @param event Pointer event, positioned within the stage.
-     */
-    zoom(event) {
-      const rect = this.options.stage.getBoundingClientRect();
-      this.options.zoomAt(
-        event.altKey ? 1 / 1.4 : 1.4,
-        event.clientX - rect.left,
-        event.clientY - rect.top
-      );
-    }
-    /**
-     * Floods the region matching the colour under the pointer.
-     *
-     * Matched against the *composed* document rather than the target layer, because
-     * that is what the user can see -- filling against an invisible layer's contents
-     * would look arbitrary.
-     *
-     * @param point Canvas coordinates.
-     */
-    fill(point) {
-      const source = this.options.readDocument();
-      if (!source) {
-        return;
-      }
-      const brush = this.options.getBrush();
-      const mask = floodFillMask(
-        source.pixels,
-        source.width,
-        source.height,
-        point.x,
-        point.y,
-        brush.tolerance
-      );
-      if (!mask) {
-        return;
-      }
-      this.options.fillMask(
-        this.options.getTargetLayerId(),
-        mask,
-        brush.colour,
-        brush.opacity
-      );
-      this.options.onStrokeEnd();
-    }
-    // -- Region drags ---------------------------------------------------------
-    /**
-     * Commits a gradient or a shape once the drag ends.
-     *
-     * @param from  Canvas coordinates the drag began at.
-     * @param event The releasing pointer event.
-     */
-    commitRegion(from, event) {
-      const to = this.toCanvas(event);
-      const tool = this.options.getTool();
-      const brush = this.options.getBrush();
-      const canvas = this.options.getCanvas();
-      if (!to) {
-        return;
-      }
-      const end = event.shiftKey && tool === "shape" ? squareDrag(from, to) : to;
-      const bitmap = tool === "gradient" ? gradientCanvas(
-        canvas.width,
-        canvas.height,
-        brush.gradient,
-        from,
-        end,
-        brush.colour,
-        brush.background,
-        brush.gradientFade
-      ) : shapeCanvas(canvas.width, canvas.height, from, end, {
-        kind: brush.shapeKind,
-        style: brush.shapeStyle,
-        colour: brush.colour,
-        strokeWidth: brush.strokeWidth
-      });
-      if (!bitmap) {
-        return;
-      }
-      this.options.composite(
-        this.options.getTargetLayerId(),
-        bitmap,
-        0,
-        0,
-        brush.opacity
-      );
-      this.options.onStrokeEnd();
-    }
-    /**
-     * Creates the dashed drag preview.
-     *
-     * Screen-space SVG rather than a real render: committing a canvas-sized bitmap on
-     * every pointer move would allocate and upload megabytes per frame on a large
-     * document, to show something an outline conveys perfectly.
-     *
-     * @param origin Where the drag began.
-     * @param event  Current pointer position.
-     */
-    showPreview(origin, event) {
-      if (!this.preview) {
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("class", "lz-drag-preview");
-        svg.setAttribute("aria-hidden", "true");
-        this.previewPath = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "path"
-        );
-        svg.appendChild(this.previewPath);
-        this.options.stage.appendChild(svg);
-        this.preview = svg;
-      }
-      this.previewOrigin = {
-        x: origin.clientX,
-        y: origin.clientY
-      };
-      this.preview.style.display = "";
-      this.updatePreview(event);
-    }
-    /**
-     * Redraws the drag preview.
-     *
-     * @param event Current pointer position.
-     */
-    updatePreview(event) {
-      if (!this.previewPath || !this.previewOrigin) {
-        return;
-      }
-      const rect = this.options.stage.getBoundingClientRect();
-      const from = {
-        x: this.previewOrigin.x - rect.left,
-        y: this.previewOrigin.y - rect.top
-      };
-      let to = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      const tool = this.options.getTool();
-      const brush = this.options.getBrush();
-      if (event.shiftKey && tool === "shape") {
-        to = squareDrag(from, to);
-      }
-      if (tool === "gradient" || brush.shapeKind === "line") {
-        this.previewPath.setAttribute(
-          "d",
-          `M ${from.x} ${from.y} L ${to.x} ${to.y}`
-        );
-        return;
-      }
-      const box = rectFromDrag(from, to);
-      if (brush.shapeKind === "ellipse") {
-        const rx = box.width / 2;
-        const ry = box.height / 2;
-        this.previewPath.setAttribute(
-          "d",
-          `M ${box.x} ${box.y + ry} a ${rx} ${ry} 0 1 0 ${box.width} 0 a ${rx} ${ry} 0 1 0 ${-box.width} 0 Z`
-        );
-        return;
-      }
-      this.previewPath.setAttribute(
-        "d",
-        `M ${box.x} ${box.y} h ${box.width} v ${box.height} h ${-box.width} Z`
-      );
-    }
-    /** Hides the drag preview. */
-    hidePreview() {
-      if (this.preview) {
-        this.preview.style.display = "none";
-        this.previewPath?.setAttribute("d", "");
-      }
-      this.previewOrigin = null;
-    }
-    // -- Strokes --------------------------------------------------------------
-    /**
-     * Prepares a retouching stroke.
-     *
-     * The pixel operations read the composed document, because that is what the user
-     * sees -- the base image layer is not canvas-aligned, so reading it directly would
-     * blur the wrong pixels the moment the image had been moved. Reading once per
-     * stroke rather than once per dab is what keeps them usable on a big photo.
-     *
-     * @param tool Active tool.
-     */
-    beginPixelStroke(tool) {
-      if (!PIXEL_TOOLS.includes(tool)) {
-        return;
-      }
-      const source = this.options.readDocument();
-      this.carry = null;
-      this.work = source ? {
-        data: new Uint8ClampedArray(source.pixels),
-        width: source.width,
-        height: source.height
-      } : null;
-      if (tool === "history") {
-        const pristine = this.options.readPristine();
-        this.pristine = pristine ? {
-          data: pristine.pixels,
-          width: pristine.width,
-          height: pristine.height
-        } : null;
-      } else {
-        this.pristine = null;
-      }
-    }
-    /**
-     * Places one dab, whichever kind the tool wants.
-     *
-     * @param point Canvas coordinates.
-     * @param tool  Active tool.
-     */
-    strokeDab(point, tool) {
-      if (PIXEL_TOOLS.includes(tool)) {
-        this.pixelDab(point, tool);
-        return;
-      }
-      const brush = this.options.getBrush();
-      this.options.stamp(
-        this.options.getTargetLayerId(),
-        brushStamp(brush.shape, brush.size, brush.hardness),
-        point.x,
-        point.y,
-        brush.size,
-        brush.colour,
-        brush.opacity,
-        tool === "eraser"
-      );
-    }
-    /**
-     * Applies one retouching dab and composites the changed pixels back.
-     *
-     * Only the dab's own dirty rectangle is uploaded, so the cost is proportional to
-     * the brush rather than to the document.
-     *
-     * @param point Canvas coordinates.
-     * @param tool  Active tool.
-     */
-    pixelDab(point, tool) {
-      const work = this.work;
-      if (!work) {
-        return;
-      }
-      const brush = this.options.getBrush();
-      const op = PIXEL_OPS[tool] ?? (tool === "tone" ? brush.tone : brush.retouch);
-      if (op === "restore" && !this.pristine) {
-        return;
-      }
-      const result = applyPixelDab({
-        op,
-        target: work,
-        source: op === "restore" ? this.pristine : void 0,
-        x: point.x,
-        y: point.y,
-        radius: brush.size,
-        strength: brush.strength,
-        hardness: brush.hardness,
-        offsetX: this.cloneOffset?.x ?? 0,
-        offsetY: this.cloneOffset?.y ?? 0,
-        carry: this.carry
-      });
-      if (!result) {
-        return;
-      }
-      this.carry = result.carry ?? this.carry;
-      const patch = document.createElement("canvas");
-      patch.width = result.rect.width;
-      patch.height = result.rect.height;
-      const ctx = patch.getContext("2d");
-      if (!ctx) {
-        return;
-      }
-      const region = ctx.createImageData(result.rect.width, result.rect.height);
-      for (let row = 0; row < result.rect.height; row++) {
-        const from = ((result.rect.y + row) * work.width + result.rect.x) * 4;
-        region.data.set(
-          work.data.subarray(from, from + result.rect.width * 4),
-          row * result.rect.width * 4
-        );
-      }
-      ctx.putImageData(region, 0, 0);
-      this.options.composite(
-        this.options.getTargetLayerId(),
-        patch,
-        result.rect.x,
-        result.rect.y,
-        1
-      );
-    }
-    /**
-     * Converts canvas pixels into normalised canvas coordinates.
-     *
-     * @param point Canvas pixels.
-     */
-    normalise(point) {
-      const canvas = this.options.getCanvas();
-      return { x: point.x / canvas.width, y: point.y / canvas.height };
-    }
     /** Where the clone stamp is currently sampling from, if anywhere. */
     getCloneSource() {
-      return this.cloneSource;
+      return this.gesture.cloneSource;
     }
     /** Forgets the clone sample point. */
     clearCloneSource() {
-      this.cloneSource = null;
-      this.cloneOffset = null;
+      this.gesture.cloneSource = null;
+      this.gesture.stroke.setCloneOffset(null);
       this.options.onToolStateChange?.();
     }
     /**
      * Paints the placed path with the current colour and style.
      *
-     * Called when the path is closed with Enter. Reuses the shape drawing, which is why
-     * a pen tool cost a dozen lines rather than a vector subsystem.
-     *
      * @return Whether anything was drawn.
      */
     commitPath() {
-      const canvas = this.options.getCanvas();
-      const brush = this.options.getBrush();
-      if (this.path.length < 3) {
+      if (!paintPath(this.options, this.gesture.selection.vertices)) {
         return false;
       }
-      const surface = document.createElement("canvas");
-      surface.width = canvas.width;
-      surface.height = canvas.height;
-      const ctx = surface.getContext("2d");
-      if (!ctx) {
-        return false;
-      }
-      ctx.beginPath();
-      this.path.forEach((point, index) => {
-        const x = point.x * canvas.width;
-        const y = point.y * canvas.height;
-        if (index === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.closePath();
-      if (brush.shapeStyle === "fill") {
-        ctx.fillStyle = brush.colour;
-        ctx.fill();
-      } else {
-        ctx.strokeStyle = brush.colour;
-        ctx.lineWidth = Math.max(1, brush.strokeWidth);
-        ctx.lineJoin = "round";
-        ctx.stroke();
-      }
-      this.options.composite(
-        this.options.getTargetLayerId(),
-        surface,
-        0,
-        0,
-        brush.opacity
-      );
-      this.options.onStrokeEnd();
       this.clearPath();
       return true;
     }
     /** Abandons a half-placed polygon. */
     clearPath() {
-      this.path = [];
-      this.dragStart = null;
+      this.gesture.selection.clear();
     }
     /** Removes the listeners. */
     destroy() {
       this.onPointerUp();
-      this.preview?.remove();
-      this.preview = null;
-      this.previewPath = null;
+      this.gesture.preview.destroy();
       this.options.stage.removeEventListener("pointerdown", this.onPointerDown);
     }
   }
@@ -9247,56 +9250,164 @@ void main( void )
     { id: "hand", glyph: "☞", label: "Hand", key: "h", group: 5 },
     { id: "zoom", glyph: "⌕", label: "Zoom", key: "z", group: 5 }
   ];
+  function buildToolGrid(onSelect) {
+    const el = document.createElement("div");
+    el.className = "lz-rail__grid";
+    el.setAttribute("role", "toolbar");
+    el.setAttribute("aria-orientation", "vertical");
+    el.setAttribute("aria-label", __("Tools"));
+    const buttons = /* @__PURE__ */ new Map();
+    let group = TOOLS[0]?.group;
+    let inGroup = 0;
+    for (const tool of TOOLS) {
+      if (tool.group !== group) {
+        if (1 === inGroup % 2) {
+          el.appendChild(filler("lz-rail__spacer"));
+        }
+        el.appendChild(filler("lz-rail__rule"));
+        group = tool.group;
+        inGroup = 0;
+      }
+      inGroup++;
+      const button = createIconButton({
+        glyph: tool.glyph,
+        label: `${__(tool.label)} (${tool.key.toUpperCase()})`,
+        className: "lz-rail__button",
+        onClick: () => onSelect(tool.id)
+      });
+      button.el.setAttribute("aria-pressed", "false");
+      buttons.set(tool.id, button);
+      el.appendChild(button.el);
+    }
+    return { el, buttons };
+  }
+  function filler(className) {
+    const el = document.createElement("span");
+    el.className = className;
+    el.setAttribute("aria-hidden", "true");
+    return el;
+  }
+  class ToolMenu {
+    /**
+     * @param options Menu configuration.
+     */
+    constructor(options) {
+      this.el = null;
+      this.detachAway = null;
+      this.options = options;
+    }
+    /** Shows the list, or hides it if it is already up. */
+    toggle() {
+      if (this.el) {
+        this.close();
+        return;
+      }
+      this.open();
+    }
+    /** Builds and places the list. */
+    open() {
+      const menu = document.createElement("div");
+      menu.className = "lz-rail-menu";
+      menu.setAttribute("role", "menu");
+      menu.setAttribute("aria-label", __("All tools"));
+      for (const tool of TOOLS) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "lz-rail-menu__item";
+        item.setAttribute("role", "menuitem");
+        const glyph = document.createElement("span");
+        glyph.className = "lz-rail-menu__glyph";
+        glyph.textContent = tool.glyph;
+        const name = document.createElement("span");
+        name.textContent = __(tool.label);
+        const key = document.createElement("kbd");
+        key.textContent = tool.key.toUpperCase();
+        item.append(glyph, name, key);
+        item.addEventListener("click", () => {
+          this.options.onSelect(tool.id);
+          this.close();
+        });
+        menu.appendChild(item);
+      }
+      floatingHost(this.options.within).appendChild(menu);
+      positionFloating(menu, this.options.anchor, "inline-end");
+      this.el = menu;
+      this.watchForClickAway(menu);
+    }
+    /**
+     * Closes the menu when the next click lands outside it.
+     *
+     * @param menu The open menu.
+     */
+    watchForClickAway(menu) {
+      const onAway = (event) => {
+        if (event.target instanceof Node && !menu.contains(event.target) && !this.options.anchor.contains(event.target)) {
+          this.close();
+        }
+      };
+      window.setTimeout(() => document.addEventListener("click", onAway), 0);
+      this.detachAway = () => document.removeEventListener("click", onAway);
+    }
+    /** Removes the tool list. */
+    close() {
+      this.detachAway?.();
+      this.detachAway = null;
+      this.el?.remove();
+      this.el = null;
+    }
+  }
+  function attachToolShortcuts(options, swatches, onModes) {
+    const onKey = (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      const actions = {
+        x: () => swatches.swap(),
+        d: () => swatches.reset(),
+        q: () => {
+          options.setQuickMask(!options.getQuickMask());
+          onModes();
+        },
+        f: () => {
+          options.setFullScreen(!options.getFullScreen());
+          onModes();
+        }
+      };
+      if (actions[key]) {
+        event.preventDefault();
+        actions[key]();
+        return;
+      }
+      const match = TOOLS.find((tool) => tool.key === key);
+      if (match) {
+        event.preventDefault();
+        options.onSelect(match.id);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }
   class ToolRail {
     constructor(options) {
-      this.buttons = /* @__PURE__ */ new Map();
-      this.menu = null;
       this.detach = [];
-      this.menuHandles = [];
-      this.closeAway = null;
       this.options = options;
       this.el = document.createElement("div");
       this.el.className = "lz-rail";
-      const grid = document.createElement("div");
-      grid.className = "lz-rail__grid";
-      grid.setAttribute("role", "toolbar");
-      grid.setAttribute("aria-orientation", "vertical");
-      grid.setAttribute("aria-label", __("Tools"));
-      let group = TOOLS[0]?.group;
-      let inGroup = 0;
-      for (const tool of TOOLS) {
-        if (tool.group !== group) {
-          if (inGroup % 2 === 1) {
-            const spacer = document.createElement("span");
-            spacer.className = "lz-rail__spacer";
-            spacer.setAttribute("aria-hidden", "true");
-            grid.appendChild(spacer);
-          }
-          const rule = document.createElement("span");
-          rule.className = "lz-rail__rule";
-          rule.setAttribute("aria-hidden", "true");
-          grid.appendChild(rule);
-          group = tool.group;
-          inGroup = 0;
-        }
-        inGroup++;
-        const button = createIconButton({
-          glyph: tool.glyph,
-          label: `${__(tool.label)} (${tool.key.toUpperCase()})`,
-          className: "lz-rail__button",
-          onClick: () => options.onSelect(tool.id)
-        });
-        button.el.setAttribute("aria-pressed", "false");
-        this.buttons.set(tool.id, button);
-        grid.appendChild(button.el);
-      }
+      const grid = buildToolGrid(options.onSelect);
+      this.buttons = grid.buttons;
       this.overflow = createIconButton({
         glyph: "⋯",
         label: __("All tools"),
         className: "lz-rail__button",
-        onClick: () => this.toggleMenu()
+        onClick: () => this.menu.toggle()
       });
-      grid.appendChild(this.overflow.el);
+      grid.el.appendChild(this.overflow.el);
+      this.menu = new ToolMenu({
+        anchor: this.overflow.el,
+        within: this.el,
+        onSelect: options.onSelect
+      });
       this.swatches = new Swatches(options);
       this.quickMask = createIconButton({
         glyph: "◍",
@@ -9321,42 +9432,10 @@ void main( void )
       modes.setAttribute("role", "group");
       modes.setAttribute("aria-label", __("Screen modes"));
       modes.append(this.quickMask.el, this.fullScreen.el);
-      this.el.append(grid, this.swatches.el, modes);
-      const onKey = (event) => {
-        if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
-          return;
-        }
-        const key = event.key.toLowerCase();
-        if (key === "x") {
-          event.preventDefault();
-          this.swatches.swap();
-          return;
-        }
-        if (key === "d") {
-          event.preventDefault();
-          this.swatches.reset();
-          return;
-        }
-        if (key === "q") {
-          event.preventDefault();
-          options.setQuickMask(!options.getQuickMask());
-          this.syncModes();
-          return;
-        }
-        if (key === "f") {
-          event.preventDefault();
-          options.setFullScreen(!options.getFullScreen());
-          this.syncModes();
-          return;
-        }
-        const match = TOOLS.find((tool) => tool.key === key);
-        if (match) {
-          event.preventDefault();
-          options.onSelect(match.id);
-        }
-      };
-      document.addEventListener("keydown", onKey);
-      this.detach.push(() => document.removeEventListener("keydown", onKey));
+      this.el.append(grid.el, this.swatches.el, modes);
+      this.detach.push(
+        attachToolShortcuts(options, this.swatches, () => this.syncModes())
+      );
       this.sync(options.getActive());
     }
     /**
@@ -9376,73 +9455,13 @@ void main( void )
       this.quickMask.setPressed(this.options.getQuickMask());
       this.fullScreen.setPressed(this.options.getFullScreen());
     }
-    /**
-     * Shows or hides the named tool list.
-     *
-     * A plain list rather than Desktop Mode's `wpd-menu`: this has to work identically
-     * with the shell absent, and a menu is the one control where a half-registered
-     * component would leave the user with nothing clickable.
-     */
-    toggleMenu() {
-      if (this.menu) {
-        this.closeMenu();
-        return;
-      }
-      const menu = document.createElement("div");
-      menu.className = "lz-rail-menu";
-      menu.setAttribute("role", "menu");
-      menu.setAttribute("aria-label", __("All tools"));
-      const handles = [];
-      for (const tool of TOOLS) {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "lz-rail-menu__item";
-        item.setAttribute("role", "menuitem");
-        item.innerHTML = "";
-        const glyph = document.createElement("span");
-        glyph.className = "lz-rail-menu__glyph";
-        glyph.textContent = tool.glyph;
-        const name = document.createElement("span");
-        name.textContent = __(tool.label);
-        const key = document.createElement("kbd");
-        key.textContent = tool.key.toUpperCase();
-        item.append(glyph, name, key);
-        item.addEventListener("click", () => {
-          this.options.onSelect(tool.id);
-          this.closeMenu();
-        });
-        menu.appendChild(item);
-      }
-      floatingHost(this.el).appendChild(menu);
-      positionFloating(menu, this.overflow.el, "inline-end");
-      this.menu = menu;
-      this.menuHandles = handles;
-      const onAway = (event) => {
-        if (event.target instanceof Node && !menu.contains(event.target) && !this.overflow.el.contains(event.target)) {
-          this.closeMenu();
-        }
-      };
-      window.setTimeout(() => document.addEventListener("click", onAway), 0);
-      this.closeAway = () => document.removeEventListener("click", onAway);
-    }
-    /** Removes the tool list. */
-    closeMenu() {
-      this.closeAway?.();
-      this.closeAway = null;
-      for (const handle of this.menuHandles) {
-        handle.destroy();
-      }
-      this.menuHandles = [];
-      this.menu?.remove();
-      this.menu = null;
-    }
     /** Removes the rail and its shortcuts. */
     destroy() {
       for (const off of this.detach) {
         off();
       }
       this.detach = [];
-      this.closeMenu();
+      this.menu.close();
       for (const button of this.buttons.values()) {
         button.destroy();
       }
@@ -9453,14 +9472,6 @@ void main( void )
       this.swatches.destroy();
       this.el.remove();
     }
-  }
-  function isTypingTarget(target) {
-    if (!(target instanceof HTMLElement)) {
-      return false;
-    }
-    return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || // A Desktop Mode control is a custom element wrapping its own input, so the
-    // tag test alone would let a keystroke inside one switch tools.
-    target.tagName.startsWith("WPD-") || target.closest('[ contenteditable="true" ]') !== null;
   }
   class StageToolset {
     /**

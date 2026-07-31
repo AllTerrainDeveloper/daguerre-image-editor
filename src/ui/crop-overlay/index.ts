@@ -14,15 +14,11 @@
  * just moved -- which is what made an earlier version track at double speed.
  */
 
-import { clampRect } from '../model/document';
-import type { Rect } from '../model/document';
-import { __ } from '../i18n';
-
-/** Which part of the rectangle a drag grabbed. */
-type Handle = 'move' | 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'w' | 'e';
-
-/** Smallest crop, as a fraction of the frame, so it can always be grabbed again. */
-const MIN_SIZE = 0.02;
+import { clampRect } from '../../model/document';
+import type { Rect } from '../../model/document';
+import { resizeRect } from './resize';
+import type { Handle } from './resize';
+import { __ } from '../../i18n';
 
 export interface CropOverlayOptions {
 	/** Element the overlay is positioned within -- the stage. */
@@ -191,7 +187,14 @@ export class CropOverlay {
 		const dx = ( event.clientX - this.active.startX ) / viewport.width;
 		const dy = ( event.clientY - this.active.startY ) / viewport.height;
 
-		this.rect = this.resize( this.active.startRect, this.active.handle, dx, dy );
+		this.rect = resizeRect(
+			this.active.startRect,
+			this.active.handle,
+			dx,
+			dy,
+			this.aspect,
+			this.active.viewport
+		);
 
 		this.options.onChange?.( this.rect );
 		this.sync();
@@ -208,73 +211,6 @@ export class CropOverlay {
 		this.active = null;
 		this.options.onChange?.( this.rect );
 	};
-
-	/**
-	 * Applies a drag delta to a rectangle.
-	 *
-	 * @param start  Rectangle at the start of the drag.
-	 * @param handle Which handle is being dragged.
-	 * @param dx     Horizontal delta, as a fraction of the frame.
-	 * @param dy     Vertical delta, as a fraction of the frame.
-	 */
-	private resize( start: Rect, handle: Handle, dx: number, dy: number ): Rect {
-		if ( handle === 'move' ) {
-			return clampRect( { ...start, x: start.x + dx, y: start.y + dy } );
-		}
-
-		let { x, y, w, h } = start;
-
-		if ( handle.includes( 'w' ) ) {
-			const nx = Math.min( x + w - MIN_SIZE, Math.max( 0, x + dx ) );
-			w += x - nx;
-			x = nx;
-		}
-
-		if ( handle.includes( 'e' ) ) {
-			w = Math.min( 1 - x, Math.max( MIN_SIZE, w + dx ) );
-		}
-
-		if ( handle.includes( 'n' ) ) {
-			const ny = Math.min( y + h - MIN_SIZE, Math.max( 0, y + dy ) );
-			h += y - ny;
-			y = ny;
-		}
-
-		if ( handle.includes( 's' ) ) {
-			h = Math.min( 1 - y, Math.max( MIN_SIZE, h + dy ) );
-		}
-
-		const aspect = this.aspect;
-
-		if ( aspect > 0 ) {
-			const viewport = this.active?.viewport;
-			const frameAspect =
-				viewport && viewport.height > 0 ? viewport.width / viewport.height : 1;
-
-			// The crop lives in a unit square, so the target ratio has to be
-			// expressed relative to the frame's own proportions before it can
-			// constrain normalised width against normalised height.
-			const relative = aspect / frameAspect;
-
-			// Drive height from width, unless the handle was purely vertical.
-			if ( handle === 'n' || handle === 's' ) {
-				w = h * relative;
-			} else {
-				h = w / relative;
-			}
-
-			// Re-anchor so the corner opposite the one being dragged stays put.
-			if ( handle.includes( 'n' ) ) {
-				y = start.y + start.h - h;
-			}
-
-			if ( handle.includes( 'w' ) ) {
-				x = start.x + start.w - w;
-			}
-		}
-
-		return clampRect( { x, y, w, h } );
-	}
 
 	/** The rectangle as it currently stands. */
 	getRect(): Rect {
