@@ -10,8 +10,10 @@
 import { __, sprintf } from '../i18n';
 import { createRasterLayer } from '../model/document';
 import { toast } from '../platform';
+import type { PostOrigin } from '../types';
 import { openInDesktop } from '../hosts/desktop-mode';
 import { announceSave } from './save-banner';
+import { askSaveChoice } from './save-choice';
 import type { Editor } from './editor';
 
 /**
@@ -85,14 +87,76 @@ export function addLayer( editor: Editor ): void {
  * @param editor The editor.
  */
 export async function save( editor: Editor ): Promise< void > {
+	const origin = editor.options.origin;
+
+	// Asked before the render, not after. A full-resolution render of a large photo
+	// takes seconds, and spending them on work the user is about to cancel is the
+	// difference between a dialog that feels like a question and one that feels like
+	// a delay.
+	const choice =
+		origin && origin.canAttach
+			? await askSaveChoice( editor.shell.root, origin )
+			: 'copy';
+
+	if ( 'cancel' === choice ) {
+		return;
+	}
+
 	const result = await editor.output.save();
 
 	if ( ! result ) {
 		return;
 	}
 
+	if ( 'attach' === choice && origin ) {
+		await attachResult( editor, origin, result.id );
+	}
+
 	editor.onTeardown(
 		announceSave( editor.shell.sidebar, result, () => openInDesktop( result.id ) )
 	);
 	editor.options.onSave?.( result );
+}
+
+/**
+ * Points the post at the copy that was just written.
+ *
+ * A failure here is reported but not fatal: the copy exists either way, so the user
+ * has lost nothing except the repoint -- and telling them the save failed when the
+ * image is sitting in their library would be worse than telling them what actually
+ * went wrong.
+ *
+ * @param editor The editor.
+ * @param origin The post the image came from.
+ * @param saved  Attachment that was just written.
+ */
+async function attachResult(
+	editor: Editor,
+	origin: PostOrigin,
+	saved: number
+): Promise< void > {
+	try {
+		await editor.client.attachToPost(
+			origin.postId,
+			saved,
+			origin.slot || 'thumbnail',
+			editor.options.attachmentId
+		);
+
+		toast(
+			sprintf(
+				/* translators: %s: post title. */
+				__( '“%s” now uses the edited image.' ),
+				origin.postTitle
+			),
+			'success'
+		);
+	} catch ( error ) {
+		toast(
+			error instanceof Error
+				? error.message
+				: __( 'The copy was saved, but the post could not be updated.' ),
+			'error'
+		);
+	}
 }

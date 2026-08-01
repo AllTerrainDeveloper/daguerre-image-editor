@@ -3,7 +3,7 @@
  */
 
 import type { Recipe } from '../model/recipe';
-import type { MediaPayload, SaveResult } from '../types';
+import type { MediaPayload, PostOrigin, SaveResult } from '../types';
 import type { DroppedImage } from './image-source';
 
 export interface MountOptions {
@@ -11,6 +11,14 @@ export interface MountOptions {
 	attachmentId: number;
 	/** Which surface is hosting the editor. Affects chrome only, never the engine. */
 	host?: 'page' | 'modal' | 'window';
+	/**
+	 * The post this image was opened from, when it was opened from one.
+	 *
+	 * Present when a product -- or any post with a picture -- was dropped onto the
+	 * icon. Saving then offers to point that post at the edit, which is the whole
+	 * reason the drop skips the picker.
+	 */
+	origin?: PostOrigin;
 	/** Called when the user asks to leave. */
 	onClose?: () => void;
 	/** Called after a successful save, with the attachment that was created. */

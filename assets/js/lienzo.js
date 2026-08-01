@@ -197,6 +197,46 @@ var lienzo = function(exports) {
       }
       return response.blob();
     }
+    /**
+     * Finds the image a post is about.
+     *
+     * @param postId Post to look at.
+     * @throws {Error} When the post has no editable image, or is not this user's to
+     *                 edit.
+     */
+    async getPostImage(postId) {
+      const response = await request(
+        `${this.config.restUrl}posts/${postId}/image`,
+        { credentials: "same-origin", headers: this.headers() }
+      );
+      if (!response.ok) {
+        throw await toError(response);
+      }
+      return await response.json();
+    }
+    /**
+     * Points a post's image at an attachment.
+     *
+     * @param postId       Post to update.
+     * @param attachmentId Attachment it should point at.
+     * @param slot         Which image: 'thumbnail' or 'gallery'.
+     * @param replacing    Attachment being replaced, for a gallery slot.
+     * @throws {Error} When the post could not be updated.
+     */
+    async attachToPost(postId, attachmentId, slot, replacing = 0) {
+      const response = await request(
+        `${this.config.restUrl}posts/${postId}/image`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: this.headers({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ attachmentId, slot, replacing })
+        }
+      );
+      if (!response.ok) {
+        throw await toError(response);
+      }
+    }
   }
   const IDENTITY_TRANSFORM = {
     x: 0.5,
@@ -3200,21 +3240,29 @@ void main( void )
       el.type = "button";
       el.classList.add(`lz-button--${options.variant ?? "ghost"}`);
     }
-    el.addEventListener("click", options.onClick);
+    let disabled = false;
+    const onClick = () => {
+      if (!disabled) {
+        options.onClick();
+      }
+    };
+    el.addEventListener("click", onClick);
     return {
       el,
-      setDisabled: (disabled) => {
-        el.toggleAttribute("disabled", disabled);
-        el.classList.toggle("is-disabled", disabled);
+      setDisabled: (off) => {
+        disabled = off;
+        el.toggleAttribute("disabled", off);
+        el.classList.toggle("is-disabled", off);
         if (useWpd) {
-          el.setAttribute("aria-disabled", String(disabled));
+          el.setAttribute("aria-disabled", String(off));
+          el.toggleAttribute("inert", off);
         }
       },
       setPressed: (pressed) => {
         el.classList.toggle(options.pressedClass, pressed);
         el.setAttribute("aria-pressed", String(pressed));
       },
-      destroy: () => el.removeEventListener("click", options.onClick)
+      destroy: () => el.removeEventListener("click", onClick)
     };
   }
   function createButton(options) {
@@ -6201,20 +6249,37 @@ void main( void )
     shared.pending = 0;
     return id;
   }
+  function takePendingOrigin() {
+    const shared = state();
+    const origin = shared.pendingOrigin;
+    shared.pendingOrigin = null;
+    return origin;
+  }
   function state() {
     const holder = window;
     holder.__lienzoDesktop ?? (holder.__lienzoDesktop = {
       openers: /* @__PURE__ */ new Set(),
       pending: 0,
+      pendingOrigin: null,
       previewUrl: "",
       previewTitle: "",
       peekRegistered: false,
-      listenerRegistered: false
+      listenerRegistered: false,
+      iconDropRegistered: false
     });
     return holder.__lienzoDesktop;
   }
+  function readConfig() {
+    const config = window.lienzoConfig;
+    if (!config) {
+      throw new Error(
+        "Lienzo configuration is missing. The editor script was loaded without lienzo_enqueue_editor()."
+      );
+    }
+    return config;
+  }
   const OPEN_MESSAGE = "lienzo-open";
-  function openInDesktop(attachmentId) {
+  function openInDesktop(attachmentId, origin = null) {
     const id = Number(attachmentId) || 0;
     if (!id) {
       return false;
@@ -6222,9 +6287,10 @@ void main( void )
     if (desktop()?.openWindow) {
       const live = [...state().openers].pop();
       if (live) {
-        live(id);
+        live(id, origin);
       } else {
         state().pending = id;
+        state().pendingOrigin = origin;
       }
       desktop()?.openWindow?.(WINDOW_ID, { source: "lienzo" });
       return true;
@@ -6254,6 +6320,29 @@ void main( void )
       openInDesktop(Number(data.attachmentId) || 0);
     });
   }
+  async function openPostInDesktop(postId) {
+    const id = Number(postId) || 0;
+    if (!id) {
+      return false;
+    }
+    try {
+      const image = await new RestClient(readConfig()).getPostImage(id);
+      return openInDesktop(image.attachmentId, {
+        postId: image.postId,
+        postTitle: image.postTitle,
+        postType: image.postType,
+        postTypeLabel: image.postTypeLabel,
+        slot: image.slot,
+        canAttach: image.canAttach
+      });
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : __("That post has no image Lienzo can open."),
+        "error"
+      );
+      return false;
+    }
+  }
   function registerFileOpener() {
     const files = desktop()?.files;
     if (!files?.registerOpener) {
@@ -6270,6 +6359,51 @@ void main( void )
         open: (file) => openInDesktop(Number(file.ref()) || 0)
       }
     });
+  }
+  const ACCEPTED = ["attachment", "shortcut"];
+  function isLienzoIcon(ctx) {
+    return WINDOW_ID === ctx.placement?.file?.ref;
+  }
+  function attachmentFrom(data) {
+    const kind = String(data.kind ?? "");
+    if ("" !== kind && "attachment" !== kind && "media" !== kind) {
+      return 0;
+    }
+    return Number(data.ref ?? data.id ?? data.mediaId ?? 0) || 0;
+  }
+  function postFrom(data) {
+    if ("post" !== String(data.kind ?? "")) {
+      return 0;
+    }
+    return Number(data.ref ?? data.id ?? 0) || 0;
+  }
+  function openDropped(data) {
+    const attachment = attachmentFrom(data);
+    if (attachment) {
+      openInDesktop(attachment);
+      return;
+    }
+    const post = postFrom(data);
+    if (post) {
+      void openPostInDesktop(post);
+    }
+  }
+  function registerIconDrop() {
+    const files = desktop()?.files;
+    const shared = state();
+    if (!files?.registerTilePayloadHandler || shared.iconDropRegistered) {
+      return;
+    }
+    shared.iconDropRegistered = true;
+    const handler = {
+      appliesTo: isLienzoIcon,
+      accept: (data) => !!(attachmentFrom(data) || postFrom(data)),
+      acceptLabel: __("Open in Lienzo"),
+      onDrop: (session) => openDropped(session.payload.data ?? {})
+    };
+    for (const type of ACCEPTED) {
+      files.registerTilePayloadHandler(type, handler);
+    }
   }
   const MEDIA_FIELDS = "id,mime_type,title,source_url,media_details";
   const PAGE_SIZE = 60;
@@ -6682,7 +6816,7 @@ void main( void )
     let editor = null;
     let releaseDrop = null;
     let session = 0;
-    const open = (attachmentId2) => {
+    const open = (attachmentId2, origin = null) => {
       session++;
       editor?.destroy();
       root.replaceChildren();
@@ -6690,6 +6824,7 @@ void main( void )
       editor = mount(root, {
         attachmentId: attachmentId2,
         host: "window",
+        ...origin ? { origin } : {},
         onSave: (result) => {
           attachDragOut(root, result);
           state().previewUrl = result.url;
@@ -6703,8 +6838,9 @@ void main( void )
     };
     state().openers.add(open);
     const attachmentId = takePending();
+    const pendingOrigin = takePendingOrigin();
     if (attachmentId) {
-      open(attachmentId);
+      open(attachmentId, pendingOrigin);
     } else if (config) {
       const mine = session;
       void renderPicker(
@@ -6772,6 +6908,11 @@ void main( void )
     } catch (error) {
       console.warn("[lienzo] file opener unavailable:", error);
     }
+    try {
+      registerIconDrop();
+    } catch (error) {
+      console.warn("[lienzo] icon drop unavailable:", error);
+    }
     listenForOpenRequests();
   }
   function announceSave(host, result, onOpen) {
@@ -6796,6 +6937,88 @@ void main( void )
       open.destroy();
       banner.remove();
     };
+  }
+  function askSaveChoice(root, origin) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "lz-choice";
+      const dialog = document.createElement("div");
+      dialog.className = "lz-choice__dialog";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      dialog.setAttribute("aria-labelledby", "lz-choice-title");
+      const title = document.createElement("h2");
+      title.className = "lz-choice__title";
+      title.id = "lz-choice-title";
+      title.textContent = sprintf(
+        /* translators: %s: post title. */
+        __("Save your edit of “%s”"),
+        origin.postTitle
+      );
+      const body = document.createElement("p");
+      body.className = "lz-choice__body";
+      body.textContent = sprintf(
+        /* translators: %s: singular post type label, e.g. "product". */
+        __(
+          "Either way the original image stays in your library untouched — this saves a new copy. The only question is whether the %s should start using it."
+        ),
+        origin.postTypeLabel.toLowerCase()
+      );
+      const actions = document.createElement("div");
+      actions.className = "lz-choice__actions";
+      const handles = [];
+      const finish = (choice) => {
+        document.removeEventListener("keydown", onKey);
+        for (const handle of handles) {
+          handle.destroy();
+        }
+        overlay.remove();
+        resolve(choice);
+      };
+      const onKey = (event) => {
+        if ("Escape" === event.key) {
+          event.preventDefault();
+          finish("cancel");
+        }
+      };
+      const attach = createButton({
+        label: sprintf(
+          /* translators: %s: singular post type label, e.g. "Product". */
+          __("Update the %s"),
+          origin.postTypeLabel.toLowerCase()
+        ),
+        title: sprintf(
+          /* translators: %s: singular post type label. */
+          __("Save a copy and point the %s at it."),
+          origin.postTypeLabel.toLowerCase()
+        ),
+        variant: "primary",
+        onClick: () => finish("attach")
+      });
+      const copy = createButton({
+        label: __("Just save a copy"),
+        title: __("Save a copy and leave this post as it is."),
+        variant: "secondary",
+        onClick: () => finish("copy")
+      });
+      const cancel = createButton({
+        label: __("Cancel"),
+        variant: "ghost",
+        onClick: () => finish("cancel")
+      });
+      handles.push(attach, copy, cancel);
+      actions.append(attach.el, copy.el, cancel.el);
+      dialog.append(title, body, actions);
+      overlay.appendChild(dialog);
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          finish("cancel");
+        }
+      });
+      document.addEventListener("keydown", onKey);
+      root.appendChild(overlay);
+      copy.el.focus?.();
+    });
   }
   function undo(editor) {
     if (!editor.store.canUndo) {
@@ -6831,14 +7054,45 @@ void main( void )
     editor.store.setLayers(layers, layer.id);
   }
   async function save(editor) {
+    const origin = editor.options.origin;
+    const choice = origin && origin.canAttach ? await askSaveChoice(editor.shell.root, origin) : "copy";
+    if ("cancel" === choice) {
+      return;
+    }
     const result = await editor.output.save();
     if (!result) {
       return;
+    }
+    if ("attach" === choice && origin) {
+      await attachResult(editor, origin, result.id);
     }
     editor.onTeardown(
       announceSave(editor.shell.sidebar, result, () => openInDesktop(result.id))
     );
     editor.options.onSave?.(result);
+  }
+  async function attachResult(editor, origin, saved) {
+    try {
+      await editor.client.attachToPost(
+        origin.postId,
+        saved,
+        origin.slot || "thumbnail",
+        editor.options.attachmentId
+      );
+      toast(
+        sprintf(
+          /* translators: %s: post title. */
+          __("“%s” now uses the edited image."),
+          origin.postTitle
+        ),
+        "success"
+      );
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : __("The copy was saved, but the post could not be updated."),
+        "error"
+      );
+    }
   }
   function buildPanelContext(deps) {
     const { store } = deps;
@@ -10058,15 +10312,6 @@ void main( void )
       ready: !busy && null !== editor.renderer,
       canSave: true === editor.payload?.canSave
     };
-  }
-  function readConfig() {
-    const config = window.lienzoConfig;
-    if (!config) {
-      throw new Error(
-        "Lienzo configuration is missing. The editor script was loaded without lienzo_enqueue_editor()."
-      );
-    }
-    return config;
   }
   const VIEW_KEY = "lienzo.view.v1";
   const SIDEBAR_KEY = "lienzo.sidebar.v1";

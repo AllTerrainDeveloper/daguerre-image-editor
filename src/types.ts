@@ -91,3 +91,28 @@ export interface Preset {
 		levels: import('./engine/lut').Levels;
 	};
 }
+
+/**
+ * The post an image was opened from, when it was opened from one.
+ *
+ * Carried so the save step can offer to put the edit back where it came from. A
+ * product's featured image and the third image of its gallery are both "the
+ * product's image", and updating them is not the same operation -- which is why the
+ * slot travels with the id.
+ */
+export interface PostOrigin {
+	postId: number;
+	postTitle: string;
+	postType: string;
+	/** Singular label, so the editor can name the thing rather than its slug. */
+	postTypeLabel: string;
+	/** Where the image sits on the post: 'thumbnail', 'gallery', or '' for neither. */
+	slot: string;
+	/** Whether this user may actually write the change back. */
+	canAttach: boolean;
+}
+
+/** What the post-image lookup answers. */
+export interface PostImage extends PostOrigin {
+	attachmentId: number;
+}

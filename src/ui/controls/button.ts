@@ -74,25 +74,44 @@ function buildButton( options: BuildOptions ): ButtonHandle & { el: HTMLElement 
 		el.classList.add( `lz-button--${ options.variant ?? 'ghost' }` );
 	}
 
-	el.addEventListener( 'click', options.onClick );
+	let disabled = false;
+
+	/**
+	 * Runs the action, unless the button is off.
+	 *
+	 * The guard is not belt and braces. `<wpd-button>` is a custom element, not a
+	 * form control, so the `disabled` attribute is decoration on it -- the browser
+	 * suppresses nothing and every listener still fires. Inside Desktop Mode that
+	 * made a greyed-out Save save, a greyed-out Undo undo, and a Reset that was
+	 * supposed to be unavailable throw the edit away.
+	 */
+	const onClick = () => {
+		if ( ! disabled ) {
+			options.onClick();
+		}
+	};
+
+	el.addEventListener( 'click', onClick );
 
 	return {
 		el,
-		setDisabled: ( disabled ) => {
-			el.toggleAttribute( 'disabled', disabled );
-			el.classList.toggle( 'is-disabled', disabled );
+		setDisabled: ( off ) => {
+			disabled = off;
+			el.toggleAttribute( 'disabled', off );
+			el.classList.toggle( 'is-disabled', off );
 
-			// wpd-button reflects `disabled`, but a bare custom element still needs
-			// removing from the tab order for keyboard users.
+			// A bare custom element also needs taking out of the tab order, or it is
+			// still reachable and still announced as pressable.
 			if ( useWpd ) {
-				el.setAttribute( 'aria-disabled', String( disabled ) );
+				el.setAttribute( 'aria-disabled', String( off ) );
+				el.toggleAttribute( 'inert', off );
 			}
 		},
 		setPressed: ( pressed ) => {
 			el.classList.toggle( options.pressedClass, pressed );
 			el.setAttribute( 'aria-pressed', String( pressed ) );
 		},
-		destroy: () => el.removeEventListener( 'click', options.onClick ),
+		destroy: () => el.removeEventListener( 'click', onClick ),
 	};
 }
 

@@ -9,8 +9,9 @@ import { mount } from '../../editor';
 import type { DroppedImage, EditorInstance } from '../../editor';
 import { __ } from '../../i18n';
 import { renderPicker } from '../../ui/picker';
-import { state, takePending, WINDOW_ID } from './desktop-api';
+import { state, takePending, takePendingOrigin, WINDOW_ID } from './desktop-api';
 import type { NativeRenderContext } from './desktop-api';
+import type { PostOrigin } from '../../types';
 import { registerDropTarget } from './drop-target';
 import { attachFileDrop } from './file-drop';
 import { attachDragOut } from './drag-out';
@@ -64,7 +65,7 @@ function renderWindow(
 	// knows it is writing into someone else's element.
 	let session = 0;
 
-	const open = ( attachmentId: number ) => {
+	const open = ( attachmentId: number, origin: PostOrigin | null = null ) => {
 		session++;
 		editor?.destroy();
 		root.replaceChildren();
@@ -79,6 +80,7 @@ function renderWindow(
 		editor = mount( root, {
 			attachmentId,
 			host: 'window',
+			...( origin ? { origin } : {} ),
 			onSave: ( result ) => {
 				attachDragOut( root, result );
 				// The peek should show what the window shows, and after a save that is
@@ -96,9 +98,12 @@ function renderWindow(
 	state().openers.add( open );
 
 	const attachmentId = takePending();
+	// Always consumed, even with no pending id: a stale origin left parked would make
+	// the next image opened from the picker offer to update someone else's product.
+	const pendingOrigin = takePendingOrigin();
 
 	if ( attachmentId ) {
-		open( attachmentId );
+		open( attachmentId, pendingOrigin );
 	} else if ( config ) {
 		// No file was double-clicked, so the window opened from the dock or an icon.
 		// Show the picker, but intercept its links -- following one would navigate

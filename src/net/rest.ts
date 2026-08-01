@@ -4,7 +4,13 @@
 
 import { request } from '../platform';
 import type { Recipe } from '../model/recipe';
-import type { LienzoConfig, MediaPayload, Preset, SaveResult } from '../types';
+import type {
+	LienzoConfig,
+	MediaPayload,
+	PostImage,
+	Preset,
+	SaveResult,
+} from '../types';
 
 /** An error carrying the server's own message and code. */
 export class RestError extends Error {
@@ -198,5 +204,55 @@ export class RestClient {
 		}
 
 		return response.blob();
+	}
+
+	/**
+	 * Finds the image a post is about.
+	 *
+	 * @param postId Post to look at.
+	 * @throws {Error} When the post has no editable image, or is not this user's to
+	 *                 edit.
+	 */
+	async getPostImage( postId: number ): Promise< PostImage > {
+		const response = await request(
+			`${ this.config.restUrl }posts/${ postId }/image`,
+			{ credentials: 'same-origin', headers: this.headers() }
+		);
+
+		if ( ! response.ok ) {
+			throw await toError( response );
+		}
+
+		return ( await response.json() ) as PostImage;
+	}
+
+	/**
+	 * Points a post's image at an attachment.
+	 *
+	 * @param postId       Post to update.
+	 * @param attachmentId Attachment it should point at.
+	 * @param slot         Which image: 'thumbnail' or 'gallery'.
+	 * @param replacing    Attachment being replaced, for a gallery slot.
+	 * @throws {Error} When the post could not be updated.
+	 */
+	async attachToPost(
+		postId: number,
+		attachmentId: number,
+		slot: string,
+		replacing = 0
+	): Promise< void > {
+		const response = await request(
+			`${ this.config.restUrl }posts/${ postId }/image`,
+			{
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: this.headers( { 'Content-Type': 'application/json' } ),
+				body: JSON.stringify( { attachmentId, slot, replacing } ),
+			}
+		);
+
+		if ( ! response.ok ) {
+			throw await toError( response );
+		}
 	}
 }

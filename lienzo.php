@@ -93,6 +93,8 @@ function lienzo_boot() {
 
 	require_once LIENZO_DIR . 'includes/helpers.php';
 	require_once LIENZO_DIR . 'includes/recipe.php';
+	require_once LIENZO_DIR . 'includes/post-image.php';
+	require_once LIENZO_DIR . 'includes/post-attach.php';
 	require_once LIENZO_DIR . 'includes/presets.php';
 	require_once LIENZO_DIR . 'includes/render.php';
 	require_once LIENZO_DIR . 'includes/rest.php';

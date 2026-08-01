@@ -2086,3 +2086,54 @@ svg.lz-selection {
 .lz-editor {
 	position: relative;
 }
+
+/* -- Save choice ----------------------------------------------------------- */
+
+/*
+ * Covers the editor rather than the page. The editor is a desktop window, so a
+ * fixed overlay would dim the whole desktop for a question about one window.
+ */
+.lz-choice {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: rgba( 0, 0, 0, 0.45 );
+}
+
+.lz-choice__dialog {
+	max-inline-size: 420px;
+	padding: 20px;
+	border-radius: 8px;
+	background: var( --lz-surface, #fff );
+	color: var( --lz-text, #1e1e1e );
+	box-shadow: 0 12px 40px rgba( 0, 0, 0, 0.3 );
+}
+
+.lz-choice__title {
+	margin: 0 0 8px;
+	font-size: 16px;
+	line-height: 1.3;
+}
+
+.lz-choice__body {
+	margin: 0 0 16px;
+	font-size: 13px;
+	line-height: 1.5;
+	color: var( --lz-text-muted, #646970 );
+}
+
+/*
+ * Wraps rather than scrolls. The labels carry a translated post-type name, so
+ * "Update the product" is "Aktualisieren Sie das Produkt" somewhere, and a row that
+ * assumed three short buttons would clip it.
+ */
+.lz-choice__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	justify-content: flex-end;
+}

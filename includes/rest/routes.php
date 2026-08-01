@@ -121,4 +121,58 @@ function lienzo_register_rest_routes() {
 			),
 		)
 	);
+
+	register_rest_route(
+		LIENZO_REST_NAMESPACE,
+		'/posts/(?P<id>[\d]+)/image',
+		array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => lienzo_rest_handler( 'lienzo_rest_get_post_image' ),
+			'permission_callback' => 'lienzo_rest_post_permission',
+			'args'                => array(
+				'id' => array(
+					'description'       => __( 'Post whose image to open in the editor.', 'lienzo' ),
+					'type'              => 'integer',
+					'required'          => true,
+					'sanitize_callback' => 'absint',
+				),
+			),
+		)
+	);
+
+	register_rest_route(
+		LIENZO_REST_NAMESPACE,
+		'/posts/(?P<id>[\d]+)/image',
+		array(
+			'methods'             => WP_REST_Server::EDITABLE,
+			'callback'            => lienzo_rest_handler( 'lienzo_rest_attach_post_image' ),
+			'permission_callback' => 'lienzo_rest_post_permission',
+			'args'                => array(
+				'id'           => array(
+					'description'       => __( 'Post to update.', 'lienzo' ),
+					'type'              => 'integer',
+					'required'          => true,
+					'sanitize_callback' => 'absint',
+				),
+				'attachmentId' => array(
+					'description'       => __( 'Attachment the post should point at.', 'lienzo' ),
+					'type'              => 'integer',
+					'required'          => true,
+					'sanitize_callback' => 'absint',
+				),
+				'slot'         => array(
+					'description' => __( 'Which image to update.', 'lienzo' ),
+					'type'        => 'string',
+					'default'     => 'thumbnail',
+					'enum'        => array( 'thumbnail', 'gallery' ),
+				),
+				'replacing'    => array(
+					'description'       => __( 'Attachment being replaced, for a gallery slot.', 'lienzo' ),
+					'type'              => 'integer',
+					'default'           => 0,
+					'sanitize_callback' => 'absint',
+				),
+			),
+		)
+	);
 }
