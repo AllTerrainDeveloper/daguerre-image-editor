@@ -5443,7 +5443,7 @@ void main( void )
     registerLevelsPanel();
   }
   const GRIPS = ["nw", "ne", "sw", "se", "n", "s", "w", "e"];
-  function buildChrome(stage) {
+  function buildChrome$1(stage) {
     const root = document.createElement("div");
     root.className = "lz-transform";
     const box = document.createElement("div");
@@ -5665,7 +5665,7 @@ void main( void )
         this.options.onCommit();
       };
       this.options = options;
-      this.chrome = buildChrome(options.stage);
+      this.chrome = buildChrome$1(options.stage);
       this.root = this.chrome.root;
       this.box = this.chrome.box;
       this.guideX = this.chrome.guideX;
@@ -6271,7 +6271,76 @@ void main( void )
       }
     });
   }
+  const MEDIA_FIELDS = "id,mime_type,title,source_url,media_details";
   const PAGE_SIZE = 60;
+  const MAX_LOOKAHEAD = 5;
+  class MediaPager {
+    /**
+     * @param config Runtime configuration.
+     */
+    constructor(config) {
+      this.page = 0;
+      this.pages = null;
+      this.seen = 0;
+      this.config = config;
+    }
+    /** Whether the server has pages the picker has not asked for yet. */
+    get hasMore() {
+      return null === this.pages || this.page < this.pages;
+    }
+    /** How many editable images have been handed out so far. */
+    get count() {
+      return this.seen;
+    }
+    /**
+     * Fetches the next page or pages, until something editable turns up.
+     *
+     * @return Editable items, which is empty only when the library ran out or the
+     *         lookahead cap was reached.
+     * @throws {Error} When the library could not be read.
+     */
+    async next() {
+      for (let look = 0; look < MAX_LOOKAHEAD && this.hasMore; look++) {
+        const editable = await this.fetchPage(this.page + 1);
+        this.page++;
+        if (editable.length > 0) {
+          this.seen += editable.length;
+          return editable;
+        }
+      }
+      return [];
+    }
+    /**
+     * Fetches one page and keeps only what Lienzo can open.
+     *
+     * @param page Page number, one-based.
+     * @throws {Error} When the library could not be read.
+     */
+    async fetchPage(page) {
+      const url = new URL(this.config.mediaUrl);
+      url.searchParams.set("media_type", "image");
+      url.searchParams.set("per_page", String(PAGE_SIZE));
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("orderby", "date");
+      url.searchParams.set("order", "desc");
+      url.searchParams.set("_fields", MEDIA_FIELDS);
+      const response = await request(url.toString(), {
+        credentials: "same-origin",
+        headers: { "X-WP-Nonce": this.config.restNonce }
+      });
+      if (!response.ok) {
+        throw new Error(__("Your media library could not be loaded."));
+      }
+      const total = Number(response.headers.get("X-WP-TotalPages"));
+      if (Number.isFinite(total) && total > 0) {
+        this.pages = total;
+      }
+      const items = await response.json();
+      return items.filter(
+        (item) => this.config.supportedMimes.includes(item.mime_type)
+      );
+    }
+  }
   function thumbnailFor(item) {
     const sizes = item.media_details?.sizes ?? {};
     for (const name of ["thumbnail", "medium", "medium_large", "large"]) {
@@ -6281,65 +6350,6 @@ void main( void )
       }
     }
     return item.source_url ?? "";
-  }
-  async function renderPicker(root, config, onPick, isStale) {
-    if (isStale?.()) {
-      return;
-    }
-    root.classList.add("lz-picker");
-    const heading = document.createElement("h2");
-    heading.className = "lz-picker__heading";
-    heading.textContent = __("Choose a photo to edit");
-    const status = document.createElement("p");
-    status.className = "lz-picker__status";
-    status.textContent = __("Loading your photos…");
-    root.replaceChildren(heading, status);
-    let items;
-    try {
-      const url = new URL(config.mediaUrl);
-      url.searchParams.set("media_type", "image");
-      url.searchParams.set("per_page", String(PAGE_SIZE));
-      url.searchParams.set("orderby", "date");
-      url.searchParams.set("order", "desc");
-      url.searchParams.set("_fields", "id,mime_type,title,source_url,media_details");
-      const response = await request(url.toString(), {
-        credentials: "same-origin",
-        headers: { "X-WP-Nonce": config.restNonce }
-      });
-      if (!response.ok) {
-        throw new Error(__("Your media library could not be loaded."));
-      }
-      items = await response.json();
-    } catch (error) {
-      status.classList.add("lz-picker__status--error");
-      status.textContent = error instanceof Error ? error.message : __("Your media library could not be loaded.");
-      return;
-    }
-    if (isStale?.()) {
-      return;
-    }
-    const editable = items.filter(
-      (item) => config.supportedMimes.includes(item.mime_type)
-    );
-    if (editable.length === 0) {
-      status.textContent = __(
-        "No editable images yet. Upload a JPEG, PNG, WebP or AVIF to get started."
-      );
-      const link = document.createElement("a");
-      link.className = "button button-primary";
-      link.href = "media-new.php";
-      link.textContent = __("Upload a photo");
-      root.appendChild(link);
-      return;
-    }
-    status.remove();
-    const grid = document.createElement("div");
-    grid.className = "lz-picker__grid";
-    grid.setAttribute("role", "list");
-    for (const item of editable) {
-      grid.appendChild(renderTile(item, onPick));
-    }
-    root.appendChild(grid);
   }
   function renderTile(item, onPick) {
     const title = item.title?.rendered?.replace(/<[^>]*>/g, "") || __("Untitled image");
@@ -6361,6 +6371,99 @@ void main( void )
     tile.addEventListener("click", () => onPick?.(item.id));
     tile.append(image, caption);
     return tile;
+  }
+  async function renderPicker(root, config, onPick, isStale) {
+    if (isStale?.()) {
+      return;
+    }
+    const pager = new MediaPager(config);
+    const ui = buildChrome(root);
+    const more = createButton({
+      label: __("Load more"),
+      variant: "secondary",
+      onClick: () => void load()
+    });
+    ui.footer.append(ui.count, more.el);
+    async function load() {
+      more.setDisabled(true);
+      let items;
+      try {
+        items = await pager.next();
+      } catch (error) {
+        if (!isStale?.()) {
+          fail$1(ui, error);
+          more.setDisabled(false);
+        }
+        return;
+      }
+      if (isStale?.()) {
+        return;
+      }
+      for (const item of items) {
+        ui.grid.appendChild(renderTile(item, onPick));
+      }
+      if (0 === pager.count && !pager.hasMore) {
+        showEmpty(ui);
+        return;
+      }
+      ui.status.remove();
+      root.append(ui.grid, ui.footer);
+      ui.count.textContent = countLabel(pager.count, pager.hasMore);
+      if (pager.hasMore) {
+        more.setDisabled(false);
+        return;
+      }
+      more.destroy();
+      more.el.remove();
+    }
+    await load();
+  }
+  function buildChrome(root) {
+    root.classList.add("lz-picker");
+    const heading = document.createElement("h2");
+    heading.className = "lz-picker__heading";
+    heading.textContent = __("Choose a photo to edit");
+    const status = document.createElement("p");
+    status.className = "lz-picker__status";
+    status.textContent = __("Loading your photos…");
+    const grid = document.createElement("div");
+    grid.className = "lz-picker__grid";
+    grid.setAttribute("role", "list");
+    const footer = document.createElement("div");
+    footer.className = "lz-picker__footer";
+    const count = document.createElement("p");
+    count.className = "lz-picker__count";
+    count.setAttribute("aria-live", "polite");
+    root.replaceChildren(heading, status);
+    return { root, grid, footer, status, count };
+  }
+  function countLabel(shown, hasMore) {
+    return hasMore ? sprintf(
+      /* translators: %d: number of photos shown so far. */
+      __("Showing the %d most recent photos."),
+      shown
+    ) : sprintf(
+      /* translators: %d: total number of photos. */
+      __("Showing all %d photos."),
+      shown
+    );
+  }
+  function fail$1(ui, error) {
+    ui.status.textContent = error instanceof Error ? error.message : __("Your media library could not be loaded.");
+    ui.status.classList.add("lz-picker__status--error");
+    if (!ui.status.isConnected) {
+      ui.root.appendChild(ui.status);
+    }
+  }
+  function showEmpty(ui) {
+    ui.status.textContent = __(
+      "No editable images yet. Upload a JPEG, PNG, WebP or AVIF to get started."
+    );
+    const link = document.createElement("a");
+    link.className = "button button-primary";
+    link.href = "media-new.php";
+    link.textContent = __("Upload a photo");
+    ui.root.appendChild(link);
   }
   function registerDropTarget(element, drop) {
     const manager = desktop()?.dragManager;
