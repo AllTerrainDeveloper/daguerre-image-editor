@@ -30,15 +30,25 @@ import { attachDragOut } from './drag-out';
  * success and changed nothing.
  */
 export function registerNativeWindow(): void {
-	const registry = ( ( window as unknown as {
-		desktopModeNativeWindows?: Record< string, unknown >;
-	} ).desktopModeNativeWindows ??= {} ) as Record<
-		string,
-		( body: HTMLElement, ctx?: unknown ) => void | ( () => void )
-	>;
-
-	registry[ WINDOW_ID ] = ( body, ctx ) =>
+	const render = ( body: HTMLElement, ctx?: unknown ) =>
 		renderWindow( body, ctx as NativeRenderContext | undefined );
+
+	// Registered under both names. The shell reads whichever one its own version
+	// wrote -- `openStationNativeWindows` since the rename, `desktopModeNativeWindows`
+	// before it -- and a window registered under the name this shell does not read is
+	// a window that opens to a spinner and never fills.
+	for ( const key of [
+		'openStationNativeWindows',
+		'desktopModeNativeWindows',
+	] ) {
+		const holder = window as unknown as Record<
+			string,
+			Record< string, typeof render > | undefined
+		>;
+
+		holder[ key ] ??= {};
+		( holder[ key ] as Record< string, typeof render > )[ WINDOW_ID ] = render;
+	}
 }
 
 /**

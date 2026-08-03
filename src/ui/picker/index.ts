@@ -103,7 +103,7 @@ export async function renderPicker(
 		}
 
 		// Removed rather than hidden. `[hidden]` is a UA rule of the lowest possible
-		// specificity, and inside Desktop Mode this button is a `<wpd-button>` the
+		// specificity, and inside Desktop Mode this button is a shell component the
 		// shell gives an explicit `display` -- which wins, so the button stayed on
 		// screen at the end of the library with nothing left to load.
 		more.destroy();

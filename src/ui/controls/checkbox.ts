@@ -2,7 +2,7 @@
  * Checkboxes.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag, onShellEvent } from '../../platform';
 import { eventDetail, nameControl } from './internals';
 import type { ControlHandle } from './types';
 
@@ -24,8 +24,10 @@ export interface CheckboxHandle extends ControlHandle {
  * @param options Checkbox configuration.
  */
 export function createCheckbox( options: CheckboxOptions ): CheckboxHandle {
-	if ( hasComponent( 'wpd-checkbox-label' ) ) {
-		const field = document.createElement( 'wpd-checkbox-label' );
+	const tag = componentTag( 'checkbox-label' );
+
+	if ( tag ) {
+		const field = document.createElement( tag );
 
 		field.setAttribute( 'label', options.label );
 		field.toggleAttribute( 'checked', options.checked );
@@ -40,12 +42,12 @@ export function createCheckbox( options: CheckboxOptions ): CheckboxHandle {
 			options.onChange( true === detail?.checked );
 		};
 
-		field.addEventListener( 'wpd-checkbox-change', onChange );
+		const off = onShellEvent( field, 'checkbox-change', onChange );
 
 		return {
 			el: field,
 			setChecked: ( checked ) => field.toggleAttribute( 'checked', checked ),
-			destroy: () => field.removeEventListener( 'wpd-checkbox-change', onChange ),
+			destroy: off,
 		};
 	}
 

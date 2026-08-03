@@ -2,8 +2,8 @@
  * Segmented pickers.
  */
 
-import { hasComponent } from '../../platform';
-import { eventDetail, labelledRow } from './internals';
+import { componentTag, onShellEvent } from '../../platform';
+import { eventDetail, labelledRow, siblingTag } from './internals';
 import type { ControlOption, FieldHandle } from './types';
 
 export interface SegmentedOptions {
@@ -28,14 +28,16 @@ export function createSegmented( options: SegmentedOptions ): FieldHandle {
 		'lz-field lz-field--compact'
 	);
 
-	if ( hasComponent( 'wpd-segmented' ) ) {
-		const group = document.createElement( 'wpd-segmented' );
+	const tag = componentTag( 'segmented' );
+
+	if ( tag ) {
+		const group = document.createElement( tag );
 
 		group.setAttribute( 'value', options.value );
 		group.setAttribute( 'label', options.label );
 
 		for ( const option of options.options ) {
-			const segment = document.createElement( 'wpd-segment' );
+			const segment = document.createElement( siblingTag( tag, 'segment' ) );
 
 			segment.setAttribute( 'value', option.value );
 			segment.textContent = option.label;
@@ -50,13 +52,14 @@ export function createSegmented( options: SegmentedOptions ): FieldHandle {
 			}
 		};
 
-		group.addEventListener( 'wpd-pick', onPick );
+		const off = onShellEvent( group, 'pick', onPick );
+
 		wrap.append( text, group );
 
 		return {
 			el: wrap,
 			setValue: ( value ) => group.setAttribute( 'value', String( value ) ),
-			destroy: () => group.removeEventListener( 'wpd-pick', onPick ),
+			destroy: off,
 		};
 	}
 

@@ -2,7 +2,7 @@
  * Text inputs.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag, onShellEvent } from '../../platform';
 import { eventDetail, labelledRow, nameControl } from './internals';
 import type { FieldHandle } from './types';
 
@@ -21,8 +21,10 @@ export interface TextFieldOptions {
  * @param options Field configuration.
  */
 export function createTextField( options: TextFieldOptions ): FieldHandle {
-	if ( hasComponent( 'wpd-text-field' ) ) {
-		const field = document.createElement( 'wpd-text-field' );
+	const tag = componentTag( 'text-field' );
+
+	if ( tag ) {
+		const field = document.createElement( tag );
 
 		field.setAttribute( 'label', options.label );
 		field.setAttribute( 'value', options.value );
@@ -37,17 +39,19 @@ export function createTextField( options: TextFieldOptions ): FieldHandle {
 		const onChange = ( event: Event ) => options.onChange( read( event ) );
 		const onCommit = ( event: Event ) => options.onCommit?.( read( event ) );
 
-		field.addEventListener( 'wpd-input-change', onChange );
-		field.addEventListener( 'wpd-input-commit', onCommit );
-		field.addEventListener( 'wpd-submit', onCommit );
+		const offs = [
+			onShellEvent( field, 'input-change', onChange ),
+			onShellEvent( field, 'input-commit', onCommit ),
+			onShellEvent( field, 'submit', onCommit ),
+		];
 
 		return {
 			el: field,
 			setValue: ( value ) => field.setAttribute( 'value', String( value ) ),
 			destroy: () => {
-				field.removeEventListener( 'wpd-input-change', onChange );
-				field.removeEventListener( 'wpd-input-commit', onCommit );
-				field.removeEventListener( 'wpd-submit', onCommit );
+				for ( const off of offs ) {
+					off();
+				}
 			},
 		};
 	}

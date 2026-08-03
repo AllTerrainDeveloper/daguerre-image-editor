@@ -2,7 +2,7 @@
  * Colour swatches.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag, onShellEvent } from '../../platform';
 import { eventDetail, labelledRow, nameControl } from './internals';
 import type { FieldHandle } from './types';
 
@@ -18,8 +18,10 @@ export interface ColourFieldOptions {
  * @param options Field configuration.
  */
 export function createColourField( options: ColourFieldOptions ): FieldHandle {
-	if ( hasComponent( 'wpd-color-field' ) ) {
-		const field = document.createElement( 'wpd-color-field' );
+	const tag = componentTag( 'color-field' );
+
+	if ( tag ) {
+		const field = document.createElement( tag );
 
 		field.setAttribute( 'label', options.label );
 		field.setAttribute( 'value', options.value );
@@ -32,12 +34,12 @@ export function createColourField( options: ColourFieldOptions ): FieldHandle {
 			}
 		};
 
-		field.addEventListener( 'wpd-color-change', onChange );
+		const off = onShellEvent( field, 'color-change', onChange );
 
 		return {
 			el: field,
 			setValue: ( value ) => field.setAttribute( 'value', String( value ) ),
-			destroy: () => field.removeEventListener( 'wpd-color-change', onChange ),
+			destroy: off,
 		};
 	}
 

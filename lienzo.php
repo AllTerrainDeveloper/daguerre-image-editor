@@ -63,6 +63,7 @@ define( 'LIENZO_SOURCE_META', '_lienzo_source' );
 define( 'LIENZO_LEGACY_RECIPE_META', '_daguerre_recipe' );
 define( 'LIENZO_LEGACY_SOURCE_META', '_daguerre_source' );
 
+require_once LIENZO_DIR . 'includes/shell-api.php';
 require_once LIENZO_DIR . 'includes/requirements.php';
 
 add_action( 'plugins_loaded', 'lienzo_boot', 5 );

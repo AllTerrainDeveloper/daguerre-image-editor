@@ -2,16 +2,18 @@
  * Section containers.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag } from '../../platform';
 
 /**
- * Builds a titled section, preferring `<wpd-section>`.
+ * Builds a titled section, preferring the shell's own section.
  *
  * @param heading Section title.
  */
 export function createSection( heading: string ): HTMLElement {
-	if ( hasComponent( 'wpd-section' ) ) {
-		const section = document.createElement( 'wpd-section' );
+	const tag = componentTag( 'section' );
+
+	if ( tag ) {
+		const section = document.createElement( tag );
 		section.setAttribute( 'heading', heading );
 		section.setAttribute( 'stack', '' );
 		section.classList.add( 'lz-section' );

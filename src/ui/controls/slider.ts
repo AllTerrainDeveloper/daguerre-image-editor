@@ -7,7 +7,7 @@
  * callers ask for a slider and get whichever one the host can render.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag, onShellEvent } from '../../platform';
 import { createButton } from './button';
 import { eventDetail, fieldId } from './internals';
 import type { SliderHandle } from './types';
@@ -37,8 +37,9 @@ export function createSlider( options: SliderOptions ): SliderHandle {
 	const row = document.createElement( 'div' );
 	row.className = 'lz-adjust';
 
-	const handle = hasComponent( 'wpd-range-field' )
-		? createWpdSlider( options )
+	const tag = componentTag( 'range-field' );
+	const handle = tag
+		? createShellSlider( tag, options )
 		: createNativeSlider( options );
 
 	row.appendChild( handle.el );
@@ -68,12 +69,13 @@ export function createSlider( options: SliderOptions ): SliderHandle {
 }
 
 /**
- * Slider backed by Desktop Mode's `<wpd-range-field>`.
+ * Slider backed by the shell's own range field.
  *
+ * @param tag     Resolved component tag.
  * @param options Slider configuration.
  */
-function createWpdSlider( options: SliderOptions ): SliderHandle {
-	const field = document.createElement( 'wpd-range-field' );
+function createShellSlider( tag: string, options: SliderOptions ): SliderHandle {
+	const field = document.createElement( tag );
 
 	field.setAttribute( 'label', options.label );
 	field.setAttribute( 'min', String( options.min ) );
@@ -94,7 +96,7 @@ function createWpdSlider( options: SliderOptions ): SliderHandle {
 	};
 
 	// The component emits an already-parsed number, so there is nothing to coerce.
-	field.addEventListener( 'wpd-range-change', onChange );
+	const offChange = onShellEvent( field, 'range-change', onChange );
 
 	// It has no "drag finished" event, so pointer release stands in for one.
 	const onRelease = () => options.onCommit?.();
@@ -105,7 +107,7 @@ function createWpdSlider( options: SliderOptions ): SliderHandle {
 		el: field,
 		setValue: ( value ) => field.setAttribute( 'value', String( value ) ),
 		destroy: () => {
-			field.removeEventListener( 'wpd-range-change', onChange );
+			offChange();
 			field.removeEventListener( 'pointerup', onRelease );
 			field.removeEventListener( 'keyup', onRelease );
 		},

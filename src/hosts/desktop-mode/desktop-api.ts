@@ -1,5 +1,5 @@
 /**
- * The `wp.desktop` surface, as Lienzo uses it.
+ * The shell API, as Lienzo uses it.
  *
  * These types are hand-written on purpose. Taking the `desktop-mode` npm package as a
  * dependency would mean Lienzo could not build with Desktop Mode absent from disk, and
@@ -15,7 +15,7 @@ import type { PostOrigin } from '../../types';
 /** Window id registered by `lienzo_register_desktop_window()`. */
 export const WINDOW_ID = 'lienzo';
 
-/** The `wp.desktop` surface this module uses. */
+/** The surface this module uses, under whichever name the shell publishes. */
 /**
  * The parts of the shell's native render context this file uses.
  *
@@ -121,7 +121,12 @@ export interface TilePayloadHandler {
 
 /** Returns the Desktop Mode API when the shell is actually mounted. */
 export function desktop(): DesktopApi | undefined {
-	const api = ( window.wp as { desktop?: DesktopApi } | undefined )?.desktop;
+	// `os` is the current name and `desktop` the one it had before the rename. Both
+	// are read, current first, because Lienzo ships to sites running either version.
+	const wp = window.wp as
+		| { os?: DesktopApi; desktop?: DesktopApi }
+		| undefined;
+	const api = wp?.os ?? wp?.desktop;
 
 	return api?.isActive?.() ? api : undefined;
 }

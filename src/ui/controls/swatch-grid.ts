@@ -2,7 +2,7 @@
  * Colour palettes.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag, shellEvents } from '../../platform';
 import type { ControlHandle } from './types';
 
 /** Handle on a grid of colour swatches. */
@@ -24,15 +24,17 @@ export interface SwatchGridOptions {
 /**
  * Builds a palette of colour swatches.
  *
- * Prefers Desktop Mode's `<wpd-swatch-grid>` and `<wpd-swatch>`, which is exactly the
+ * Prefers the shell's own swatch grid, which is exactly the
  * kind of control worth borrowing rather than restyling: the shell already knows how a
  * chosen swatch should look against its own palette.
  *
  * @param options Palette configuration.
  */
 export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle {
-	const useWpd = hasComponent( 'wpd-swatch-grid' ) && hasComponent( 'wpd-swatch' );
-	const el = document.createElement( useWpd ? 'wpd-swatch-grid' : 'div' );
+	const gridTag = componentTag( 'swatch-grid' );
+	const swatchTag = componentTag( 'swatch' );
+	const useWpd = null !== gridTag && null !== swatchTag;
+	const el = document.createElement( gridTag && useWpd ? gridTag : 'div' );
 	const listeners: Array< () => void > = [];
 
 	el.classList.add( 'lz-palette' );
@@ -45,7 +47,9 @@ export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle
 	const chips = new Map< string, HTMLElement >();
 
 	for ( const colour of options.colours ) {
-		const chip = document.createElement( useWpd ? 'wpd-swatch' : 'button' );
+		const chip = document.createElement(
+			useWpd && swatchTag ? swatchTag : 'button'
+		);
 
 		chip.classList.add( 'lz-palette__chip' );
 		chip.setAttribute( 'title', colour );
@@ -62,11 +66,18 @@ export function createSwatchGrid( options: SwatchGridOptions ): SwatchGridHandle
 
 		const onPick = () => options.onChange( colour );
 
-		// wpd-swatch announces its own event; a bare button only has click.
-		const event = useWpd ? 'wpd-pick' : 'click';
+		// The component announces its own event; a bare button only has click.
+		const events = useWpd ? shellEvents( 'pick' ) : [ 'click' ];
 
-		chip.addEventListener( event, onPick );
-		listeners.push( () => chip.removeEventListener( event, onPick ) );
+		for ( const event of events ) {
+			chip.addEventListener( event, onPick );
+		}
+
+		listeners.push( () => {
+			for ( const event of events ) {
+				chip.removeEventListener( event, onPick );
+			}
+		} );
 
 		chips.set( colour, chip );
 		el.appendChild( chip );

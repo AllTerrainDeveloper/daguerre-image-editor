@@ -2,8 +2,8 @@
  * Dropdowns.
  */
 
-import { hasComponent } from '../../platform';
-import { fieldId, nameControl } from './internals';
+import { componentTag, onShellEvent } from '../../platform';
+import { fieldId, nameControl, siblingTag } from './internals';
 import type { ControlHandle, ControlOption } from './types';
 
 /** Handle on a built select. */
@@ -21,7 +21,7 @@ export interface SelectOptions {
 /**
  * Builds a labelled dropdown.
  *
- * `<wpd-select>` is not in the shell's eagerly registered set, so this usually
+ * The select component is not in the shell's eagerly registered set, so this usually
  * falls back to a native `<select>` -- which is no loss: a native select gets the
  * platform's own picker, which on touch devices is considerably better than
  * anything a web component reimplements.
@@ -29,7 +29,8 @@ export interface SelectOptions {
  * @param options Select configuration.
  */
 export function createSelect( options: SelectOptions ): SelectHandle {
-	const useWpd = hasComponent( 'wpd-select' );
+	const tag = componentTag( 'select' );
+	const useWpd = null !== tag;
 
 	const wrap = document.createElement( 'div' );
 	wrap.className = 'lz-field';
@@ -38,7 +39,7 @@ export function createSelect( options: SelectOptions ): SelectHandle {
 	label.className = 'lz-field__label';
 	label.textContent = options.label;
 
-	const select = document.createElement( useWpd ? 'wpd-select' : 'select' );
+	const select = document.createElement( tag ?? 'select' );
 	select.className = 'lz-field__control';
 
 	if ( useWpd ) {
@@ -53,7 +54,9 @@ export function createSelect( options: SelectOptions ): SelectHandle {
 	}
 
 	for ( const option of options.options ) {
-		const node = document.createElement( useWpd ? 'wpd-option' : 'option' );
+		const node = document.createElement(
+			tag ? siblingTag( tag, 'option' ) : 'option'
+		);
 		node.setAttribute( 'value', option.value );
 		node.textContent = option.label;
 		select.appendChild( node );
@@ -72,8 +75,10 @@ export function createSelect( options: SelectOptions ): SelectHandle {
 
 	const onChange = () => options.onChange( read() );
 
+	// `change` covers the native fallback; the shell spellings cover the component.
 	select.addEventListener( 'change', onChange );
-	select.addEventListener( 'wpd-change', onChange );
+
+	const off = onShellEvent( select, 'change', onChange );
 
 	wrap.append( label, select );
 
@@ -82,7 +87,7 @@ export function createSelect( options: SelectOptions ): SelectHandle {
 		getValue: read,
 		destroy: () => {
 			select.removeEventListener( 'change', onChange );
-			select.removeEventListener( 'wpd-change', onChange );
+			off();
 		},
 	};
 }

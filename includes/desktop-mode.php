@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
  * Determines whether Desktop Mode is installed and switched on for the current user.
  *
  * Two separate questions, and both matter. `function_exists()` answers "is the
- * plugin active"; `desktop_mode_is_enabled()` answers "has this particular user
+ * plugin active"; `openstation_is_enabled()` answers "has this particular user
  * opted in", since Desktop Mode is a per-user preference rather than a site-wide
  * one. Only when both hold should Lienzo present itself as a desktop app.
  *
@@ -29,11 +29,11 @@ defined( 'ABSPATH' ) || exit;
  * @return bool True when Desktop Mode is active for the current user.
  */
 function lienzo_is_desktop_mode_active() {
-	if ( ! function_exists( 'desktop_mode_register_window' ) || ! function_exists( 'desktop_mode_is_enabled' ) ) {
+	if ( ! lienzo_shell_has( 'register_window' ) || ! lienzo_shell_has( 'is_enabled' ) ) {
 		return false;
 	}
 
-	return (bool) desktop_mode_is_enabled();
+	return (bool) lienzo_shell_call( 'is_enabled' );
 }
 
 add_action( 'plugins_loaded', 'lienzo_maybe_init_desktop_mode', 20 );
@@ -50,13 +50,21 @@ add_action( 'plugins_loaded', 'lienzo_maybe_init_desktop_mode', 20 );
  * @return void
  */
 function lienzo_maybe_init_desktop_mode() {
-	if ( ! function_exists( 'desktop_mode_register_window' ) ) {
+	if ( ! lienzo_shell_has( 'register_window' ) ) {
 		return;
 	}
 
 	add_action( 'init', 'lienzo_register_desktop_window', 20 );
-	add_action( 'desktop_mode_mode_init', 'lienzo_enqueue_in_shell' );
-	add_filter( 'desktop_mode_my_wordpress_preview_actions', 'lienzo_my_wordpress_action' );
+
+	// Registered against both spellings. Which one fires depends on the shell's
+	// version, and a listener for a hook that never fires costs nothing.
+	foreach ( lienzo_shell_hooks( 'mode_init' ) as $hook ) {
+		add_action( $hook, 'lienzo_enqueue_in_shell' );
+	}
+
+	foreach ( lienzo_shell_hooks( 'my_wordpress_preview_actions' ) as $hook ) {
+		add_filter( $hook, 'lienzo_my_wordpress_action' );
+	}
 }
 
 /**
@@ -72,7 +80,8 @@ function lienzo_maybe_init_desktop_mode() {
  * @return void
  */
 function lienzo_register_desktop_window() {
-	$registered = desktop_mode_register_window(
+	$registered = lienzo_shell_call(
+		'register_window',
 		'lienzo',
 		array(
 			'title'        => __( 'Lienzo.', 'lienzo' ),
@@ -93,8 +102,9 @@ function lienzo_register_desktop_window() {
 		return;
 	}
 
-	if ( function_exists( 'desktop_mode_register_icon' ) ) {
-		desktop_mode_register_icon(
+	if ( lienzo_shell_has( 'register_icon' ) ) {
+		lienzo_shell_call(
+			'register_icon',
 			'lienzo',
 			array(
 				'title'        => __( 'Lienzo.', 'lienzo' ),
@@ -106,8 +116,9 @@ function lienzo_register_desktop_window() {
 		);
 	}
 
-	if ( function_exists( 'desktop_mode_register_file_opener' ) ) {
-		desktop_mode_register_file_opener(
+	if ( lienzo_shell_has( 'register_file_opener' ) ) {
+		lienzo_shell_call(
+			'register_file_opener',
 			'lienzo',
 			array(
 				'label'        => __( 'Edit in Lienzo', 'lienzo' ),
@@ -140,7 +151,7 @@ function lienzo_render_desktop_template() {
 /**
  * Loads the editor assets into the Desktop Mode shell.
  *
- * `desktop_mode_mode_init` fires while the shell itself is rendering, which is the
+ * `openstation_mode_init` fires while the shell itself is rendering, which is the
  * documented place for a plugin to enqueue shell-level code. Registering the script
  * handle on the window is not enough on its own: the shell enqueues the handle but
  * never runs our `wp_localize_script()`, so the bundle would boot without its
@@ -192,9 +203,9 @@ function lienzo_my_wordpress_action( $actions ) {
  * @return bool True when rendering inside a Desktop Mode window iframe.
  */
 function lienzo_is_desktop_mode_chromeless() {
-	if ( ! function_exists( 'desktop_mode_is_chromeless_request' ) ) {
+	if ( ! lienzo_shell_has( 'is_chromeless_request' ) ) {
 		return false;
 	}
 
-	return (bool) desktop_mode_is_chromeless_request();
+	return (bool) lienzo_shell_call( 'is_chromeless_request' );
 }

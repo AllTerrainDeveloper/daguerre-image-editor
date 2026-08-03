@@ -1,7 +1,7 @@
 /**
  * Controls that adapt to the host.
  *
- * Inside Desktop Mode the shell registers a kit of `<wpd-*>` web components that
+ * Inside Desktop Mode the shell registers a kit of web components that
  * carry the desktop's theming, spacing and dark-mode handling. Using them makes
  * Lienzo look like it belongs. Outside Desktop Mode they do not exist, so every
  * factory here builds a plain-DOM equivalent instead.

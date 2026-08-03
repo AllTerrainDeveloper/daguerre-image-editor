@@ -13,7 +13,7 @@
 import type { LienzoConfig } from './types';
 import type { Pixi } from './engine/pixi-loader';
 
-/** The slice of `window.wp.desktop` Lienzo touches. */
+/** The slice of the shell API Lienzo touches. */
 export interface WpDesktopLike {
 	isActive?: () => boolean;
 	fetch?: (
@@ -85,6 +85,14 @@ export interface WpI18nLike {
 declare global {
 	interface Window {
 		wp?: {
+			/**
+			 * The shell, under the name OpenStation uses.
+			 *
+			 * `desktop` is the same object under the name the shell had before the
+			 * rename. Both are optional and both are read, because Lienzo ships to
+			 * sites running either version.
+			 */
+			os?: WpDesktopLike;
 			desktop?: WpDesktopLike;
 			i18n?: WpI18nLike;
 			media?: WpMediaLike;

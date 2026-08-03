@@ -51,7 +51,22 @@ export function nameControl(
 }
 
 /**
- * Reads the payload off a `<wpd-*>` component event.
+ * A sibling component tag sharing a resolved tag's prefix.
+ *
+ * A `<segmented>` builds `<segment>` children and a `<select>` builds `<option>`
+ * children, and the child has to carry the same prefix as the parent that resolved.
+ * Mixing them -- an `os-segmented` holding `wpd-segment` children -- renders markup
+ * the parent never adopts, so the picker draws empty.
+ *
+ * @param resolved A tag already resolved by `componentTag()`, e.g. `os-segmented`.
+ * @param name     Bare name of the child, e.g. `segment`.
+ */
+export function siblingTag( resolved: string, name: string ): string {
+	return `${ resolved.split( '-' )[ 0 ] }-${ name }`;
+}
+
+/**
+ * Reads the payload off a shell component event.
  *
  * Every one of them reports through `event.detail`, and every factory used to cast to
  * its own inline `CustomEvent< … >` shape to get at it. One helper means one cast, and

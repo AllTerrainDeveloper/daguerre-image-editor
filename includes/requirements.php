@@ -30,8 +30,7 @@ defined( 'ABSPATH' ) || exit;
  * @return bool True when the plugin can run.
  */
 function lienzo_requirements_met() {
-	return function_exists( 'desktop_mode_register_window' )
-		&& function_exists( 'desktop_mode_is_enabled' );
+	return lienzo_shell_has( 'register_window' ) && lienzo_shell_has( 'is_enabled' );
 }
 
 add_action( 'admin_notices', 'lienzo_requirements_notice' );

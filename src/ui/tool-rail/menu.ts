@@ -2,7 +2,7 @@
  * The named tool list behind the overflow button.
  *
  * Sixteen glyphs are quick to click and slow to learn, so the same list is also
- * available by name. A plain list rather than Desktop Mode's `wpd-menu`: this has to
+ * available by name. A plain list rather than the shell's own menu component: this has to
  * work identically with the shell absent, and a menu is the one control where a
  * half-registered component would leave the user with nothing clickable.
  */

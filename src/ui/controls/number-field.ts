@@ -2,7 +2,7 @@
  * Numeric fields.
  */
 
-import { pickComponent } from '../../platform';
+import { onShellEvent, pickComponent } from '../../platform';
 import { eventDetail, labelledRow, nameControl } from './internals';
 import type { FieldHandle } from './types';
 
@@ -29,9 +29,9 @@ export interface NumberFieldOptions {
 /**
  * Builds a compact numeric field.
  *
- * Three tiers, best first. `<wpd-number-field>` clamps on commit and emits an
+ * Three tiers, best first. The number field clamps on commit and emits an
  * already-parsed number. When it is absent -- which is the common case, since the
- * shell only registers it once a bundle importing it loads -- `<wpd-text-field>` in
+ * shell only registers it once a bundle importing it loads -- the text field in
  * numeric mode is used instead: still the shell's own control, still the shell's own
  * styling, and only the parsing has to be done here. A bare `<input type="number">` is
  * the last resort, for a page with no Desktop Mode at all.
@@ -39,7 +39,7 @@ export interface NumberFieldOptions {
  * @param options Field configuration.
  */
 export function createNumberField( options: NumberFieldOptions ): FieldHandle {
-	const tag = pickComponent( [ 'wpd-number-field', 'wpd-text-field' ] );
+	const tag = pickComponent( [ 'number-field', 'text-field' ] );
 
 	return tag ? componentField( tag, options ) : nativeField( options );
 }
@@ -51,7 +51,7 @@ export function createNumberField( options: NumberFieldOptions ): FieldHandle {
  * @param options Field configuration.
  */
 function componentField( tag: string, options: NumberFieldOptions ): FieldHandle {
-	const numeric = 'wpd-number-field' === tag;
+	const numeric = tag.endsWith( '-number-field' );
 	const field = document.createElement( tag );
 
 	if ( options.compact ) {
@@ -68,7 +68,7 @@ function componentField( tag: string, options: NumberFieldOptions ): FieldHandle
 		field.setAttribute( 'max', String( options.max ) );
 		field.setAttribute( 'step', String( options.step ?? 1 ) );
 	} else {
-		// wpd-text-field passes `type` through to its inner input, so the browser
+		// The text field passes `type` through to its inner input, so the browser
 		// still gives spinners and a numeric keypad; the clamping is ours.
 		field.setAttribute( 'type', 'number' );
 	}
@@ -90,19 +90,22 @@ function componentField( tag: string, options: NumberFieldOptions ): FieldHandle
 			return;
 		}
 
-		// wpd-number-field has already clamped; a text field has not.
+		// The number field has already clamped; a text field has not.
 		options.onChange( numeric ? next : clamp( next, options ) );
 	};
 
-	field.addEventListener( 'wpd-input-change', onChange );
-	field.addEventListener( 'wpd-input-commit', onChange );
+	const offs = [
+		onShellEvent( field, 'input-change', onChange ),
+		onShellEvent( field, 'input-commit', onChange ),
+	];
 
 	const handle: FieldHandle = {
 		el: field,
 		setValue: ( value ) => field.setAttribute( 'value', String( value ) ),
 		destroy: () => {
-			field.removeEventListener( 'wpd-input-change', onChange );
-			field.removeEventListener( 'wpd-input-commit', onChange );
+			for ( const off of offs ) {
+				off();
+			}
 		},
 	};
 

@@ -46,15 +46,23 @@
 	 * ignored the user's colour scheme.
 	 */
 	--lz-accent: var(
-		--desktop-mode-window-link-accent,
-		var( --wp-admin-theme-color, #3582c4 )
+		--os-window-link-accent,
+		var(
+			--desktop-mode-window-link-accent,
+			var( --wp-admin-theme-color, #3582c4 )
+		)
 	);
 	--lz-border: rgba( 255, 255, 255, 0.12 );
-	--lz-radius: var( --desktop-mode-window-radius, 6px );
+	--lz-radius: var( --os-window-radius, var( --desktop-mode-window-radius, 6px ) );
 	--lz-sidebar-width: 300px;
 
 	/*
-	 * Desktop Mode's component palette, themed dark for the editor.
+	 * The shell's component palette, themed dark for the editor.
+	 *
+	 * Declared under both spellings. OpenStation renamed `--wpd-*` to `--os-ui-*` and
+	 * `--desktop-mode-*` to `--os-*`; a site can be running either, and a token block
+	 * that named only one leaves every control painting its light-mode colours onto a
+	 * dark panel.
 	 *
 	 * Its components read these and fall back to light-theme literals -- `#646970` for
 	 * a muted label, `#1d2327` for text, `#fff` for an input background. Nothing in
@@ -63,7 +71,7 @@
 	 * values almost black on charcoal, and number inputs as white slabs.
 	 *
 	 * Declared here rather than patched control by control, because this is the seam
-	 * the components were built to expose. One block themes every `<wpd-*>` the editor
+	 * the components were built to expose. One block themes every shell control the editor
 	 * will ever mount, including ones added later.
 	 */
 	--wpd-fg: var( --lz-fg );
@@ -81,6 +89,21 @@
 	--wpd-danger: #f86368;
 	--wpd-scrim: rgba( 0, 0, 0, 0.6 );
 
+	--os-ui-fg: var( --lz-fg );
+	--os-ui-fg-muted: var( --lz-fg-muted );
+	--os-ui-border: var( --lz-border );
+	--os-ui-surface: var( --lz-surface-raised );
+	--os-ui-hover: rgba( 255, 255, 255, 0.08 );
+	--os-ui-accent: var( --lz-accent );
+	--os-ui-fg-on-accent: #fff;
+	--os-ui-button-bg: var( --lz-surface-raised );
+	--os-ui-button-fg: var( --lz-fg );
+	--os-ui-chip-bg: var( --lz-surface-raised );
+	--os-ui-chip-fg: var( --lz-fg );
+	/* Lightened from WordPress's #d63638, which is unreadable on a dark surface. */
+	--os-ui-danger: #f86368;
+	--os-ui-scrim: rgba( 0, 0, 0, 0.6 );
+
 	/*
 	 * The components use the *window* background for their inputs, which is white --
 	 * that is what made every number field a white slab. Overridden only within the
@@ -88,6 +111,8 @@
 	 */
 	--desktop-mode-window-bg: var( --lz-surface );
 	--desktop-mode-fg: var( --lz-fg );
+	--os-window-bg: var( --lz-surface );
+	--os-fg: var( --lz-fg );
 
 	display: flex;
 	flex-direction: column;

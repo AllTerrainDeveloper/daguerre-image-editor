@@ -1,7 +1,9 @@
 var lienzo = function(exports) {
   "use strict";
+  const PREFIXES = ["os", "wpd"];
   function desktop$1() {
-    const api = window.wp?.desktop;
+    const wp = window.wp;
+    const api = wp?.os ?? wp?.desktop;
     return api?.isActive?.() ? api : void 0;
   }
   function isDesktopMode() {
@@ -12,16 +14,40 @@ var lienzo = function(exports) {
     const flag = config?.desktopMode;
     return flag === true || flag === "1" || flag === 1 || isDesktopMode();
   }
-  function pickComponent(tags) {
-    for (const tag of tags) {
-      if (hasComponent(tag)) {
+  function pickComponent(names) {
+    for (const name of names) {
+      const tag = componentTag(name);
+      if (tag) {
         return tag;
       }
     }
     return null;
   }
-  function hasComponent(tag) {
-    return typeof customElements !== "undefined" && customElements.get(tag) !== void 0;
+  function componentTag(name) {
+    if ("undefined" === typeof customElements) {
+      return null;
+    }
+    for (const prefix of PREFIXES) {
+      const tag = `${prefix}-${name}`;
+      if (customElements.get(tag) !== void 0) {
+        return tag;
+      }
+    }
+    return null;
+  }
+  function shellEvents(name) {
+    return PREFIXES.map((prefix) => `${prefix}-${name}`);
+  }
+  function onShellEvent(el, name, handler) {
+    const names = shellEvents(name);
+    for (const event of names) {
+      el.addEventListener(event, handler);
+    }
+    return () => {
+      for (const event of names) {
+        el.removeEventListener(event, handler);
+      }
+    };
   }
   function request(input, init) {
     const api = desktop$1();
@@ -3227,8 +3253,9 @@ void main( void )
     }
   }
   function buildButton(options) {
-    const useWpd = hasComponent("wpd-button");
-    const el = document.createElement(useWpd ? "wpd-button" : "button");
+    const tag = componentTag("button");
+    const useWpd = null !== tag;
+    const el = document.createElement(tag ?? "button");
     el.classList.add(options.className);
     el.textContent = options.content;
     if (useWpd) {
@@ -3314,6 +3341,9 @@ void main( void )
       label.htmlFor = id;
     }
   }
+  function siblingTag(resolved, name) {
+    return `${resolved.split("-")[0]}-${name}`;
+  }
   function eventDetail(event) {
     const detail = event.detail;
     return detail && "object" === typeof detail ? detail : null;
@@ -3327,8 +3357,9 @@ void main( void )
     return { wrap, text };
   }
   function createCheckbox(options) {
-    if (hasComponent("wpd-checkbox-label")) {
-      const field = document.createElement("wpd-checkbox-label");
+    const tag = componentTag("checkbox-label");
+    if (tag) {
+      const field = document.createElement(tag);
       field.setAttribute("label", options.label);
       field.toggleAttribute("checked", options.checked);
       if (options.title) {
@@ -3338,11 +3369,11 @@ void main( void )
         const detail = eventDetail(event);
         options.onChange(true === detail?.checked);
       };
-      field.addEventListener("wpd-checkbox-change", onChange2);
+      const off = onShellEvent(field, "checkbox-change", onChange2);
       return {
         el: field,
         setChecked: (checked) => field.toggleAttribute("checked", checked),
-        destroy: () => field.removeEventListener("wpd-checkbox-change", onChange2)
+        destroy: off
       };
     }
     const wrap = document.createElement("label");
@@ -3366,8 +3397,9 @@ void main( void )
     };
   }
   function createColourField(options) {
-    if (hasComponent("wpd-color-field")) {
-      const field = document.createElement("wpd-color-field");
+    const tag = componentTag("color-field");
+    if (tag) {
+      const field = document.createElement(tag);
       field.setAttribute("label", options.label);
       field.setAttribute("value", options.value);
       const onChange = (event) => {
@@ -3376,11 +3408,11 @@ void main( void )
           options.onChange(detail.value);
         }
       };
-      field.addEventListener("wpd-color-change", onChange);
+      const off = onShellEvent(field, "color-change", onChange);
       return {
         el: field,
         setValue: (value) => field.setAttribute("value", String(value)),
-        destroy: () => field.removeEventListener("wpd-color-change", onChange)
+        destroy: off
       };
     }
     const { wrap, text } = labelledRow(
@@ -3422,11 +3454,11 @@ void main( void )
     el.style.top = `${Math.round(top)}px`;
   }
   function createNumberField(options) {
-    const tag = pickComponent(["wpd-number-field", "wpd-text-field"]);
+    const tag = pickComponent(["number-field", "text-field"]);
     return tag ? componentField(tag, options) : nativeField(options);
   }
   function componentField(tag, options) {
-    const numeric = "wpd-number-field" === tag;
+    const numeric = tag.endsWith("-number-field");
     const field = document.createElement(tag);
     if (options.compact) {
       field.setAttribute("aria-label", options.label);
@@ -3456,14 +3488,17 @@ void main( void )
       }
       options.onChange(numeric ? next : clamp(next, options));
     };
-    field.addEventListener("wpd-input-change", onChange);
-    field.addEventListener("wpd-input-commit", onChange);
+    const offs = [
+      onShellEvent(field, "input-change", onChange),
+      onShellEvent(field, "input-commit", onChange)
+    ];
     const handle = {
       el: field,
       setValue: (value) => field.setAttribute("value", String(value)),
       destroy: () => {
-        field.removeEventListener("wpd-input-change", onChange);
-        field.removeEventListener("wpd-input-commit", onChange);
+        for (const off of offs) {
+          off();
+        }
       }
     };
     if (!options.compact) {
@@ -3511,8 +3546,9 @@ void main( void )
     return Math.min(bounds.max, Math.max(bounds.min, value));
   }
   function createSection(heading) {
-    if (hasComponent("wpd-section")) {
-      const section2 = document.createElement("wpd-section");
+    const tag = componentTag("section");
+    if (tag) {
+      const section2 = document.createElement(tag);
       section2.setAttribute("heading", heading);
       section2.setAttribute("stack", "");
       section2.classList.add("lz-section");
@@ -3532,12 +3568,13 @@ void main( void )
       options.label,
       "lz-field lz-field--compact"
     );
-    if (hasComponent("wpd-segmented")) {
-      const group2 = document.createElement("wpd-segmented");
+    const tag = componentTag("segmented");
+    if (tag) {
+      const group2 = document.createElement(tag);
       group2.setAttribute("value", options.value);
       group2.setAttribute("label", options.label);
       for (const option of options.options) {
-        const segment = document.createElement("wpd-segment");
+        const segment = document.createElement(siblingTag(tag, "segment"));
         segment.setAttribute("value", option.value);
         segment.textContent = option.label;
         group2.appendChild(segment);
@@ -3548,12 +3585,12 @@ void main( void )
           options.onChange(detail.value);
         }
       };
-      group2.addEventListener("wpd-pick", onPick);
+      const off = onShellEvent(group2, "pick", onPick);
       wrap.append(text, group2);
       return {
         el: wrap,
         setValue: (value) => group2.setAttribute("value", String(value)),
-        destroy: () => group2.removeEventListener("wpd-pick", onPick)
+        destroy: off
       };
     }
     const group = document.createElement("div");
@@ -3597,13 +3634,14 @@ void main( void )
     };
   }
   function createSelect(options) {
-    const useWpd = hasComponent("wpd-select");
+    const tag = componentTag("select");
+    const useWpd = null !== tag;
     const wrap = document.createElement("div");
     wrap.className = "lz-field";
     const label = document.createElement("label");
     label.className = "lz-field__label";
     label.textContent = options.label;
-    const select = document.createElement(useWpd ? "wpd-select" : "select");
+    const select = document.createElement(tag ?? "select");
     select.className = "lz-field__control";
     if (useWpd) {
       const id = fieldId("select");
@@ -3613,7 +3651,9 @@ void main( void )
       nameControl(select, label, "select");
     }
     for (const option of options.options) {
-      const node = document.createElement(useWpd ? "wpd-option" : "option");
+      const node = document.createElement(
+        tag ? siblingTag(tag, "option") : "option"
+      );
       node.setAttribute("value", option.value);
       node.textContent = option.label;
       select.appendChild(node);
@@ -3626,21 +3666,22 @@ void main( void )
     const read = () => useWpd ? select.getAttribute("value") ?? options.value : select.value;
     const onChange = () => options.onChange(read());
     select.addEventListener("change", onChange);
-    select.addEventListener("wpd-change", onChange);
+    const off = onShellEvent(select, "change", onChange);
     wrap.append(label, select);
     return {
       el: wrap,
       getValue: read,
       destroy: () => {
         select.removeEventListener("change", onChange);
-        select.removeEventListener("wpd-change", onChange);
+        off();
       }
     };
   }
   function createSlider(options) {
     const row = document.createElement("div");
     row.className = "lz-adjust";
-    const handle = hasComponent("wpd-range-field") ? createWpdSlider(options) : createNativeSlider(options);
+    const tag = componentTag("range-field");
+    const handle = tag ? createShellSlider(tag, options) : createNativeSlider(options);
     row.appendChild(handle.el);
     const reset = createButton({
       label: "↺",
@@ -3663,8 +3704,8 @@ void main( void )
       }
     };
   }
-  function createWpdSlider(options) {
-    const field = document.createElement("wpd-range-field");
+  function createShellSlider(tag, options) {
+    const field = document.createElement(tag);
     field.setAttribute("label", options.label);
     field.setAttribute("min", String(options.min));
     field.setAttribute("max", String(options.max));
@@ -3679,7 +3720,7 @@ void main( void )
         options.onInput(detail.value);
       }
     };
-    field.addEventListener("wpd-range-change", onChange);
+    const offChange = onShellEvent(field, "range-change", onChange);
     const onRelease = () => options.onCommit?.();
     field.addEventListener("pointerup", onRelease);
     field.addEventListener("keyup", onRelease);
@@ -3687,7 +3728,7 @@ void main( void )
       el: field,
       setValue: (value) => field.setAttribute("value", String(value)),
       destroy: () => {
-        field.removeEventListener("wpd-range-change", onChange);
+        offChange();
         field.removeEventListener("pointerup", onRelease);
         field.removeEventListener("keyup", onRelease);
       }
@@ -3745,8 +3786,10 @@ void main( void )
     };
   }
   function createSwatchGrid(options) {
-    const useWpd = hasComponent("wpd-swatch-grid") && hasComponent("wpd-swatch");
-    const el = document.createElement(useWpd ? "wpd-swatch-grid" : "div");
+    const gridTag = componentTag("swatch-grid");
+    const swatchTag = componentTag("swatch");
+    const useWpd = null !== gridTag && null !== swatchTag;
+    const el = document.createElement(gridTag && useWpd ? gridTag : "div");
     const listeners2 = [];
     el.classList.add("lz-palette");
     el.setAttribute("aria-label", options.label);
@@ -3755,7 +3798,9 @@ void main( void )
     }
     const chips = /* @__PURE__ */ new Map();
     for (const colour of options.colours) {
-      const chip = document.createElement(useWpd ? "wpd-swatch" : "button");
+      const chip = document.createElement(
+        useWpd && swatchTag ? swatchTag : "button"
+      );
       chip.classList.add("lz-palette__chip");
       chip.setAttribute("title", colour);
       chip.setAttribute("aria-label", colour);
@@ -3768,9 +3813,15 @@ void main( void )
         chip.style.background = colour;
       }
       const onPick = () => options.onChange(colour);
-      const event = useWpd ? "wpd-pick" : "click";
-      chip.addEventListener(event, onPick);
-      listeners2.push(() => chip.removeEventListener(event, onPick));
+      const events = useWpd ? shellEvents("pick") : ["click"];
+      for (const event of events) {
+        chip.addEventListener(event, onPick);
+      }
+      listeners2.push(() => {
+        for (const event of events) {
+          chip.removeEventListener(event, onPick);
+        }
+      });
       chips.set(colour, chip);
       el.appendChild(chip);
     }
@@ -3795,8 +3846,9 @@ void main( void )
     };
   }
   function createTextField(options) {
-    if (hasComponent("wpd-text-field")) {
-      const field = document.createElement("wpd-text-field");
+    const tag = componentTag("text-field");
+    if (tag) {
+      const field = document.createElement(tag);
       field.setAttribute("label", options.label);
       field.setAttribute("value", options.value);
       if (options.placeholder) {
@@ -3805,16 +3857,18 @@ void main( void )
       const read = (event) => eventDetail(event)?.value ?? "";
       const onChange = (event) => options.onChange(read(event));
       const onCommit2 = (event) => options.onCommit?.(read(event));
-      field.addEventListener("wpd-input-change", onChange);
-      field.addEventListener("wpd-input-commit", onCommit2);
-      field.addEventListener("wpd-submit", onCommit2);
+      const offs = [
+        onShellEvent(field, "input-change", onChange),
+        onShellEvent(field, "input-commit", onCommit2),
+        onShellEvent(field, "submit", onCommit2)
+      ];
       return {
         el: field,
         setValue: (value) => field.setAttribute("value", String(value)),
         destroy: () => {
-          field.removeEventListener("wpd-input-change", onChange);
-          field.removeEventListener("wpd-input-commit", onCommit2);
-          field.removeEventListener("wpd-submit", onCommit2);
+          for (const off of offs) {
+            off();
+          }
         }
       };
     }
@@ -6240,7 +6294,8 @@ void main( void )
   }
   const WINDOW_ID = "lienzo";
   function desktop() {
-    const api = window.wp?.desktop;
+    const wp = window.wp;
+    const api = wp?.os ?? wp?.desktop;
     return api?.isActive?.() ? api : void 0;
   }
   function takePending() {
@@ -6807,8 +6862,15 @@ void main( void )
     banner.addEventListener("dragend", () => bridge.end?.());
   }
   function registerNativeWindow() {
-    const registry2 = window.desktopModeNativeWindows ?? (window.desktopModeNativeWindows = {});
-    registry2[WINDOW_ID] = (body, ctx) => renderWindow(body, ctx);
+    const render = (body, ctx) => renderWindow(body, ctx);
+    for (const key of [
+      "openStationNativeWindows",
+      "desktopModeNativeWindows"
+    ]) {
+      const holder = window;
+      holder[key] ?? (holder[key] = {});
+      holder[key][WINDOW_ID] = render;
+    }
   }
   function renderWindow(body, ctx) {
     const root = body.querySelector("[data-lienzo-root]") ?? body;

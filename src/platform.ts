@@ -1,21 +1,41 @@
 /**
  * Host adapters.
  *
- * Lienzo runs in two worlds: a plain WordPress admin, and inside the Desktop Mode
- * shell. Rather than scatter `if ( desktopMode )` through the codebase, every
- * capability that differs between the two is funnelled through this module. The
- * rest of the plugin imports from here and never asks which world it is in.
+ * Lienzo runs in two worlds: a plain WordPress admin, and inside the shell that is
+ * now called OpenStation. Rather than scatter `if ( shell )` through the codebase,
+ * every capability that differs between the two is funnelled through this module.
+ * The rest of the plugin imports from here and never asks which world it is in.
  *
- * Nothing here hard-depends on Desktop Mode. Each adapter feature-detects the exact
- * method it wants and falls back to a plain-DOM implementation, so removing Desktop
- * Mode degrades the experience without breaking it.
+ * Nothing here hard-depends on the shell. Each adapter feature-detects the exact
+ * method it wants and falls back to a plain-DOM implementation, so removing the
+ * shell degrades the experience without breaking it.
+ *
+ * ## Two spellings of everything
+ *
+ * OpenStation 0.9.9 renamed the whole surface -- `wp.desktop` became `wp.os`,
+ * `<wpd-*>` became `<os-*>`, and every event with it. Lienzo ships to sites running
+ * either version and cannot know which, so it asks for capabilities by bare name and
+ * this module resolves the spelling. That is why nothing outside here writes a
+ * prefix: a hardcoded `wpd-button` is a control that silently renders as inert
+ * markup on a current shell, and a hardcoded `os-button` is the same bug in reverse.
  */
 
 import type { WpDesktopLike } from './globals';
 
-/** Returns the Desktop Mode API when the shell is actually mounted on this page. */
+/**
+ * Namespace prefixes to try, current first.
+ *
+ * Ordered so a site running both -- which happens mid-upgrade, when an old bundle is
+ * still cached -- gets the current spelling rather than whichever was defined first.
+ */
+const PREFIXES = [ 'os', 'wpd' ];
+
+/** Returns the shell API when it is actually mounted on this page. */
 function desktop(): WpDesktopLike | undefined {
-	const api = window.wp?.desktop;
+	const wp = window.wp as
+		| { os?: WpDesktopLike; desktop?: WpDesktopLike }
+		| undefined;
+	const api = wp?.os ?? wp?.desktop;
 
 	return api?.isActive?.() ? api : undefined;
 }
@@ -54,21 +74,23 @@ export function isDesktopModeEnabled(): boolean {
 }
 
 /**
- * Picks the first registered tag from a list of candidates.
+ * Picks the first registered component from a list of candidates.
  *
  * Components register lazily: the shell defines a core subset eagerly and the rest
  * only when a bundle importing them loads, so on any given page some are there and
- * some are not. `wpd-number-field` in particular is usually absent while
- * `wpd-text-field` is present -- and a text field in numeric mode is a far better
- * answer than dropping straight to a bare input, because it is still the shell's own
- * control with the shell's own styling.
+ * some are not. `number-field` in particular is usually absent while `text-field` is
+ * present -- and a text field in numeric mode is a far better answer than dropping
+ * straight to a bare input, because it is still the shell's own control with the
+ * shell's own styling.
  *
- * @param tags Candidates, best first.
- * @return The first registered tag, or null when none of them are.
+ * @param names Bare component names, best first, e.g. `[ 'number-field', 'text-field' ]`.
+ * @return The registered tag *including its prefix*, or null when none are.
  */
-export function pickComponent( tags: string[] ): string | null {
-	for ( const tag of tags ) {
-		if ( hasComponent( tag ) ) {
+export function pickComponent( names: string[] ): string | null {
+	for ( const name of names ) {
+		const tag = componentTag( name );
+
+		if ( tag ) {
 			return tag;
 		}
 	}
@@ -77,20 +99,78 @@ export function pickComponent( tags: string[] ): string | null {
 }
 
 /**
- * Whether a Desktop Mode web component has been registered on this page.
+ * The registered tag for a component, whichever spelling this shell uses.
  *
- * The shell registers a core subset of `<wpd-*>` eagerly and the rest only when a
- * bundle that imports them loads, so presence has to be checked per tag at the
- * moment the UI is built. An unregistered tag renders as inert markup, which is why
- * this is a hard gate rather than an optimistic one.
- *
- * @param tag Custom element tag name, e.g. `wpd-range-field`.
+ * @param name Bare component name, e.g. `range-field`.
+ * @return The tag to create, or null when no shell defines it.
  */
-export function hasComponent( tag: string ): boolean {
-	return (
-		typeof customElements !== 'undefined' &&
-		customElements.get( tag ) !== undefined
-	);
+export function componentTag( name: string ): string | null {
+	if ( 'undefined' === typeof customElements ) {
+		return null;
+	}
+
+	for ( const prefix of PREFIXES ) {
+		const tag = `${ prefix }-${ name }`;
+
+		if ( customElements.get( tag ) !== undefined ) {
+			return tag;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Whether the shell has registered a component on this page.
+ *
+ * Presence has to be checked per component at the moment the UI is built, because an
+ * unregistered tag renders as inert markup with no error -- which is why this is a
+ * hard gate rather than an optimistic one.
+ *
+ * @param name Bare component name, e.g. `range-field`.
+ */
+export function hasComponent( name: string ): boolean {
+	return null !== componentTag( name );
+}
+
+/**
+ * Every spelling of one shell event.
+ *
+ * Listeners are bound to all of them rather than to the one matching the resolved
+ * component prefix. The two are not reliably in step: a shell mid-upgrade can define
+ * `os-range-field` while a cached bundle still emits `wpd-range-change`, and a
+ * control that listened for only one spelling would render perfectly and do nothing.
+ *
+ * @param name Bare event name, e.g. `range-change`.
+ */
+export function shellEvents( name: string ): string[] {
+	return PREFIXES.map( ( prefix ) => `${ prefix }-${ name }` );
+}
+
+/**
+ * Binds a handler to every spelling of a shell event.
+ *
+ * @param el      Element to listen on.
+ * @param name    Bare event name, e.g. `pick`.
+ * @param handler Listener.
+ * @return Detach function.
+ */
+export function onShellEvent(
+	el: Element,
+	name: string,
+	handler: ( event: Event ) => void
+): () => void {
+	const names = shellEvents( name );
+
+	for ( const event of names ) {
+		el.addEventListener( event, handler );
+	}
+
+	return () => {
+		for ( const event of names ) {
+			el.removeEventListener( event, handler );
+		}
+	};
 }
 
 /**

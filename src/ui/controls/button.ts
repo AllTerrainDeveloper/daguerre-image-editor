@@ -7,7 +7,7 @@
  * `createIconButton()` exists as a separate entry point rather than a flag.
  */
 
-import { hasComponent } from '../../platform';
+import { componentTag } from '../../platform';
 import type { ButtonHandle, ButtonVariant } from './types';
 
 export interface ButtonOptions {
@@ -51,14 +51,15 @@ interface BuildOptions {
 /**
  * Builds a button element and its handle.
  *
- * Prefers `<wpd-button>` when the shell has registered it, so the button carries the
+ * Prefers the shell's own button when it has registered one, so the button carries the
  * desktop's own theming rather than an approximation of it.
  *
  * @param options Shared button configuration.
  */
 function buildButton( options: BuildOptions ): ButtonHandle & { el: HTMLElement } {
-	const useWpd = hasComponent( 'wpd-button' );
-	const el = document.createElement( useWpd ? 'wpd-button' : 'button' );
+	const tag = componentTag( 'button' );
+	const useWpd = null !== tag;
+	const el = document.createElement( tag ?? 'button' );
 
 	el.classList.add( options.className );
 	el.textContent = options.content;
@@ -79,7 +80,7 @@ function buildButton( options: BuildOptions ): ButtonHandle & { el: HTMLElement 
 	/**
 	 * Runs the action, unless the button is off.
 	 *
-	 * The guard is not belt and braces. `<wpd-button>` is a custom element, not a
+	 * The guard is not belt and braces. A shell button is a custom element, not a
 	 * form control, so the `disabled` attribute is decoration on it -- the browser
 	 * suppresses nothing and every listener still fires. Inside Desktop Mode that
 	 * made a greyed-out Save save, a greyed-out Undo undo, and a Reset that was
