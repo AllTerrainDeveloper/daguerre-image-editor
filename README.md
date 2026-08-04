@@ -18,7 +18,7 @@ text typed directly on the canvas. Undo and redo reach painted pixels, not only 
 Adjustments stay non-destructive: a save always writes a *new* attachment and stores the edit as a
 re-openable recipe, so the original file is never rewritten and repeated edits never compound.
 
-Lienzo runs as a **native window inside Desktop Mode**, which it requires. The dock, a desktop icon,
+Lienzo runs as a **native window inside OpenStation**, which it requires. The dock, a desktop icon,
 a double-clicked image, the Media Library row action, the attachment screen, the media modal and the
 `core/image` block toolbar all open that same window.
 
@@ -39,7 +39,7 @@ const editor = window.lienzo.mount( element, {
 // editor.getRecipe() / editor.setRecipe() / editor.destroy()
 ```
 
-The Desktop Mode native window is the only thing that calls it. The row action, the media modal
+The OpenStation native window is the only thing that calls it. The row action, the media modal
 button and the block editor button all ask for that window instead of mounting an editor of their
 own. Nothing outside `src/api.ts` touches Pixi, the recipe model, or REST.
 
@@ -120,7 +120,7 @@ selection rectangle cannot disagree about where the pointer is.
 the foot of the rail because almost every tool reads one of them. `Q` toggles the quick mask, which
 fills the selection in translucent red instead of outlining it: marching ants say where an edge is,
 a mask says how soft it is, which an outline cannot show at all. `F` fills the screen — via the
-Fullscreen API when it is allowed, and a CSS class when it is not, because inside a Desktop Mode
+Fullscreen API when it is allowed, and a CSS class when it is not, because inside an OpenStation
 window the request is usually refused and an editor that silently ignores a keypress is worse than
 one that just grows. `⋯` lists every tool by name with its shortcut, since eighteen glyphs are quick
 to click and slow to learn.
@@ -195,41 +195,60 @@ Results land on a raster layer above the image, exactly like a brush stroke, so 
 are never touched. Their extent is in canvas pixels, so a wide blur on a 5000-pixel photo is
 invisible at fit zoom and obvious at 100% — that is arithmetic, not a bug.
 
-## A Desktop Mode application
+## An OpenStation application
 
-Lienzo requires the Desktop Mode plugin and runs as a **native window** in the desktop shell,
-rendering into the shell's own DOM. That is the whole design, not a preference:
-the shell's `<wpd-*>` components, its drag bridge and its PixiJS all live in the parent frame, and a
+Lienzo requires the OpenStation plugin — previously called Desktop Mode — and runs as a **native
+window** in the desktop shell, rendering into the shell's own DOM. That is the whole design, not a
+preference: the shell's components, its drag bridge and its PixiJS all live in the parent frame, and a
 chromeless iframe can reach none of them — no component is registered there at all. There is
 therefore one editing surface, and the row action, the media modal button and the block editor button
 are all ways of asking for it rather than places the editor mounts.
 
 The requirement is checked by **capability, not by plugin slug** — do the functions being called
 exist — so a fork, a rename or a bundled copy all work. It is checked on `plugins_loaded`, and that
-detail is load-bearing: plugins load alphabetically, so `lienzo` runs *before* `desktop-mode` and
+detail is load-bearing: plugins load alphabetically, so `lienzo` runs *before* the shell and
 none of its functions exist yet at file scope. Checking there would fail on every site, every time,
 and the plugin would silently never load. `Requires Plugins:` governs activation, not load order.
 
-With Desktop Mode absent or switched off, nothing registers but a notice on the plugins screen
+With the shell absent or switched off, nothing registers but a notice on the plugins screen
 saying why. Classic admin therefore has no editor — the deliberate cost of running natively.
+
+### One name, two spellings
+
+OpenStation renamed its whole surface: `wp.desktop` became `wp.os`, `<wpd-*>` became `<os-*>` along
+with every event, `--wpd-*` became `--os-ui-*`, `--desktop-mode-*` became `--os-*`, and
+`desktop_mode_*()` became `openstation_*()`. Lienzo ships to sites running either version and cannot
+know which, so nothing outside `src/platform.ts` and `includes/shell-api.php` writes a prefix at
+all — code asks by bare name and those two files resolve the spelling:
+
+```ts
+componentTag( 'range-field' )        // 'os-range-field' | 'wpd-range-field' | null
+onShellEvent( el, 'range-change', … )  // binds both spellings
+```
+
+```php
+lienzo_shell_call( 'register_window', 'lienzo', $args );
+```
+
+A hardcoded `os-button` is exactly the same bug as a hardcoded `wpd-button`, pointed the other way.
+Events are bound under *both* names rather than the one matching the resolved component, because the
+two are not reliably in step — a shell mid-upgrade can define `os-range-field` while a cached bundle
+still emits `wpd-range-change`, and a control listening for one would render perfectly and do nothing.
 
 ### The controls come from the shell
 
-Per tag, never per plugin:
+Per component, never per plugin:
 
 ```ts
-hasComponent( 'wpd-range-field' ) ? createWpdSlider( … ) : createNativeSlider( … )
+hasComponent( 'range-field' ) ? createShellSlider( … ) : createNativeSlider( … )
 ```
 
-The shell registers a core subset of `<wpd-*>` eagerly and the rest only when a bundle importing them
-loads, so "is Desktop Mode running" is the wrong question — the only trustworthy one is whether *this*
-tag is in the registry right now. An unregistered tag renders as inert markup with no error, which is
-why this is a hard gate, and it is a *layered* one: `createNumberField()` asks for
-`<wpd-number-field>` first, then `<wpd-text-field type="number">`, then a bare input. That middle tier
-is what actually runs most of the time, because the shell does not register the number field until
-some bundle imports it. On the QA site `wpd-range-field`, `wpd-select`, `wpd-segmented`,
-`wpd-color-field`, `wpd-text-field` and `wpd-checkbox-label` are all registered while
-`wpd-number-field` and `wpd-section` are not — a per-plugin check would have rendered two inert tags.
+The shell registers a core subset eagerly and the rest only when a bundle importing them loads, so
+"is the shell running" is the wrong question — the only trustworthy one is whether *this* component
+is in the registry right now. An unregistered tag renders as inert markup with no error, which is
+why this is a hard gate, and it is a *layered* one: `createNumberField()` asks for `number-field`
+first, then `text-field` in numeric mode, then a bare input. That middle tier is what actually runs
+most of the time, because the shell does not register the number field until some bundle imports it.
 
 Adapters do the same for behaviour. `src/platform.ts` funnels `request()`, `toast()` and
 `confirmAction()` through feature detection, so no other module branches on the shell.
@@ -248,7 +267,7 @@ end up here:
   shell's drag manager. Its pixels load via the same CORS-safe path the document uses, so
   a CDN-served file falls back to the byte proxy instead of tainting the canvas.
 - **A media record**, which is what dragging a thumbnail out of the **Media Library**
-  carries: Desktop Mode's enhancement makes every `.attachment` draggable and writes the
+  carries: the shell's enhancement makes every `.attachment` draggable and writes the
   whole record as JSON on `application/x-wp-media-attachment`. That is the canonical
   contract for a WordPress media drag, and reading it beats inferring an id from markup.
 - **A URL**, from `text/uri-list`, `text/plain` or an `<img src>` in `text/html`, for
@@ -278,20 +297,20 @@ with handles around nothing.
 
 ### Theming
 
-The editor **defines** Desktop Mode's component palette on its own root, and this is not optional
-polish: nothing in either plugin declares `--wpd-fg`, `--wpd-fg-muted`, `--wpd-border` or the rest, so
+The editor **defines** the shell's component palette on its own root, and this is not optional
+polish: nothing in either plugin declares the foreground, muted-foreground or border tokens, so
 every component was falling back to its light-theme literals and painting `#646970` labels and white
 input backgrounds onto a dark panel. Labels measured about 2:1. One block of variables on
-`.lz-editor` themes every `<wpd-*>` the editor will ever mount, including ones added later, and takes
-those labels to 5.5:1.
+`.lz-editor` themes every shell control the editor will ever mount, including ones added later, and
+takes those labels to 5.5:1. The block is declared under both spellings (`--wpd-*` and `--os-ui-*`,
+`--desktop-mode-*` and `--os-*`) for the same reason the components are resolved by bare name.
 
 The surround stays dark in every host, deliberately: judging an exposure against a white panel is
-judging the panel. So the editor does *not* adopt Desktop Mode's window palette, which is light
-(`--desktop-mode-window-bg: #fff`) because it dresses the frame rather than the content. What it does
-adopt is the accent and the corner radius — `--desktop-mode-window-link-accent`, falling back to
-`--wp-admin-theme-color` — so the editor follows the user's desktop theme and their admin colour
-scheme. An earlier version of that chain read `--wpd-accent`, which nothing defines; it fell through
-to a hardcoded blue every time.
+judging the panel. So the editor does *not* adopt the shell's window palette, which is light because
+it dresses the frame rather than the content. What it does adopt is the accent and the corner
+radius — `--os-window-link-accent`, falling back through the older name to `--wp-admin-theme-color` —
+so the editor follows the user's desktop theme and their admin colour scheme. An earlier version of
+that chain read `--wpd-accent`, which nothing defines; it fell through to a hardcoded blue every time.
 
 ### The bundle is evaluated twice
 
@@ -306,9 +325,9 @@ has to live there**, not in a module-level variable.
 
 ## PixiJS comes from the shell
 
-Lienzo ships no rendering library. Desktop Mode vendors PixiJS v8 (MIT) and registers it in its
-module registry, so `src/engine/pixi-loader.ts` asks for it with
-`wp.desktop.loadModules( [ 'pixijs' ] )` and reads `window.PIXI`.
+Lienzo ships no rendering library. The shell vendors PixiJS v8 (MIT) and registers it in its
+module registry, so `src/engine/pixi-loader.ts` asks for it with `loadModules( [ 'pixijs' ] )` and
+reads `window.PIXI`.
 
 That is smaller and safer than carrying a second copy: two Pixi 8 instances on a page share GPU
 resource registries through globals, and tearing one down can invalidate textures belonging to the
@@ -320,44 +339,59 @@ unrelated Pixi apps on the page.
 
 ## Layout
 
+Almost every part of this is a directory with a barrel rather than one long file. Where a name
+below has no extension, `index.ts` is the public surface and the modules beside it are private to
+it — so `src/editor` is imported as `../editor`, never as `../editor/recipe-store`.
+
 ```
 lienzo.php               plugin bootstrap, constants
 includes/
-  requirements.php         the Desktop Mode capability gate + the plugins-screen notice
-  helpers.php              capabilities, source resolution, render ceiling
-  recipe.php               op schema + validation  (contract twin of src/model/recipe.ts)
-  rest.php                 lienzo/v1 routes
+  shell-api.php            resolves the shell's renamed functions and hooks
+  requirements.php         the shell capability gate + the plugins-screen notice
+  helpers/                 capabilities, source resolution, MIME, render ceilings
+  recipe/                  op schema, defaults, migration, validation
+                             (contract twin of src/model/recipe)
+  post-image.php           which image a post is "about" — featured, gallery, attached
+  post-attach.php          points a post at an edited copy, never overwriting
+  render/                  blob -> sideload -> attachment -> recipe meta
+  rest/                    lienzo/v1 routes, permissions, handlers
   assets.php               script/style registration + the config blob
-  render.php               blob -> sideload -> attachment -> recipe meta
   presets.php              per-user saved looks
   media-actions.php        row action + attachment-screen button
-  desktop-mode.php         every Desktop Mode touchpoint, behind function_exists
+  desktop-mode.php         every shell touchpoint, behind a capability check
 src/
-  api.ts                   mount() — the only public entry point
-  platform.ts              host adapters (fetch / toast / confirm / component detection)
-  model/recipe.ts          types, defaults, validation
+  api.ts                   re-exports mount(); the implementation is src/editor
+  editor/                  the editor: shell, toolbar, document store, save path
+    recipe-store.ts          the document + its undo stack, with no DOM in it
+    undoable-store.ts        the generic history mechanics underneath it
+  platform.ts              host adapters, and the naming layer that resolves
+                             `os-*` / `wpd-*` components and events
+  model/recipe/            types, schema, mutations, migration, validation
+  model/document/          canvas, layer transforms, the layer stack
+  model/selection/         marquee geometry, mask rasterising, contour tracing
   model/history.ts         undo stack with drag coalescing
-  engine/color-matrix.ts   PURE: ops -> one 4x5 matrix
-  engine/geometry.ts       PURE: crop/rotate/flip maths, all normalised
+  model/pixel-history/     the tiles a paint stroke overwrote, for undo
+  engine/color-matrix/     PURE: ops -> one 4x5 matrix
   engine/histogram.ts      PURE: pixels -> bucket counts
-  engine/lut.ts            PURE: curves + levels -> one 256x1 table
-  engine/brush.ts          PURE: stamps, stroke interpolation, flood fill
-  engine/pixel-tools.ts    PURE: one dab routine, eight retouching kernels
-  engine/paint-shapes.ts   gradients, shapes and text -> one bitmap each
-  engine/renderer.ts       Pixi app, geometry pass, single-pass filter
+  engine/lut/              PURE: curves + levels -> one 256x1 table
+  engine/brush/            PURE: stamps, stroke interpolation, flood fill
+  engine/pixel-tools/      PURE: one dab routine, eight retouching kernels
+  engine/paint-shapes/     gradients, shapes and text -> one bitmap each
+  engine/renderer/         Pixi context, layer textures, compositor, camera,
+                             adjustment pipeline, histogram probe
   engine/shaders/adjust.ts the one shader
   net/                     REST client, image loading with CORS fallback
-  ui/panels.ts             panel registry + collapsible chrome
-  ui/built-in-panels.ts    every shipped panel, via the public registerPanel()
-  ui/tool-rail.ts          the eighteen tools, two columns, keyboard shortcuts
-  ui/stage-tools.ts        every canvas gesture, through one coordinate conversion
-  ui/options-bar.ts        the contextual strip; a second view of one model
-  ui/crop-overlay.ts       the draggable crop rectangle
-  ui/curve-editor.ts       the tone curve graph
-  ui/controls.ts           the adaptive control kit, one factory per control
-  ui/swatches.ts           foreground/background pair, swap, reset, palette
-  ui/                      histogram plot, rulers, transform handles
+  ui/panels/               panel registry, host, and every shipped panel
+  ui/controls/             the adaptive control kit, one factory per control
+  ui/tool-rail/            the eighteen tools, two columns, keyboard shortcuts
+  ui/stage-tools/          every canvas gesture, through one coordinate conversion
+  ui/options-bar/          the contextual strip; a second view of one model
+  ui/picker/               the image grid, read a page at a time
+  ui/transform-overlay/    the handles; drag maths separated from the DOM
+  ui/crop-overlay/         the draggable crop rectangle
+  ui/rulers/, ui/swatches.ts, ui/curve-editor.ts, ui/histogram-view.ts, …
   hosts/                   one adapter per surface
+  hosts/desktop-mode/      the shell integration: window, icon drop, file drop
 ```
 
 The pure modules carry no Pixi import on purpose: the maths is where the bugs would be, and it is
@@ -424,7 +458,7 @@ than failing the build. Override with `LIENZO_DEPLOY_TARGET`, or skip with `LIEN
 `npm run env:start` maps both plugins in but activates neither: wp-env's `plugins` list mounts a
 directory under its *own basename* as well, which would put a second copy of Lienzo on the site, and
 it treats a failed activation as fatal — which `Requires Plugins: desktop-mode` guarantees when
-Desktop Mode is not active yet. The mappings put both at their correct slugs; activate them from the
+OpenStation is not active yet. The mappings put both at their correct slugs; activate them from the
 Plugins screen.
 
 Lint PHP with `vendor/bin/phpcs` inside the container:
@@ -474,6 +508,30 @@ browser implementation gives you a slider that validates and then does nothing.
 | `lienzo_max_upload_bytes` | Ceiling on a saved render |
 | `lienzo_config` | The blob handed to the browser |
 | `lienzo_rest_media_payload` | The open-image response |
+| `lienzo_post_image_id` | Which image a post is "about" |
+| `lienzo_post_image_candidates` | The list checked before that decides |
+| `lienzo_post_image_updated` | Fires after a post is pointed at an edit |
+
+## Opening a post's photo
+
+Drag a WooCommerce product — or any post with a picture — onto the Lienzo icon and its image opens
+straight in the editor, skipping the picker. Dropping a photo does the same.
+
+The shell owns the drop target on every wallpaper tile, because a tile has to reject foreign
+payloads rather than let them fall through to the wallpaper underneath. Registering a target on the
+icon is therefore silently displaced; Lienzo cooperates with the claimant through
+`registerTilePayloadHandler` instead, scoped to its own icon so it cannot shadow another plugin's.
+
+Which image a post is "about" is a filterable chain rather than a featured-image read: featured
+image, then the WooCommerce gallery, then anything attached. Deliberately generic over post type —
+a product's featured image is a featured image, and WooCommerce is the first caller rather than a
+special case.
+
+Saving an image opened that way asks what to do with it. **Both answers are non-destructive**:
+"update the product" writes a new attachment and points the product at it, leaving the original in
+the library. Lienzo has no path that rewrites an original and this does not add one, which is what
+makes the change reversible — the previous image is still there, and putting it back is one more
+repoint rather than a restore from backup. A gallery swap keeps its position.
 
 ## Known limits
 
@@ -488,14 +546,18 @@ Stated plainly, because each is better read here than discovered:
   linear-light exposure, 16-bit intermediates and a WGSL program for WebGPU are all real work that
   has not been done.
 - **There is no classic-admin editor.** Running natively in the desktop shell is what buys the
-  `<wpd-*>` components, the drag bridge and the shared PixiJS; the cost is that switching Desktop
-  Mode off leaves nothing but a notice explaining why.
+  shell's components, the drag bridge and the shared PixiJS; the cost is that switching the shell
+  off leaves nothing but a notice explaining why.
 - **`big_image_size_threshold`** can silently downscale a saved render. The success toast reports the
   dimensions actually stored rather than the ones requested.
 - **Animated GIFs are not offered for editing**, because a canvas round trip flattens them to one
-  frame, and quietly destroying an animation is worse than declining.
+  frame, and quietly destroying an animation is worse than declining. They are also skipped by the
+  picker, so a library of them can read as smaller than it is.
+- **The picker reads the library a page at a time** behind a Load more button rather than loading on
+  scroll: it renders inside a desktop window, so which element actually scrolls is not the picker's
+  to know, and a scroll listener bound to the wrong one silently never fires.
 
 ## Licence
 
 GPL-2.0-or-later. No third-party libraries are bundled and no external requests are made. Rendering
-uses PixiJS (MIT), which Desktop Mode vendors and serves from your own site.
+uses PixiJS (MIT), which OpenStation vendors and serves from your own site.

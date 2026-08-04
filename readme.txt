@@ -52,23 +52,29 @@ Text, pasted pixels and dropped photos each arrive as their own layer, so you ca
 
 Drag an image from the Media Library, from the desktop, or from your computer straight onto the canvas. It lands as a new layer, where you dropped it, scaled to fit.
 
+= Open a product photo without hunting for it =
+
+Drag a WooCommerce product onto the Lienzo icon and its photo opens straight away, skipping the picker. Any post with a picture works the same way, and so does dropping a photo itself.
+
+When you save, Lienzo asks whether the product should start using the edit. Either answer leaves your original where it is: choosing to update writes a new copy and points the product at it, so going back is a matter of pointing it at the old one again.
+
 = Your originals are never touched =
 
-Saving writes a new attachment and records the edit as a recipe: the list of adjustments, not the pixels. Re-opening a photo restores every slider exactly where you left it and renders again from the original. Editing the same image ten times costs nothing in quality, because every render is a first generation one.
+Saving always writes a new attachment and records the edit as a recipe: the list of adjustments, not the pixels. Re-opening a photo restores every slider exactly where you left it and renders again from the original. Editing the same image ten times costs nothing in quality, because every render is a first generation one.
 
 = Fast, because of how it renders =
 
 Adjustments are composed into a single GPU pass rather than chained one after another. That is not only quicker. It also means the image is quantised once instead of once per adjustment, which is the difference between a clean gradient and visible banding in a sky.
 
-== Requires Desktop Mode ==
+== Requires OpenStation ==
 
-Lienzo runs as a window inside the Desktop Mode plugin, which turns wp-admin into a desktop. That is not decoration. Rendering inside the desktop is what gives Lienzo its window chrome, its interface components and its drag and drop, and it borrows its rendering engine from the desktop rather than shipping a second copy for your browser to download twice.
+Lienzo runs as a window inside the OpenStation plugin (previously called Desktop Mode), which turns wp-admin into a desktop. That is not decoration. Rendering inside the desktop is what gives Lienzo its window chrome, its interface components and its drag and drop, and it borrows its rendering engine from the desktop rather than shipping a second copy for your browser to download twice.
 
-Install and activate Desktop Mode first, then switch it on for your user. Without it, Lienzo tells you what it needs and otherwise stays out of the way.
+Install and activate OpenStation first, then switch it on for your user. Without it, Lienzo tells you what it needs and otherwise stays out of the way.
 
 == Installation ==
 
-1. Install and activate the Desktop Mode plugin, then switch it on for your user.
+1. Install and activate the OpenStation plugin, then switch it on for your user.
 2. Upload the `lienzo` folder to `/wp-content/plugins/`, or install it from the Plugins screen.
 3. Activate Lienzo through the Plugins menu.
 4. Open Lienzo from the dock or the desktop, or choose "Edit with Lienzo" on any image in the Media Library.
@@ -103,7 +109,7 @@ That makes a painted save its own original. Re-open it and you see exactly the p
 
 = Can I use it in the classic admin? =
 
-No. Lienzo renders inside the desktop, so it needs Desktop Mode switched on.
+No. Lienzo renders inside the desktop, so it needs OpenStation switched on.
 
 == Screenshots ==
 
@@ -116,7 +122,7 @@ No. Lienzo renders inside the desktop, so it needs Desktop Mode switched on.
 
 This plugin bundles no third-party libraries and makes no external or CDN requests.
 
-Rendering uses PixiJS (MIT), which is bundled by the Desktop Mode plugin and loaded from your own server by the desktop. Lienzo asks the desktop for it rather than shipping a second copy: two instances of the same rendering library on one page share GPU resources through globals, and tearing one down can break the other.
+Rendering uses PixiJS (MIT), which is bundled by the OpenStation plugin and loaded from your own server by the desktop. Lienzo asks the desktop for it rather than shipping a second copy: two instances of the same rendering library on one page share GPU resources through globals, and tearing one down can break the other.
 
 == Changelog ==
 
