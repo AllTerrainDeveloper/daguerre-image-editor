@@ -7,8 +7,14 @@
  * registries through globals, and tearing one down can invalidate textures belonging to
  * the other. There is no version to keep in step and no second copy to go stale.
  *
- * `wp.desktop.loadModules()` is idempotent and de-duplicates concurrent callers, so
- * several windows opening at once still load one script.
+ * `loadModules()` is idempotent and de-duplicates concurrent callers, so several
+ * windows opening at once still load one script.
+ *
+ * Both spellings of the namespace are read, for the reason set out in `platform.ts`:
+ * OpenStation 0.9.9 renamed `wp.desktop` to `wp.os` and Lienzo ships to sites running
+ * either version. This file used to read only `wp.desktop`, which meant that on a
+ * current shell the loader looked exactly like a page with no shell at all and every
+ * canvas failed to open with "Lienzo needs Desktop Mode".
  */
 
 import type * as PixiNamespace from 'pixi.js';
@@ -26,9 +32,18 @@ interface DesktopModules {
 
 /**
  * Reads Desktop Mode's module loader, if the shell is on this page.
+ *
+ * Deliberately NOT gated on `isActive()` the way `platform.ts` gates its adapters:
+ * that flag answers "should this look like a desktop app", and the module registry
+ * works whenever the shell bundle is present. Gating here would refuse to load Pixi
+ * on a page where it is perfectly loadable.
  */
 function shell(): DesktopModules | undefined {
-	return ( window as unknown as { wp?: { desktop?: DesktopModules } } ).wp?.desktop;
+	const wp = window.wp as
+		| { os?: DesktopModules; desktop?: DesktopModules }
+		| undefined;
+
+	return wp?.os ?? wp?.desktop;
 }
 
 /**

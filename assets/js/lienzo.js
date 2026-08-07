@@ -2753,7 +2753,8 @@ void main( void )
   }
   const MODULE_ID = "pixijs";
   function shell() {
-    return window.wp?.desktop;
+    const wp = window.wp;
+    return wp?.os ?? wp?.desktop;
   }
   async function loadPixi() {
     if (window.PIXI) {
