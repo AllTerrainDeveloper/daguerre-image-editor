@@ -14,16 +14,6 @@ export const EXCLUDED = new Set( [
 	'node_modules',
 	'vendor',
 
-	// Version control and editor leftovers.
-	'.git',
-	'.gitignore',
-	'.github',
-	'.DS_Store',
-
-	// The development environment.
-	'.wp-env.json',
-	'.wp-env.override.json',
-
 	// Sources and the tools that turn them into the built bundles.
 	'bin',
 	'src',
@@ -39,10 +29,6 @@ export const EXCLUDED = new Set( [
 	// Developer documentation. `readme.txt` is the one users see, and it does ship.
 	'README.md',
 
-	// Directory-listing art for WordPress.org, which belongs in the directory's own
-	// `assets/` path rather than inside the plugin someone downloads.
-	'.wordpress-org',
-
 	// Output of the packaging step itself.
 	'dist',
 ] );
@@ -50,9 +36,19 @@ export const EXCLUDED = new Set( [
 /**
  * Whether a top-level entry belongs in a distributed copy of the plugin.
  *
+ * Nothing beginning with a dot ever ships, and that rule is deliberately blind rather
+ * than a list of known offenders. Version control, the wp-env config, the
+ * directory-listing art in `.wordpress-org/` and every agent or editor directory that
+ * appears in a repository over time are all development scaffolding, and a deny-list
+ * only excludes the ones somebody remembered to add -- `.claude/settings.local.json`
+ * shipped inside a release zip precisely that way. WordPress.org's own Plugin Check
+ * flags hidden files, so a leak here is not merely untidy: it fails review.
+ *
+ * The plugin itself ships no dotfiles, so there is nothing to carve an exception for.
+ *
  * @param {string} name Entry name, relative to the repository root.
  * @return {boolean} True when it ships.
  */
 export function ships( name ) {
-	return ! EXCLUDED.has( name );
+	return ! name.startsWith( '.' ) && ! EXCLUDED.has( name );
 }

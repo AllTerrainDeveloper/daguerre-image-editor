@@ -24,7 +24,7 @@ import {
 	statSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { EXCLUDED } from './ships.mjs';
+import { ships } from './ships.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve( dirname( fileURLToPath( import.meta.url ) ), '..' );
@@ -81,7 +81,7 @@ function mirror( from, to, top = false ) {
 	mkdirSync( to, { recursive: true } );
 
 	const sourceEntries = readdirSync( from, { withFileTypes: true } ).filter(
-		( entry ) => ! ( top && EXCLUDED.has( entry.name ) ) && entry.name !== '.DS_Store'
+		( entry ) => ! ( top && ! ships( entry.name ) ) && entry.name !== '.DS_Store'
 	);
 	const keep = new Set( sourceEntries.map( ( entry ) => entry.name ) );
 

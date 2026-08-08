@@ -68,13 +68,19 @@ process.stdout.write( `[${ slug }] Running Plugin Check…\n\n` );
 // `phpcs.xml.dist` as an application file, and so on. None of those are in the zip --
 // `bin/ships.mjs` decides that, and this list mirrors it in Plugin Check's own form.
 //
+// `.claude` is on the list for the same reason as the rest, but it is worth naming:
+// Plugin Check has a dedicated `ai_instruction_directory` rule for agent directories,
+// and it fired here on a real leak -- the packager used to ship
+// `.claude/settings.local.json` inside the release zip. `ships()` now refuses every
+// dot-entry, so the zip is clean and this exclusion only quiets the mapped checkout.
+//
 // Excluding them keeps the report about what actually ships. Run `npm run
 // plugin:package` and unzip it if you want to see the exact tree a reviewer will.
 const check = wp( [
 	'plugin',
 	'check',
 	slug,
-	'--exclude-directories=node_modules,vendor,src,tests,bin,dist',
+	'--exclude-directories=node_modules,vendor,src,tests,bin,dist,.claude',
 	'--exclude-files=.wp-env.json,.wp-env.override.json,.gitignore,phpcs.xml.dist,vite.config.js,tsconfig.json,package.json,package-lock.json,composer.json,composer.lock,README.md',
 	'--severity=5',
 ] );

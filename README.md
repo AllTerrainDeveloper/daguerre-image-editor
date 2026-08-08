@@ -426,6 +426,13 @@ weeks. The zip contains one `lienzo/` folder so it unpacks to the right slug how
 is installed, and it is staged into `dist/lienzo/` first so you can list and diff the
 exact tree a reviewer will see.
 
+Nothing whose name begins with a dot ever ships, and that rule is blind on purpose. A
+list of known offenders only excludes the ones somebody remembered to add: `.claude/`
+appeared in the repository and went straight into the release zip, which is exactly what
+Plugin Check's `ai_instruction_directory` rule exists to catch. Editor and agent
+directories keep arriving over a project's life, so the packager refuses the whole
+class rather than chasing each one.
+
 The banner and icon art lives in `.wordpress-org/` and is deliberately **not** in the
 zip: the plugin directory serves it from its own `assets/` path in SVN, and shipping it
 would add half a megabyte to every download. `plugin:package` copies it to
@@ -434,6 +441,26 @@ would add half a megabyte to every download. `plugin:package` copies it to
 `plugin:check` runs against the repository as wp-env maps it, not the package, so it
 excludes the build tooling explicitly; that list mirrors `bin/ships.mjs` in Plugin
 Check's own form. Unzip the package if you want to see the real tree.
+
+### The first submission
+
+Lienzo is not in the plugin directory yet, so the first release is a manual upload
+rather than anything automated:
+
+```bash
+npm run plugin:check    # must report "No errors found"
+npm run plugin:package  # writes dist/lienzo.zip
+```
+
+Upload `dist/lienzo.zip` at <https://wordpress.org/plugins/developers/add/>. Only the
+zip goes in — there is nowhere to put `dist/assets/` yet. The directory art and the
+screenshots live in SVN under the plugin's own `assets/` path, which does not exist
+until the plugin is approved and commit access is granted.
+
+Review is done by humans and takes days to weeks. Nothing about the submission is
+scriptable, which is why there is no `npm run release` here yet: a tag-driven deploy
+pushes to `https://plugins.svn.wordpress.org/lienzo`, and that repository is created by
+the approval, not by us.
 
 ### Two sites, and why builds deploy themselves
 
