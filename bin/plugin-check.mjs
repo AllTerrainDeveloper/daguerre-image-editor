@@ -11,15 +11,52 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ships } from './ships.mjs';
 
+const root = resolve( dirname( fileURLToPath( import.meta.url ) ), '..' );
 const slug = 'lienzo';
+
+/**
+ * Splits the repository root into what ships and what does not.
+ *
+ * wp-env maps the *repository* into the site rather than the packaged plugin, so
+ * without this the check reports the build tooling: `.wp-env.json` as a forbidden
+ * hidden file, `phpcs.xml.dist` as an application file, `.claude/` as an AI
+ * instruction directory. None of it is in the zip.
+ *
+ * The list is derived from `ships()` rather than written out again, because a second
+ * hand-maintained copy of "what ships" is a copy that drifts. It did: `.claude/`
+ * reached a release zip while this file carried an exclusion list that never mentioned
+ * it. Asking the packager directly means the check can only ever be blind to things
+ * the zip genuinely does not contain -- add a directory to `EXCLUDED` and the check
+ * follows on its own.
+ *
+ * @return {{ directories: string[], files: string[] }} Names Plugin Check should skip.
+ */
+function excluded() {
+	const directories = [];
+	const files = [];
+
+	for ( const entry of readdirSync( root, { withFileTypes: true } ) ) {
+		if ( ships( entry.name ) ) {
+			continue;
+		}
+
+		( entry.isDirectory() ? directories : files ).push( entry.name );
+	}
+
+	return { directories, files };
+}
 
 /**
  * Runs a command in the wp-env CLI container.
  *
  * @param {string[]} args   Arguments after `wp`.
  * @param {boolean}  quiet  Whether to capture output instead of printing it.
- * @return {{ status: number, stdout: string }} Result.
+ * @return {{ status: number, stdout: string, stderr: string }} Result.
  */
 function wp( args, quiet = false ) {
 	const result = spawnSync(
@@ -31,7 +68,56 @@ function wp( args, quiet = false ) {
 		}
 	);
 
-	return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+	return {
+		status: result.status ?? 1,
+		stdout: result.stdout ?? '',
+		stderr: result.stderr ?? '',
+	};
+}
+
+/**
+ * Turns Plugin Check's JSON report into a flat list of findings.
+ *
+ * The output is not a single JSON document: it is a `FILE: <path>` header followed by
+ * one JSON array per file, repeated. So the file each finding belongs to comes from
+ * the header above it rather than from the finding itself.
+ *
+ * @param {string} output Raw stdout from `wp plugin check --format=json`.
+ * @return {Array<Object>} Findings, each carrying the file it was reported against.
+ */
+function parseFindings( output ) {
+	const findings = [];
+	let file = '(unknown file)';
+
+	for ( const line of output.split( '\n' ) ) {
+		const trimmed = line.trim();
+
+		if ( trimmed.startsWith( 'FILE:' ) ) {
+			file = trimmed.slice( 'FILE:'.length ).trim();
+			continue;
+		}
+
+		if ( ! trimmed.startsWith( '[' ) ) {
+			continue;
+		}
+
+		let parsed;
+
+		try {
+			parsed = JSON.parse( trimmed );
+		} catch {
+			process.stderr.write(
+				`[${ slug }] Could not parse Plugin Check output. Raw output:\n${ output }\n`
+			);
+			process.exit( 1 );
+		}
+
+		for ( const finding of parsed ) {
+			findings.push( { ...finding, file } );
+		}
+	}
+
+	return findings;
 }
 
 process.stdout.write( `[${ slug }] Checking the wp-env instance…\n` );
@@ -63,26 +149,56 @@ if ( installed.status !== 0 ) {
 
 process.stdout.write( `[${ slug }] Running Plugin Check…\n\n` );
 
-// wp-env maps the *repository* into the site, not the packaged plugin, so the check
-// would otherwise report the build tooling: `.wp-env.json` as a forbidden hidden file,
-// `phpcs.xml.dist` as an application file, and so on. None of those are in the zip --
-// `bin/ships.mjs` decides that, and this list mirrors it in Plugin Check's own form.
+// Severity 5 and above is what fails the WordPress.org review queue; the advisory
+// findings below it are worth reading but are not a gate.
 //
-// `.claude` is on the list for the same reason as the rest, but it is worth naming:
-// Plugin Check has a dedicated `ai_instruction_directory` rule for agent directories,
-// and it fired here on a real leak -- the packager used to ship
-// `.claude/settings.local.json` inside the release zip. `ships()` now refuses every
-// dot-entry, so the zip is clean and this exclusion only quiets the mapped checkout.
-//
-// Excluding them keeps the report about what actually ships. Run `npm run
-// plugin:package` and unzip it if you want to see the exact tree a reviewer will.
-const check = wp( [
-	'plugin',
-	'check',
-	slug,
-	'--exclude-directories=node_modules,vendor,src,tests,bin,dist,.claude',
-	'--exclude-files=.wp-env.json,.wp-env.override.json,.gitignore,phpcs.xml.dist,vite.config.js,tsconfig.json,package.json,package-lock.json,composer.json,composer.lock,README.md',
-	'--severity=5',
-] );
+// Read as JSON and counted rather than trusted to set an exit code, because
+// `wp plugin check` EXITS 0 WHILE REPORTING ERRORS. Verified against this plugin: a
+// deliberate `stable_tag_mismatch` -- severity ERROR, and on its own enough to have a
+// submission rejected -- printed in full and still exited 0. A release gate wired to
+// that exit code would pass every time and catch nothing.
+const { directories, files } = excluded();
+const report = wp(
+	[
+		'plugin',
+		'check',
+		slug,
+		`--exclude-directories=${ directories.join( ',' ) }`,
+		`--exclude-files=${ files.join( ',' ) }`,
+		'--severity=5',
+		'--format=json',
+	],
+	true
+);
 
-process.exit( check.status );
+// An empty report is only good news when the command actually ran. A wp-cli failure
+// (plugin not installed, container gone) also produces no findings, and must not be
+// mistaken for a clean bill of health.
+if ( report.status !== 0 && ! report.stdout.includes( '[' ) ) {
+	process.stderr.write(
+		`[${ slug }] Plugin Check did not run.\n${ report.stdout }${ report.stderr }`
+	);
+	process.exit( 1 );
+}
+
+const findings = parseFindings( report.stdout );
+
+if ( findings.length === 0 ) {
+	process.stdout.write( `[${ slug }] Plugin Check passed — no errors found.\n` );
+	process.exit( 0 );
+}
+
+process.stderr.write(
+	`[${ slug }] Plugin Check found ${ findings.length } error${ findings.length === 1 ? '' : 's' }:\n\n`
+);
+
+for ( const finding of findings ) {
+	const where = finding.line ? `${ finding.file }:${ finding.line }` : finding.file;
+
+	process.stderr.write( `  ${ where }\n    [${ finding.code }] ${ finding.message }\n\n` );
+}
+
+process.stderr.write(
+	`[${ slug }] WordPress.org runs this same check. Fix the above before releasing.\n`
+);
+process.exit( 1 );

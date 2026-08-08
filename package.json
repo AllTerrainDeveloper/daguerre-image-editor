@@ -22,7 +22,8 @@
 		"deploy": "node bin/deploy.mjs",
 		"plugin:build": "npm run typecheck && npm run test && npm run build:bundle",
 		"plugin:check": "node bin/plugin-check.mjs",
-		"plugin:package": "npm run plugin:build && node bin/package.mjs"
+		"plugin:package": "npm run plugin:build && node bin/package.mjs",
+		"plugin:release": "npm run plugin:build && npm run plugin:check && node bin/package.mjs"
 	},
 	"devDependencies": {
 		"@wordpress/env": "^10.17.0",

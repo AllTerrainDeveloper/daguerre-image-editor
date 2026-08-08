@@ -10,6 +10,10 @@ node_modules/
 # Release output. Rebuilt by `npm run plugin:package`, so it is never a source of truth.
 /dist/
 
+# Per-machine wp-env overrides. CI writes one to drop the sibling Desktop Mode mapping,
+# which exists only on a development machine -- see .github/workflows/ci.yml.
+/.wp-env.override.json
+
 # assets/js/ is deliberately committed: the plugin must be installable straight from a
 # checkout, without an npm install. Pixi is no longer vendored here; it comes from the
 # Desktop Mode shell at runtime.

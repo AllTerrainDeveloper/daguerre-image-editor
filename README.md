@@ -417,7 +417,14 @@ npm run test:php       # phpunit, @group lienzo
 npm run plugin:build    # typecheck, tests, then both bundles. No deploy, no QA site needed.
 npm run plugin:check    # WordPress's own Plugin Check, the tool the review queue runs
 npm run plugin:package  # dist/lienzo.zip, plus dist/assets/ for the directory art
+npm run plugin:release  # build, then check, then package — the gate. Needs wp-env running.
 ```
+
+`plugin:release` is the one to run before shipping anything: it refuses to produce a
+zip that Plugin Check rejects. `plugin:package` deliberately skips the check so it stays
+usable without Docker, which is also why the two are separate scripts rather than one.
+
+Plugin Check needs a running site, so `npm run env:start` first.
 
 `bin/ships.mjs` is the single list of what belongs in a distributed copy, imported by
 both the local deploy and the packager, because the two answering differently is how a
@@ -439,8 +446,39 @@ would add half a megabyte to every download. `plugin:package` copies it to
 `dist/assets/` so both halves of an SVN commit are ready side by side.
 
 `plugin:check` runs against the repository as wp-env maps it, not the package, so it
-excludes the build tooling explicitly; that list mirrors `bin/ships.mjs` in Plugin
-Check's own form. Unzip the package if you want to see the real tree.
+tells Plugin Check to skip everything that does not ship. That list is *derived* from
+`bin/ships.mjs` at run time rather than written out a second time — ask the packager
+what ships and the two can never disagree. Unzip the package if you want to see the
+real tree. (Checking the packaged tree directly would need `wp-env --config`, which
+arrived in `@wordpress/env` 11; this repo is on 10.)
+
+One thing worth knowing if you ever call Plugin Check yourself: **`wp plugin check`
+exits 0 even when it reports errors.** A deliberate `stable_tag_mismatch` — on its own
+enough to have a submission rejected — prints in full and still exits successfully. So
+`bin/plugin-check.mjs` reads the JSON report and counts findings instead of trusting the
+exit code. A gate wired to that exit code passes every time and catches nothing.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push and PR to `main`:
+
+| Job | What it guards |
+|---|---|
+| `js` | Types, Vitest, and that the committed `assets/` bundles match their source |
+| `php` | PHPUnit and PHPCS, via wp-env |
+| `plugin-check` | The same `npm run plugin:check` that runs locally |
+
+`.wp-env.json` mounts the sibling `../alcazaba-plugin` checkout so the QA site has
+Desktop Mode to host Lienzo. That path does not exist on a runner and wp-env treats a
+missing mapping as fatal, so the wp-env jobs write a `.wp-env.override.json` that
+replaces `mappings` with Lienzo alone. Nothing is lost — the PHPUnit bootstrap stubs the
+two Desktop Mode functions Lienzo requires rather than installing the plugin.
+
+`.github/workflows/release.yml` fires on a `vX.Y.Z` tag: it verifies the tag against all
+four places the version is written, builds, **runs Plugin Check as a hard gate**, creates
+a GitHub Release with the zip attached, and then deploys to WordPress.org. The last step
+needs `SVN_USERNAME` and `SVN_PASSWORD` repository secrets, and cannot succeed until the
+plugin is approved — see below.
 
 ### The first submission
 
