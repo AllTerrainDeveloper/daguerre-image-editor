@@ -30,25 +30,26 @@ import type { ImportTarget } from './layer-import';
  * @param target Editor to add to.
  * @param text   What was typed.
  * @param point  Canvas coordinates of the first line's top-left corner.
+ * @return True when a layer was added.
  */
 export function drawTextLayer(
 	target: ImportTarget,
 	text: string,
 	point: { x: number; y: number }
-): void {
+): boolean {
 	const renderer = target.renderer;
 	const style = target.getTextStyle();
 	const rendered = textCanvas( { text, ...style } );
 
 	if ( ! renderer || ! rendered ) {
-		return;
+		return false;
 	}
 
 	const recipe = target.store.current;
 	const canvas: CanvasSize = recipe.canvas;
 
 	if ( canvas.width < 1 || canvas.height < 1 ) {
-		return;
+		return false;
 	}
 
 	// A layer is positioned by its centre, and the text was placed by the top-left
@@ -60,4 +61,6 @@ export function drawTextLayer(
 
 	renderer.addRasterTexture( layer.id, rendered.canvas );
 	target.store.setLayers( [ ...recipe.layers, layer ], layer.id );
+
+	return true;
 }

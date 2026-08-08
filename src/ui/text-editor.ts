@@ -70,10 +70,33 @@ export class TextEditor {
 	}
 
 	/**
+	 * What a press on the canvas means while the text tool is active.
+	 *
+	 * One press does one thing. Clicking away from a caret finishes the text and stops
+	 * there -- it does not also start the next one, because "I am done writing this" and
+	 * "here is where the next paragraph goes" are two different intentions and a single
+	 * click cannot be both. Typing then clicking away would otherwise leave an empty
+	 * caret sitting wherever you happened to click to get rid of the last one.
+	 *
+	 * Press again and, with nothing being typed, a new caret opens where you clicked.
+	 *
+	 * @param point Canvas coordinates for the top-left of the first line.
+	 */
+	place( point: { x: number; y: number } ): void {
+		if ( this.isEditing ) {
+			this.commit();
+
+			return;
+		}
+
+		this.open( point );
+	}
+
+	/**
 	 * Opens a caret at a point on the canvas.
 	 *
-	 * Anything already being typed is committed first, which is what clicking elsewhere
-	 * with the text tool means in every editor.
+	 * Anything already being typed is committed first, so no caller can end up with two
+	 * carets open at once.
 	 *
 	 * @param point Canvas coordinates for the top-left of the first line.
 	 */

@@ -9419,10 +9419,30 @@ void main( void )
       return this.field !== null;
     }
     /**
+     * What a press on the canvas means while the text tool is active.
+     *
+     * One press does one thing. Clicking away from a caret finishes the text and stops
+     * there -- it does not also start the next one, because "I am done writing this" and
+     * "here is where the next paragraph goes" are two different intentions and a single
+     * click cannot be both. Typing then clicking away would otherwise leave an empty
+     * caret sitting wherever you happened to click to get rid of the last one.
+     *
+     * Press again and, with nothing being typed, a new caret opens where you clicked.
+     *
+     * @param point Canvas coordinates for the top-left of the first line.
+     */
+    place(point) {
+      if (this.isEditing) {
+        this.commit();
+        return;
+      }
+      this.open(point);
+    }
+    /**
      * Opens a caret at a point on the canvas.
      *
-     * Anything already being typed is committed first, which is what clicking elsewhere
-     * with the text tool means in every editor.
+     * Anything already being typed is committed first, so no caller can end up with two
+     * carets open at once.
      *
      * @param point Canvas coordinates for the top-left of the first line.
      */
@@ -10230,7 +10250,9 @@ void main( void )
         pan: (dx, dy) => renderer.view.pan(dx, dy),
         zoomAt: (factor, x, y) => renderer.view.zoomAt(factor, x, y),
         onToolStateChange: () => toolset.optionsBar.render(),
-        onPlaceText: (point) => toolset.text.open(point),
+        // `place()` rather than `open()`: a press that finishes one piece of text
+        // does not also begin the next one.
+        onPlaceText: (point) => toolset.text.place(point),
         // One history entry per stroke, not per dab -- and it carries the tiles the
         // stroke overwrote, so undoing it puts the pixels back rather than
         // restoring an identical recipe and appearing to do nothing.
@@ -10247,7 +10269,12 @@ void main( void )
             italic: brush.italic
           };
         },
-        onCommit: (text, point) => editor.drawText(text, point),
+        onCommit: (text, point) => {
+          if (!editor.drawText(text, point)) {
+            return;
+          }
+          state2.setTool("transform");
+        },
         onStateChange: () => toolset.optionsBar.render()
       }
     });
@@ -10683,12 +10710,12 @@ void main( void )
     const style = target.getTextStyle();
     const rendered = textCanvas({ text, ...style });
     if (!renderer || !rendered) {
-      return;
+      return false;
     }
     const recipe = target.store.current;
     const canvas = recipe.canvas;
     if (canvas.width < 1 || canvas.height < 1) {
-      return;
+      return false;
     }
     const layer = createRasterLayer(textLayerName(text), {
       x: (point.x + rendered.offsetX + rendered.canvas.width / 2) / canvas.width,
@@ -10696,6 +10723,7 @@ void main( void )
     });
     renderer.addRasterTexture(layer.id, rendered.canvas);
     target.store.setLayers([...recipe.layers, layer], layer.id);
+    return true;
   }
   function savedMessage(result, rendered) {
     const downscaled = rendered !== void 0 && result.width > 0 && result.width < rendered;
@@ -11591,9 +11619,10 @@ void main( void )
      *
      * @param text  What was typed.
      * @param point Canvas coordinates of the first line's top-left corner.
+     * @return True when a layer was added.
      */
     drawText(text, point) {
-      drawTextLayer(importTarget(this), text, point);
+      return drawTextLayer(importTarget(this), text, point);
     }
     /**
      * Registers teardown callbacks.

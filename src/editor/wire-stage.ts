@@ -144,7 +144,9 @@ export function buildStageToolset( editor: Editor ): StageToolset {
 			pan: ( dx, dy ) => renderer.view.pan( dx, dy ),
 			zoomAt: ( factor, x, y ) => renderer.view.zoomAt( factor, x, y ),
 			onToolStateChange: () => toolset.optionsBar.render(),
-			onPlaceText: ( point ) => toolset.text.open( point ),
+			// `place()` rather than `open()`: a press that finishes one piece of text
+			// does not also begin the next one.
+			onPlaceText: ( point ) => toolset.text.place( point ),
 			// One history entry per stroke, not per dab -- and it carries the tiles the
 			// stroke overwrote, so undoing it puts the pixels back rather than
 			// restoring an identical recipe and appearing to do nothing.
@@ -162,7 +164,15 @@ export function buildStageToolset( editor: Editor ): StageToolset {
 					italic: brush.italic,
 				};
 			},
-			onCommit: ( text, point ) => editor.drawText( text, point ),
+			onCommit: ( text, point ) => {
+				if ( ! editor.drawText( text, point ) ) {
+					return;
+				}
+
+				// The text arrives as a layer of its own, and what everyone does next is
+				// move it -- so hand the stage to transform, the same way a paste does.
+				state.setTool( 'transform' );
+			},
 			onStateChange: () => toolset.optionsBar.render(),
 		},
 	} );

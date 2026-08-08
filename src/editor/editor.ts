@@ -184,9 +184,10 @@ export class Editor implements EditorInstance {
 	 *
 	 * @param text  What was typed.
 	 * @param point Canvas coordinates of the first line's top-left corner.
+	 * @return True when a layer was added.
 	 */
-	drawText( text: string, point: { x: number; y: number } ): void {
-		drawTextLayer( importTarget( this ), text, point );
+	drawText( text: string, point: { x: number; y: number } ): boolean {
+		return drawTextLayer( importTarget( this ), text, point );
 	}
 
 	/**
